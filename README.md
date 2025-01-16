@@ -1,14 +1,26 @@
-# Project
+# Azure Cosmos DB Client Engine
 
-> This repo has been populated by an initial template to help get you started. Please
-> make sure to update the content to build a great experience for community-building.
+The Azure Cosmos DB Client Engine is a native library, written in Rust, which provides support functionality for Azure Cosmos DB SDKs.
+The primary feature it provides is the Query Engine, which handles fanning out cross-partition queries across individual partitions and aggregating the results.
 
-As the maintainer of this project, please make a few updates:
+This repo contains two main components:
 
-- Improving this README.MD file to provide a great experience
-- Updating SUPPORT.MD with content about this project's support experience
-- Understanding the security reporting process in SECURITY.MD
-- Remove this section from the README
+* The Client Engine itself, which is a Rust project that produces both a standard Rust crate for use in the Azure SDK for Rust, as well as C-compatible shared and static libraries for use in other languages.
+* Client Engine Wrappers for multiple languages. These wrappers handle the packaging and language-specific bindings for the Client Engine and export an API that the Azure Cosmos DB SDK can optionally consume to perform more complicated cross-partition queries.
+
+## Setting up your development environment
+
+The preferred development environment for this repository is a Linux environment, which can include Windows Subsystem for Linux (WSL) version 2.
+The ideal way to configure your environment is to install the [devenv](https://devenv.sh) tool.
+Once you've installed this tool in your environement, you can run `devenv shell` in the root of the repository to prepare an isolated development environment with all the necessary dependencies.
+Alternatively, configure your shell with devenv's [Automatic Shell Activation](https://devenv.sh/automatic-shell-activation/) feature and the development environment will be automatically configured when you change directory in to the repository.
+
+### Manual Setup
+
+If you are unable to use the devenv tool, you will need to install the following dependencies:
+
+* Rust 1.80.0 or later
+* Go 1.23 or later
 
 ## Contributing
 

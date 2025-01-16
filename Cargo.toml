@@ -1,0 +1,5 @@
+[workspace]
+resolver = "2"
+members = ["azure_data_cosmos_client_engine"]
+
+[workspace.dependencies]

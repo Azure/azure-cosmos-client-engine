@@ -1,0 +1,20 @@
+[package]
+name = "azure_data_cosmos_client_engine"
+description = "Azure Cosmos DB Client Engine"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["lib", "cdylib"]
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", features = ["raw_value"] }
+tracing = "0.1.40"
+
+[build-dependencies]
+cbindgen = { version = "0.27.0", optional = true }
+
+[features]
+# Builds the C API
+c_api = ["cbindgen"]
