@@ -10,8 +10,8 @@ This repo contains two main components:
 
 ## Setting up your development environment
 
-The preferred development environment for this repository is a Linux environment, which can include Windows Subsystem for Linux (WSL) version 2.
-The ideal way to configure your environment is to install the [devenv](https://devenv.sh) tool.
+The preferred development environment for this repository is a Linux environment, which includes Windows Subsystem for Linux (WSL) version 2.
+The ideal way to configure your environment is to install the [devenv](https://devenv.sh) tool in your Linux environment.
 Once you've installed this tool in your environement, you can run `devenv shell` in the root of the repository to prepare an isolated development environment with all the necessary dependencies.
 Alternatively, configure your shell with devenv's [Automatic Shell Activation](https://devenv.sh/automatic-shell-activation/) feature and the development environment will be automatically configured when you change directory in to the repository.
 
@@ -21,6 +21,12 @@ If you are unable to use the devenv tool, you will need to install the following
 
 * Rust 1.80.0 or later
 * Go 1.23 or later
+
+## Building
+
+To build the client engine itself, you can run `cargo build` from the root of the repository.
+However, this will only build the client engine's Rust code and will not build the C bindings, nor the `libcosmoscx` library used by other languages.
+Use the `build-driver` script, which is available when you're inside the `devenv shell` environment, to build the client engine and the C bindings.
 
 ## Contributing
 

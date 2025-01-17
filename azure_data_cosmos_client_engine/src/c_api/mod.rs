@@ -4,6 +4,10 @@
 
 use std::ffi::CStr;
 
+mod result;
+
+pub use result::*;
+
 const C_VERSION: &CStr = const {
     // We need a const CStr to return from coscx_version, but env! only returns a &str
     // This all gets interpreted by the compiler at compile time and embedded into the binary
@@ -24,7 +28,19 @@ const C_VERSION: &CStr = const {
     }
 };
 
-/// Returns the version of the Cosmos Client Engine in use
+#[repr(C)]
+pub struct FfiSlice<T: ?Sized> {
+    pub ptr: *const T,
+    pub len: usize,
+    _marker: std::marker::PhantomData<T>,
+}
+
+#[repr(C)]
+pub struct PartitionDescriptor {
+    pub id: FfiSlice<u8>,
+}
+
+/// Returns the version of the Cosmos Client Engine in use.
 #[no_mangle]
 extern "C" fn cosmoscx_version() -> *const std::ffi::c_char {
     C_VERSION.as_ptr()

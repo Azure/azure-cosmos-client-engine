@@ -18,5 +18,5 @@ fn generate_headers() {
         .with_language(cbindgen::Language::C)
         .generate()
         .expect("Unable to generate bindings")
-        .write_to_file(artifacts_dir.join("cosmos_client_engine.h"));
+        .write_to_file(artifacts_dir.join("include").join("cosmoscx.h"));
 }

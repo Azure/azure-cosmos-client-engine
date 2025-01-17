@@ -1,9 +1,0 @@
-#include <stdarg.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdlib.h>
-
-/**
- * Returns the version of the Cosmos Client Engine in use
- */
-const char *cosmoscx_version(void);
