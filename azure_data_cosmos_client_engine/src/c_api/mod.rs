@@ -24,7 +24,7 @@ const C_VERSION: &CStr = const {
 
     match CStr::from_bytes_with_nul(&BYTES) {
         Ok(s) => s,
-        Err(_) => todo!(),
+        Err(_) => panic!("version string contains null bytes"),
     }
 };
 
