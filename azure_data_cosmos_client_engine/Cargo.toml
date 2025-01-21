@@ -8,6 +8,7 @@ edition = "2021"
 crate-type = ["lib", "cdylib", "staticlib"]
 
 [dependencies]
+pyo3 = { version = "0.23.4", optional = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["raw_value"] }
 tracing = "0.1.40"
@@ -17,4 +18,5 @@ cbindgen = { version = "0.27.0", optional = true }
 
 [features]
 # Builds the C API
-c_api = ["cbindgen"]
+c_api = ["dep:cbindgen"]
+python = ["dep:pyo3", "pyo3/extension-module"]

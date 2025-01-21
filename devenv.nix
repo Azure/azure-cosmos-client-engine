@@ -7,13 +7,18 @@
 
   packages = [
     pkgs.git
-    pkgs.clang
+    pkgs.maturin # Used to build Python wheels
+    pkgs.unzip
   ];
   languages.rust = {
     enable = true;
   };
   languages.go = {
     enable = true;
+  };
+  languages.python = {
+    enable = true;
+    venv.enable = true;
   };
 
   scripts.build-driver.exec = ''

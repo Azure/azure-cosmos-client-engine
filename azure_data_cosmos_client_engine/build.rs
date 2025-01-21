@@ -1,5 +1,3 @@
-use std::{env, path::PathBuf};
-
 fn main() {
     #[cfg(feature = "c_api")]
     generate_headers();
@@ -7,6 +5,8 @@ fn main() {
 
 #[cfg(feature = "c_api")]
 fn generate_headers() {
+    use std::{env, path::PathBuf};
+
     let crate_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
     let artifacts_dir = {
         let dir = env::var("ARTIFACTS_DIR").unwrap_or_else(|_| crate_dir.clone());
