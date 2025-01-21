@@ -27,6 +27,46 @@ If you are unable to use the devenv tool, you will need to install the following
 To build the client engine itself, you can run `cargo build` from the root of the repository.
 However, this will only build the client engine's Rust code and will not build the C bindings, nor the `libcosmoscx` library used by other languages.
 Use the `build-driver` script, which is available when you're inside the `devenv shell` environment, to build the client engine and the C bindings.
+This will produce the necessary native libraries and C include files in the `artifacts` directory in the root of the repository.
+It will also compile the Python native module and install it into the virtualenv created by the `devenv` tool.
+
+### Building and testing Go
+
+**After** running `build-driver`, you can test the Go bindings by running `go -C ./go/engine test ./...`.
+If you haven't run `build-driver` yet, the Go tests will fail to compile with an error like this, indicating the `artifacts` directory isn't properly set up:
+
+```
+> go -C ./go/engine test ./...
+?       github.com/Azure/azure-cosmos-client-engine/go/engine   [no test files]
+# github.com/Azure/azure-cosmos-client-engine/go/engine/native
+native/native.go:9:11: fatal error: 'cosmoscx.h' file not found
+    9 |  #include <cosmoscx.h>
+      |           ^~~~~~~~~~~~
+1 error generated.
+FAIL    github.com/Azure/azure-cosmos-client-engine/go/engine/native [build failed]
+FAIL
+```
+
+### Building and testing Python
+
+> [!NOTE]
+> For now, the Python module we create is named `azure_cosmoscx`.
+At some point before release, we may rearrange this so that we create a module named `azure.cosmos.client_engine` instead.
+However, this requires changes to the `azure.cosmos` package (to support being a namespace module), which is in the Azure SDK for Python repository.
+
+**After** running `build-driver`, you can test the Python bindings by running `python -m pytest ./python`.
+If you haven't run `build-driver` yet, the Python tests will fail to compile with an error like this, indicating the Python venv isn't properly set up:
+
+```
+ImportError while importing test module '/home/ashleyst/code/Azure/azure-cosmos-client-engine/python/test/test_engine_version.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/nix/store/kln911id1b6cxcpflzm263s58wa3d7wg-python3-3.12.7-env/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+python/test/test_engine_version.py:2: in <module>
+    import azure_cosmoscx
+E   ModuleNotFoundError: No module named 'azure_cosmoscx'
+```
 
 ## Contributing
 

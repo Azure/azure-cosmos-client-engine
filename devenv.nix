@@ -28,6 +28,8 @@
       cargo_configuration="$CONFIGURATION"
       target_dir="$DEVENV_ROOT/target/$CONFIGURATION"
     fi
+
+    echo "**** Building C API ****"
     cargo build --features c_api --profile $cargo_configuration
 
     if [ ! -d "$ARTIFACTS_DIR/lib" ]; then
@@ -36,6 +38,10 @@
 
     cp $target_dir/libazure_data_cosmos_client_engine.so $ARTIFACTS_DIR/lib/libcosmoscx.so
     cp $target_dir/libazure_data_cosmos_client_engine.a $ARTIFACTS_DIR/lib/libcosmoscx.a
+
+    echo "**** Building Python extension module ****"
+    cd "$DEVENV_ROOT/python"
+    maturin develop
   '';
 
   enterShell = ''
