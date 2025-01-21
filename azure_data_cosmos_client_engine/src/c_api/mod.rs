@@ -4,10 +4,6 @@
 
 use std::ffi::CStr;
 
-mod result;
-
-pub use result::*;
-
 const C_VERSION: &CStr = const {
     // We need a const CStr to return from coscx_version, but env! only returns a &str
     // This all gets interpreted by the compiler at compile time and embedded into the binary
