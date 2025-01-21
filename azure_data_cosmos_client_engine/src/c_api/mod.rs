@@ -28,18 +28,6 @@ const C_VERSION: &CStr = const {
     }
 };
 
-#[repr(C)]
-pub struct FfiSlice<T: ?Sized> {
-    pub ptr: *const T,
-    pub len: usize,
-    _marker: std::marker::PhantomData<T>,
-}
-
-#[repr(C)]
-pub struct PartitionDescriptor {
-    pub id: FfiSlice<u8>,
-}
-
 /// Returns the version of the Cosmos Client Engine in use.
 #[no_mangle]
 extern "C" fn cosmoscx_version() -> *const std::ffi::c_char {
