@@ -15,12 +15,16 @@ The ideal way to configure your environment is to install the [devenv](https://d
 Once you've installed this tool in your environement, you can run `devenv shell` in the root of the repository to prepare an isolated development environment with all the necessary dependencies.
 Alternatively, configure your shell with devenv's [Automatic Shell Activation](https://devenv.sh/automatic-shell-activation/) feature and the development environment will be automatically configured when you change directory in to the repository.
 
+The `devenv` tool also provides instructions on how to use VS Code with your development environment: https://devenv.sh/editor-support/vscode/.
+Once you set that up, Rust, Python, and Go integration should mostly Just Work™.
+
 ### Manual Setup
 
 If you are unable to use the devenv tool, you will need to install the following dependencies:
 
 * Rust 1.80.0 or later
 * Go 1.23 or later
+* Python 3. Using a [virtualenv](https://docs.python.org/3/library/venv.html) is also HIGHLY recommended.
 
 ## Building
 
