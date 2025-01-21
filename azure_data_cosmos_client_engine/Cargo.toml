@@ -1,7 +1,7 @@
 [package]
 name = "azure_data_cosmos_client_engine"
 description = "Azure Cosmos DB Client Engine"
-version = "0.2.0"
+version = "0.1.0"
 edition = "2021"
 
 [lib]
