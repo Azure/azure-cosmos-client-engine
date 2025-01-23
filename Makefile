@@ -70,7 +70,7 @@ engine: engine_c engine_python #/ Builds all versions of the engine
 engine_c: #/ Builds the C API for the engine, producing the shared and static libraries
 	mkdir -p $(artifacts_dir)/lib
 	mkdir -p $(artifacts_dir)/include
-	ARTIFACTS_DIR=$(artifacts_dir) cargo build --package $(crate_name) --features c_api --profile $(cargo_profile) $(cargo_args)
+	COSMOSCX_INCLUDE_DIR=$(artifacts_dir)/include cargo build --package $(crate_name) --features c_api --profile $(cargo_profile) $(cargo_args)
 	cp $(target_dir)/$(compiled_shared_lib_filename) $(artifacts_dir)/lib/$(shared_lib_filename)
 	cp $(target_dir)/$(compiled_static_lib_filename) $(artifacts_dir)/lib/$(static_lib_filename)
 

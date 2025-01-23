@@ -8,9 +8,9 @@ fn generate_headers() {
     use std::{env, path::PathBuf};
 
     let crate_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
-    let artifacts_dir = {
-        let dir = env::var("ARTIFACTS_DIR").unwrap_or_else(|_| crate_dir.clone());
-        PathBuf::from(dir)
+    let Ok(include_dir) = env::var("COSMOSCX_INCLUDE_DIR") else {
+        // Skip generating headers if COSMOSCX_INCLUDE_DIR isn't set.
+        return;
     };
 
     cbindgen::Builder::new()
@@ -18,5 +18,5 @@ fn generate_headers() {
         .with_language(cbindgen::Language::C)
         .generate()
         .expect("Unable to generate bindings")
-        .write_to_file(artifacts_dir.join("include").join("cosmoscx.h"));
+        .write_to_file(PathBuf::from(include_dir).join("cosmoscx.h"));
 }
