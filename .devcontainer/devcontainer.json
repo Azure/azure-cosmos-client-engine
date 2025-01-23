@@ -1,0 +1,13 @@
+{
+	"name": "Azure Cosmos Client Engine Dev Container",
+	"image": "mcr.microsoft.com/devcontainers/rust:1-1-bullseye",
+	"onCreateCommand": "./script/bootstrap",
+	"features": {
+		"ghcr.io/devcontainers/features/azure-cli:1": {},
+		"ghcr.io/devcontainers/features/github-cli:1": {},
+		"ghcr.io/devcontainers/features/go:1": {},
+		"ghcr.io/devcontainers/features/node:1": {},
+		"ghcr.io/devcontainers/features/python:1": {},
+		"ghcr.io/devcontainers/features/sshd:1": {}
+	}
+}

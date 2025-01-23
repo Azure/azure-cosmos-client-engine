@@ -5,7 +5,7 @@
 use std::ffi::CStr;
 
 const C_VERSION: &CStr = const {
-    // We need a const CStr to return from coscx_version, but env! only returns a &str
+    // We need a const CStr to return from cosmoscx_version, but env! only returns a &str
     // This all gets interpreted by the compiler at compile time and embedded into the binary
     const VERSION: &[u8] = env!("CARGO_PKG_VERSION").as_bytes();
     const BYTES: [u8; VERSION.len() + 1] = const {

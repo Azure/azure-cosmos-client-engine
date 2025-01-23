@@ -11,12 +11,7 @@ This repo contains two main components:
 ## Setting up your development environment
 
 The preferred development environment for this repository is a Linux environment, which includes Windows Subsystem for Linux (WSL) version 2.
-The ideal way to configure your environment is to install the [devenv](https://devenv.sh) tool in your Linux environment.
-Once you've installed this tool in your environement, you can run `devenv shell` in the root of the repository to prepare an isolated development environment with all the necessary dependencies.
-Alternatively, configure your shell with devenv's [Automatic Shell Activation](https://devenv.sh/automatic-shell-activation/) feature and the development environment will be automatically configured when you change directory in to the repository.
-
-The `devenv` tool also provides instructions on how to use VS Code with your development environment: https://devenv.sh/editor-support/vscode/.
-Once you set that up, Rust, Python, and Go integration should mostly Just Work™.
+This repo has full support for GitHub Codespaces, and we recommend using it for development, as it will ensure you have an environment that has all the necessary dependencies installed.
 
 ### Manual Setup
 
@@ -24,20 +19,27 @@ If you are unable to use the devenv tool, you will need to install the following
 
 * Rust 1.80.0 or later
 * Go 1.23 or later
-* Python 3. Using a [virtualenv](https://docs.python.org/3/library/venv.html) is also HIGHLY recommended.
+* Python 3, with a virtual environment set up.
+* [Maturin](https://www.maturin.rs/installation) for building the Python extension module.
+* GNU Make (usually available on Linux distributions)
+
+Once you have those dependencies, run `script/bootstrap` to check your dependencies and set up the dev environment.
 
 ## Building
 
-To build the client engine itself, you can run `cargo build` from the root of the repository.
-However, this will only build the client engine's Rust code and will not build the C bindings, nor the `libcosmoscx` library used by other languages.
-Use the `build-driver` script, which is available when you're inside the `devenv shell` environment, to build the client engine and the C bindings.
-This will produce the necessary native libraries and C include files in the `artifacts` directory in the root of the repository.
-It will also compile the Python native module and install it into the virtualenv created by the `devenv` tool.
+While it's possible to build the engine and non-Python bindings without it, we still highly recommend entering the python virtual environment before working in the repo.
+You can do that
+
+We use a `Makefile` to simplify the build process. The `engine` target will build the Client Engine and all of the language bindings.
+
+```bash
+make engine
+```
 
 ### Building and testing Go
 
-**After** running `build-driver`, you can test the Go bindings by running `go -C ./go/engine test ./...`.
-If you haven't run `build-driver` yet, the Go tests will fail to compile with an error like this, indicating the `artifacts` directory isn't properly set up:
+**After** running `make driver`, you can test the Go bindings by running `go -C ./go/engine test ./...`.
+If you haven't run `make driver` yet, the Go tests will fail to compile with an error like this, indicating the `artifacts` directory isn't properly set up:
 
 ```
 > go -C ./go/engine test ./...
@@ -55,11 +57,11 @@ FAIL
 
 > [!NOTE]
 > For now, the Python module we create is named `azure_cosmoscx`.
-At some point before release, we may rearrange this so that we create a module named `azure.cosmos.client_engine` instead.
-However, this requires changes to the `azure.cosmos` package (to support being a namespace module), which is in the Azure SDK for Python repository.
+> At some point before release, we may rearrange this so that we create a module named `azure.cosmos.client_engine` instead.
+> However, this requires changes to the `azure.cosmos` package (to support being a namespace module), which is in the Azure SDK for Python repository.
 
-**After** running `build-driver`, you can test the Python bindings by running `python -m pytest ./python`.
-If you haven't run `build-driver` yet, the Python tests will fail to compile with an error like this, indicating the Python venv isn't properly set up:
+**After** running `make driver`, you can test the Python bindings by running `make test_python`
+If you haven't run `make driver` yet, the Python tests will fail to compile with an error like this, indicating the Python venv isn't properly set up:
 
 ```
 ImportError while importing test module '/home/ashleyst/code/Azure/azure-cosmos-client-engine/python/test/test_engine_version.py'.

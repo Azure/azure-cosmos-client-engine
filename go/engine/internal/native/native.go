@@ -4,8 +4,8 @@ package native
 
 // TODO: We need to evaluate how to distribute the native library itself and how best to link it (static/shared).
 
-// #cgo CFLAGS: -I${SRCDIR}/../../../../artifacts/include
-// #cgo LDFLAGS: -L${SRCDIR}/../../../../artifacts/lib -l:libcosmoscx.a
+// #cgo CFLAGS: -I${SRCDIR}/../../../../artifacts/debug/include
+// #cgo LDFLAGS: -L${SRCDIR}/../../../../artifacts/debug/lib -l:libcosmoscx.a
 // #include <cosmoscx.h>
 import "C"
 
