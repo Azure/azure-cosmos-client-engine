@@ -23,12 +23,15 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 echo "Checking dependencies we don't auto-install..."
+script/check-deps
+
+echo "Python is"
+which python
+echo "that"
 
 echo "Creating and entering virtualenv..."
 python3 -m venv ./.venv
-source ./.venv/bin/activate
-pip install -r ./python/dev-requirements.txt
+./.venv/bin/pip install -r ./python/dev-requirements.txt
 
 echo "Installing Maturin..."
 cargo install --locked maturin
-make prep

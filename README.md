@@ -19,7 +19,7 @@ If you are unable to use the devenv tool, you will need to install the following
 
 * Rust 1.80.0 or later
 * Go 1.23 or later
-* Python 3, with a virtual environment set up.
+* Python 3.13 or later (do not create a virtual environment manually, as the bootstrap script will do this for you)
 * [Maturin](https://www.maturin.rs/installation) for building the Python extension module.
 * GNU Make (usually available on Linux distributions)
 
@@ -28,18 +28,18 @@ Once you have those dependencies, run `script/bootstrap` to check your dependenc
 ## Building
 
 While it's possible to build the engine and non-Python bindings without it, we still highly recommend entering the python virtual environment before working in the repo.
-You can do that
+You can do that by running `source .venv/bin/activate` from the root of the repository after bootstrapping with `script/bootstrap`.
+Alternatively, you can use the [`direnv` tool](https://github.com/direnv/direnv) to automatically activate the virtual environment when you enter the directory.
 
-We use a `Makefile` to simplify the build process. The `engine` target will build the Client Engine and all of the language bindings.
+We use a `Makefile` to simplify the build process. To build the engine and run all tests on language bindings, simply run `make` from the root of the repository.
 
-```bash
-make engine
-```
+You can also run other targets individually.
+Run `make help` to see a list of available targets.
 
 ### Building and testing Go
 
-**After** running `make driver`, you can test the Go bindings by running `go -C ./go/engine test ./...`.
-If you haven't run `make driver` yet, the Go tests will fail to compile with an error like this, indicating the `artifacts` directory isn't properly set up:
+**After** running `make engine`, you can test the Go bindings by running `go -C ./go/engine test ./...`.
+If you haven't run `make engine` yet, the Go tests will fail to compile with an error like this, indicating the `artifacts` directory isn't properly set up:
 
 ```
 > go -C ./go/engine test ./...
@@ -60,8 +60,8 @@ FAIL
 > At some point before release, we may rearrange this so that we create a module named `azure.cosmos.client_engine` instead.
 > However, this requires changes to the `azure.cosmos` package (to support being a namespace module), which is in the Azure SDK for Python repository.
 
-**After** running `make driver`, you can test the Python bindings by running `make test_python`
-If you haven't run `make driver` yet, the Python tests will fail to compile with an error like this, indicating the Python venv isn't properly set up:
+**After** running `make engine`, you can test the Python bindings by running `make test_python`
+If you haven't run `make engine` yet, the Python tests will fail to compile with an error like this, indicating the Python venv isn't properly set up:
 
 ```
 ImportError while importing test module '/home/ashleyst/code/Azure/azure-cosmos-client-engine/python/test/test_engine_version.py'.

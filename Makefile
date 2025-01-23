@@ -1,6 +1,11 @@
 # We don't really use the dependency management in this Makefile much because we have fairly complicated cross-language dependencies.
 # We just hope that most of the tools we invoke can do incremental compilations.
 
+# NOTE: Any line that starts '#/' will appear in the help output when running 'make help'.
+# In addition, any '#/' comment that appears after a target will be used to describe that target in the help output.
+
+#/ Makefile for the Azure Data Cosmos Client Engine
+
 root_dir := $(shell git rev-parse --show-toplevel)
 configuration ?= debug
 target_root ?= $(root_dir)/target
@@ -47,49 +52,58 @@ else
 	cargo_profile = $(configuration)
 endif
 
+# Default target, don't put any targets above this one.
 .PHONY: all
-all: engine test
+all: engine test #/ Builds the engine and runs all tests
+
+.PHONY: help
+help: #/ Show this help
+	@egrep -h '^#/\s' $(MAKEFILE_LIST) | sed -e 's/^#\/\s*//'
+	@echo ""
+	@echo "Targets:"
+	@egrep -h '\s#/\s' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?#/ *"}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
 .PHONY: engine
-engine: engine_c engine_python
+engine: engine_c engine_python #/ Builds all versions of the engine
 
-# Builds the C API for the engine (primarily for Go).
 .PHONY: engine_c
-engine_c:
+engine_c: #/ Builds the C API for the engine, producing the shared and static libraries
 	mkdir -p $(artifacts_dir)/lib
 	mkdir -p $(artifacts_dir)/include
 	ARTIFACTS_DIR=$(artifacts_dir) cargo build --package $(crate_name) --features c_api --profile $(cargo_profile) $(cargo_args)
 	cp $(target_dir)/$(compiled_shared_lib_filename) $(artifacts_dir)/lib/$(shared_lib_filename)
 	cp $(target_dir)/$(compiled_static_lib_filename) $(artifacts_dir)/lib/$(static_lib_filename)
 
-# Builds the Python API for the engine.
 .PHONY: engine_python
-engine_python:
+engine_python: #/ Builds the python extension module for the engine
 	cd "$(root_dir)/python" && maturin develop --profile $(cargo_profile) $(maturin_args)
 
 .PHONY: test
-test: test_go test_python
+test: test_go test_python #/ Runs all language binding tests
 
 .PHONY: test_go
-test_go:
+test_go: #/ Runs the Go language binding tests
 	@echo "Running Go tests..."
 	go -C ./go/engine test ./...
 
 .PHONY: test_python
-test_python: check-venv
+test_python: _check-venv #/ Runs the Python language binding tests
 	@echo "Running Python tests..."
 	python -m pytest ./python
 
-# Maturin wants to be in the venv, and the venv is also the only place we have pytest installed. So check that the venv is active.
-.PHONY: check-venv
-check-venv:
-	@python -c "import sys; exit(1) if sys.prefix == sys.base_prefix else exit(0)" || (echo "Python virtual environment is not activated. Run 'source .venv/bin/activate' to activate it first" && exit 1)
-
 .PHONY: clean
-clean: clean_rust clean_artifacts
+clean: clean_rust clean_artifacts #/ Cleans all build artifacts
 
-clean_rust:
+.PHONY: clean_rust
+clean_rust: #/ Cleans all Rust build artifacts
 	cargo clean --profile $(cargo_profile)
 
-clean_artifacts:
+.PHONY: clean_artifacts
+clean_artifacts: #/ Cleans the artifacts directory, which contains the generated C headers and libraries
 	rm -rf $(artifacts_root)
+
+# "Private" helper targets
+
+.PHONY: _check-venv
+_check-venv:
+	@python -c "import sys; exit(1) if sys.prefix == sys.base_prefix else exit(0)" || (echo "Python virtual environment is not activated. Run 'source .venv/bin/activate' to activate it first" && exit 1)
