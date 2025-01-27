@@ -11,19 +11,18 @@ This repo contains two main components:
 ## Setting up your development environment
 
 The preferred development environment for this repository is a Linux environment, which includes Windows Subsystem for Linux (WSL) version 2.
-This repo has full support for GitHub Codespaces, and we recommend using it for development, as it will ensure you have an environment that has all the necessary dependencies installed.
+This repo has full support for GitHub Codespaces and VS Code Dev Containers, and we recommend using those for development, as they will ensure you have an environment that has all the necessary dependencies installed.
 
 ### Manual Setup
 
-If you are unable to use the devenv tool, you will need to install the following dependencies:
+If you are unable to use a Codespace or Dev Container, you will need to install the following dependencies:
 
 * Rust 1.80.0 or later
 * Go 1.23 or later
 * Python 3.13 or later (do not create a virtual environment manually, as the bootstrap script will do this for you)
-* [Maturin](https://www.maturin.rs/installation) for building the Python extension module.
 * GNU Make (usually available on Linux distributions)
 
-Once you have those dependencies, run `script/bootstrap` to check your dependencies and set up the dev environment.
+Once you have those dependencies, run `script/bootstrap` to check your dependencies, install additional dependencies (such as [Maturin](https://maturin.rs), for building Python modules), and set up the dev environment.
 
 ## Building
 

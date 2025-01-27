@@ -75,7 +75,7 @@ engine_c: #/ Builds the C API for the engine, producing the shared and static li
 	cp $(target_dir)/$(compiled_static_lib_filename) $(artifacts_dir)/lib/$(static_lib_filename)
 
 .PHONY: engine_python
-engine_python: #/ Builds the python extension module for the engine
+engine_python: _check-venv #/ Builds the python extension module for the engine
 	cd "$(root_dir)/python" && maturin develop --profile $(cargo_profile) $(maturin_args)
 
 .PHONY: test

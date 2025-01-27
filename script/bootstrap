@@ -25,11 +25,7 @@ done
 echo "Checking dependencies we don't auto-install..."
 script/check-deps
 
-echo "Python is"
-which python
-echo "that"
-
-echo "Creating and entering virtualenv..."
+echo "Creating virtualenv and installing modules..."
 python3 -m venv ./.venv
 ./.venv/bin/pip install -r ./python/dev-requirements.txt
 

@@ -18,7 +18,7 @@ dynamic = ["version"]
 module-name = "azure_cosmoscx._azure_cosmoscx"
 
 # The path to the crate to build
-manifest-path = "../azure_data_cosmos_client_engine/Cargo.toml"
+manifest-path = "../engine/Cargo.toml"
 
 # Specifies the features to use when building the rust driver
 features = ["python"] 
