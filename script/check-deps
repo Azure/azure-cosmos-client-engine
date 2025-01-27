@@ -3,5 +3,4 @@ type cargo >/dev/null 2>&1 || (echo "cargo is not installed" && exit 1)
 type go >/dev/null 2>&1 || (echo "go is not installed" && exit 1)
 type python >/dev/null 2>&1 || (echo "python is not installed" && exit 1)
 type jq >/dev/null 2>&1 || (echo "jq is not installed" && exit 1)
-type maturin >/dev/null 2>&1 || (echo "maturin is not installed" && exit 1)
 echo "All dependencies are installed"

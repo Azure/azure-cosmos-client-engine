@@ -7,10 +7,19 @@ script_dir=$(dirname "$(readlink -f "$0")")
 cd "$script_dir/.."
 repo_root="$PWD"
 
+venv_bindir="$repo_root/.venv/bin"
+if [ "$OS" = "Windows_NT" ]; then
+    venv_bindir="$repo_root/.venv/Scripts"
+fi
+
+use_pipx=false
 while [[ "$#" -gt 0 ]]; do
     key="$1"
     shift
     case "$key" in
+        --use-pipx)
+            use_pipx=true
+            ;;
         -h|--help) 
             grep '^#/' <"$0" | cut -c4-
             exit 0
@@ -27,7 +36,14 @@ script/check-deps
 
 echo "Creating virtualenv and installing modules..."
 python3 -m venv ./.venv
-./.venv/bin/pip install -r ./python/dev-requirements.txt
+$venv_bindir/pip install -r ./python/dev-requirements.txt
 
 echo "Installing Maturin..."
-cargo install --locked maturin
+if $use_pipx; then
+    pipx install maturin
+else
+    cargo install --locked maturin
+fi
+
+echo "Installing cbindgen..."
+cargo install --locked cbindgen
