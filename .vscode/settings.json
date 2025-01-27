@@ -1,0 +1,4 @@
+{
+    "rust-analyzer.cargo.features": "all",
+    "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python"
+}
