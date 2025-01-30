@@ -1,0 +1,26 @@
+# A Docker compose file that can be used to easily start up the Azure Cosmos Emulator in a container.
+# Not mandatory for development, just a useful utility.
+
+name: "cosmos-support"
+
+services:
+  cosmos-emulator:
+    image: mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:latest
+    container_name: cosmos-emulator
+    ports:
+      - "8081:8081"
+      - "10250:10250"
+      - "10251:10251"
+      - "10252:10252"
+      - "10253:10253"
+      - "10254:10254"
+    environment:
+      AZURE_COSMOS_EMULATOR_ENABLE_DATA_PERSISTENCE: "true"
+      AZURE_COSMOS_EMULATOR_ENABLE_HTTPS: "false"
+    volumes:
+      - type: bind
+        source: .local/cosmos-emulator-data
+        target: /tmp/cosmos/appdata
+volumes:
+  cosmos-emulator-data:
+    driver: local
