@@ -12,10 +12,10 @@ pub struct QueryPlan {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QueryInfo {
-    distinct_type: String,
-    order_by: Vec<SortOrder>,
-    order_by_expressions: Vec<String>,
-    rewritten_query: String,
+    pub distinct_type: String,
+    pub order_by: Vec<SortOrder>,
+    pub order_by_expressions: Vec<String>,
+    pub rewritten_query: String,
 }
 
 #[derive(Deserialize)]
