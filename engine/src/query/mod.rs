@@ -26,9 +26,37 @@ struct PartitionState {
     queue: VecDeque<QueryResult>,
 }
 
+impl PartitionState {
+    pub fn next_data_request(&self) -> Option<DataRequest> {
+        todo!()
+    }
+}
+
 pub struct QueryPipeline {
     partitions: Vec<PartitionState>,
     merge_strategy: MergeStrategy,
+}
+
+/// Describes a request for additional data from the pipeline.
+///
+/// This value is returned when the pipeline needs more data to continue processing.
+/// It contains the information necessary for the caller to make an HTTP request to the Cosmos APIs to fetch the next batch of data.
+pub struct DataRequest {}
+
+/// The response from the query pipeline when requesting the next item.
+pub enum PipelineResponse {
+    /// The pipeline has insufficient data to complete this request.
+    ///
+    /// The receiver should issue all the HTTP requests described by the provided [`DataRequest`]s, provide the results to the pipeline, and then call [`QueryPipeline::next_batch`] again.
+    MoreDataNeeded(Vec<DataRequest>),
+
+    /// The pipeline has produced a batch of query results.
+    ///
+    /// The receiver should return these results to the user.
+    Batch(Vec<QueryResult>),
+
+    /// The pipeline has concluded processing and has no more results to produce.
+    Done,
 }
 
 impl QueryPipeline {
@@ -52,9 +80,33 @@ impl QueryPipeline {
         }
     }
 
-    pub fn next_item(&mut self) -> Result<Option<QueryResult>> {
-        let next_partition = self.merge_strategy.next_partition(&mut self.partitions)?;
-        let next_item = next_partition.and_then(|p| p.queue.pop_front());
-        Ok(next_item)
+    pub fn next_batch(&mut self) -> Result<PipelineResponse> {
+        let mut batch = Vec::new();
+        loop {
+            let item = self.merge_strategy.next_item(&mut self.partitions)?;
+            let Some(item) = item else {
+                // We're done, return our current batch.
+                break;
+            };
+
+            // TODO: "Pull" the item through the query pipeline, once we have one.
+
+            batch.push(item);
+        }
+
+        if batch.is_empty() {
+            let requests = self
+                .partitions
+                .iter()
+                .filter_map(|p| p.next_data_request())
+                .collect::<Vec<_>>();
+            if requests.is_empty() {
+                Ok(PipelineResponse::Done)
+            } else {
+                Ok(PipelineResponse::MoreDataNeeded(requests))
+            }
+        } else {
+            Ok(PipelineResponse::Batch(batch))
+        }
     }
 }
