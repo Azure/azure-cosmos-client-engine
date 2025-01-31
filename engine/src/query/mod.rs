@@ -21,12 +21,60 @@ pub struct PartitionKeyRange {
     max_exclusive: String,
 }
 
+impl PartitionKeyRange {
+    pub fn new(
+        id: impl Into<String>,
+        min_inclusive: impl Into<String>,
+        max_exclusive: impl Into<String>,
+    ) -> Self {
+        Self {
+            id: id.into(),
+            min_inclusive: min_inclusive.into(),
+            max_exclusive: max_exclusive.into(),
+        }
+    }
+}
+
+/// Represents the current stage that a partition is in during the query.
+enum PartitionStage {
+    /// The partition is ready for the first data request. There should be no data in the queue yet.
+    Initial,
+
+    /// The partition has a pending continuation. When the current queue is exhausted, the continuation can be used to fetch more data.
+    Continuing(String),
+
+    /// The partition has been exhausted. When the current queue is exhausted, the partition is done.
+    Done,
+}
+
 struct PartitionState {
     pkrange: PartitionKeyRange,
     queue: VecDeque<QueryResult>,
+    stage: PartitionStage,
 }
 
 impl PartitionState {
+    pub fn new(pkrange: PartitionKeyRange) -> Self {
+        Self {
+            pkrange,
+            queue: VecDeque::new(),
+            stage: PartitionStage::Initial,
+        }
+    }
+
+    pub fn set_stage(&mut self, stage: PartitionStage) {
+        self.stage = stage;
+    }
+
+    /// Returns a boolean indicating if the partition is exhausted (i.e. the queue is empty and the stage is `PartitionStage::Done`, so requesting more data will not produce any new data).
+    pub fn exhausted(&self) -> bool {
+        self.queue.is_empty() && matches!(self.stage, PartitionStage::Done)
+    }
+
+    pub fn enqueue(&mut self, item: QueryResult) {
+        self.queue.push_back(item);
+    }
+
     pub fn next_data_request(&self) -> Option<DataRequest> {
         todo!()
     }
@@ -65,6 +113,7 @@ impl QueryPipeline {
             .map(|r| PartitionState {
                 pkrange: r,
                 queue: VecDeque::new(),
+                stage: PartitionStage::Initial,
             })
             .collect();
 

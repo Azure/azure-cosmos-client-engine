@@ -5,12 +5,14 @@ pub type Result<T> = ::std::result::Result<T, Error>;
 #[derive(Debug, PartialEq, Eq)]
 pub enum ErrorKind {
     QueryPlanInvalid,
+    DeserializationError,
 }
 
 impl Display for ErrorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             ErrorKind::QueryPlanInvalid => write!(f, "query plan is invalid"),
+            ErrorKind::DeserializationError => write!(f, "deserialization error"),
         }
     }
 }
