@@ -1,7 +1,6 @@
 use std::cmp::Ordering;
 
-use super::{PartitionState, SortOrder};
-use crate::Result;
+use super::{PartitionState, PipelineResponse, QueryResult, SortOrder};
 
 pub enum MergeStrategy {
     Ordered(Vec<SortOrder>),
@@ -9,7 +8,10 @@ pub enum MergeStrategy {
 }
 
 impl MergeStrategy {
-    pub fn next_item<'a>(&self, partitions: &'a mut [PartitionState]) -> ! {
+    pub fn next_item<'a>(
+        &self,
+        partitions: &'a mut [PartitionState],
+    ) -> crate::Result<Option<QueryResult>> {
         let mut next_partition = None;
         for partition in partitions {
             if partition.queue.is_empty() {
@@ -28,14 +30,14 @@ impl MergeStrategy {
             }
         }
 
-        todo!("Return batch of next items, or request for more data, or completion")
+        Ok(next_partition.and_then(|p| p.queue.pop_front()))
     }
 
     fn compare_partitions(
         &self,
         left: &PartitionState,
         right: &PartitionState,
-    ) -> Result<Ordering> {
+    ) -> crate::Result<Ordering> {
         match self {
             MergeStrategy::Unordered => {
                 Ok(left.pkrange.min_inclusive.cmp(&right.pkrange.min_inclusive))
