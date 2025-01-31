@@ -21,6 +21,18 @@ pub struct QueryResult {
 }
 
 impl QueryResult {
+    pub fn new(
+        group_by_items: Vec<QueryClauseItem>,
+        order_by_items: Vec<QueryClauseItem>,
+        payload: Box<serde_json::value::RawValue>,
+    ) -> Self {
+        Self {
+            group_by_items,
+            order_by_items,
+            payload,
+        }
+    }
+
     /// Creates a [`QueryResult`] from a raw payload.
     ///
     /// This constructor is used when we've identified that the _projections_ of the query haven't been rewritten by the query planner.
