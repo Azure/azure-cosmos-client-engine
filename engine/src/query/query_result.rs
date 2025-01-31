@@ -1,4 +1,4 @@
-use serde::{Deserialize, Deserializer};
+use serde::{de::DeserializeOwned, Deserialize, Deserializer};
 
 use crate::ErrorKind;
 
@@ -31,7 +31,7 @@ impl QueryResult {
         Self {
             group_by_items: Vec::new(),
             order_by_items: Vec::new(),
-            payload,
+            payload: payload.into(),
         }
     }
 
@@ -73,6 +73,15 @@ impl QueryResult {
 
         // The values are equal. Our caller will have to pick a tiebreaker.
         Ok(std::cmp::Ordering::Equal)
+    }
+
+    pub fn payload(&self) -> &serde_json::value::RawValue {
+        &self.payload
+    }
+
+    pub fn payload_into<T: DeserializeOwned>(&self) -> crate::Result<T> {
+        let payload = self.payload.get();
+        serde_json::from_str(payload).map_err(|e| ErrorKind::DeserializationError.with_source(e))
     }
 }
 
