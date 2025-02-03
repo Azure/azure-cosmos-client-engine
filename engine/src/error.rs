@@ -18,6 +18,11 @@ pub enum ErrorKind {
     ///
     /// The error is not recoverable and indicates a bug in the language binding or backend, since it should not be possible to specify a partition key range ID that is not known.
     UnknownPartitionKeyRange,
+
+    /// Indicates an internal error in the query pipeline.
+    ///
+    /// This error is not recoverable, and indicates a bug in the client engine. We return this error only to allow the calling SDK to log the error and report it to the user.
+    InternalError,
 }
 
 impl Display for ErrorKind {
@@ -26,6 +31,7 @@ impl Display for ErrorKind {
             ErrorKind::QueryPlanInvalid => write!(f, "query plan is invalid"),
             ErrorKind::DeserializationError => write!(f, "deserialization error"),
             ErrorKind::UnknownPartitionKeyRange => write!(f, "unknown partition key range"),
+            ErrorKind::InternalError => write!(f, "internal client engine error"),
         }
     }
 }

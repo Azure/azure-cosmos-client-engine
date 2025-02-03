@@ -11,10 +11,19 @@ pub struct QueryPlan {
     // TODO: hybridSearchQueryInfo
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
+pub enum DistinctType {
+    #[default]
+    None,
+}
+
+#[derive(Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct QueryInfo {
-    pub distinct_type: Cow<'static, str>,
+    pub distinct_type: DistinctType,
+    pub top: Option<u64>,
+    pub offset: Option<u64>,
+    pub limit: Option<u64>,
     pub order_by: Vec<SortOrder>,
     pub order_by_expressions: Vec<String>,
     pub rewritten_query: Cow<'static, str>,
