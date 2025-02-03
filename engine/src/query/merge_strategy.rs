@@ -24,6 +24,11 @@ impl MergeStrategy {
     ) -> crate::Result<Option<QueryResult>> {
         let mut next_partition = None;
         for partition in partitions {
+            // If any partition hasn't started, we can't return any items.
+            if !partition.has_started() {
+                return Ok(None);
+            }
+
             if partition.exhausted() {
                 continue;
             }
@@ -93,7 +98,7 @@ mod tests {
     use serde::{Deserialize, Serialize};
     use serde_json::json;
 
-    use crate::query::{PartitionKeyRange, PartitionStage, PartitionState, QueryResult};
+    use crate::query::{PartitionKeyRange, PartitionState, QueryResult};
 
     use super::*;
 
@@ -114,16 +119,16 @@ mod tests {
         }
     }
 
-    fn queue_item(
-        partition: &mut PartitionState,
+    fn create_item(
+        pkrange_id: &str,
         id: impl Into<String>,
         order_by_items: Vec<serde_json::Value>,
-    ) {
+    ) -> QueryResult {
         let id = id.into();
         let item = Item::new(
             id.clone(),
-            partition.pkrange.id.clone(),
-            format!("{} / {}", partition.pkrange.id, id),
+            pkrange_id.to_string(),
+            format!("{} / {}", pkrange_id, id),
         );
         let s = serde_json::to_string(&item).unwrap();
         let raw = serde_json::value::RawValue::from_string(s).unwrap();
@@ -131,8 +136,7 @@ mod tests {
             .into_iter()
             .map(|value| serde_json::from_value(value).unwrap())
             .collect();
-        let result = QueryResult::new(vec![], order_by_items, raw);
-        partition.enqueue(result);
+        QueryResult::new(vec![], order_by_items, raw)
     }
 
     fn drain_partitions<'a>(
@@ -156,15 +160,13 @@ mod tests {
         ) {
             // NOTE: A PKRange ID is NOT the same as a partition key, but in our testing it can serve that purpose.
 
+            let mut items = Vec::new();
             for i in 0..count {
                 let id = format!("item{}", start_id + i);
-                queue_item(partition, id, Vec::new());
+                items.push(create_item(&partition.pkrange.id, id, Vec::new()));
             }
 
-            match continuation {
-                Some(c) => partition.set_stage(PartitionStage::Continuing(c)),
-                None => partition.set_stage(PartitionStage::Done),
-            };
+            partition.extend(items, continuation);
         }
 
         let mut partitions = vec![
@@ -238,56 +240,60 @@ mod tests {
             PartitionState::new(PartitionKeyRange::new("partition1", "99", "FF")),
         ];
 
+        let p0items = vec![
+            create_item(
+                &partitions[0].pkrange.id,
+                "item0",
+                vec![json!({"item": 1}), json!({"item": "aaaa"})],
+            ),
+            create_item(
+                &partitions[0].pkrange.id,
+                "item1",
+                vec![json!({"item": 2}), json!({"item": "yyyy"})],
+            ),
+            create_item(
+                &partitions[0].pkrange.id,
+                "item2",
+                vec![json!({"item": 6}), json!({"item": "zzzz"})],
+            ),
+        ];
+
+        let p1items = vec![
+            create_item(
+                &partitions[1].pkrange.id,
+                "item0",
+                vec![json!({"item": 1}), json!({"item": "zzzz"})],
+            ),
+            create_item(
+                &partitions[1].pkrange.id,
+                "item1",
+                vec![json!({"item": 2}), json!({"item": "bbbb"})],
+            ),
+            create_item(
+                &partitions[1].pkrange.id,
+                "item2",
+                vec![json!({"item": 3}), json!({"item": "zzzz"})],
+            ),
+            create_item(
+                &partitions[1].pkrange.id,
+                "item3",
+                vec![json!({"item": 7}), json!({"item": "zzzz"})],
+            ),
+            create_item(
+                &partitions[1].pkrange.id,
+                "item4",
+                vec![json!({"item": 8}), json!({"item": "zzzz"})],
+            ),
+            create_item(
+                &partitions[1].pkrange.id,
+                "item5",
+                vec![json!({"item": 9}), json!({"item": "zzzz"})],
+            ),
+        ];
+
         // Set both partitions as "continuing".
-        partitions[0].set_stage(PartitionStage::Continuing("p0c0".to_string()));
-        partitions[1].set_stage(PartitionStage::Continuing("p1c0".to_string()));
-
-        queue_item(
-            &mut partitions[0],
-            "item0",
-            vec![json!({"item": 1}), json!({"item": "aaaa"})],
-        );
-        queue_item(
-            &mut partitions[0],
-            "item1",
-            vec![json!({"item": 2}), json!({"item": "yyyy"})],
-        );
-        queue_item(
-            &mut partitions[0],
-            "item2",
-            vec![json!({"item": 6}), json!({"item": "zzzz"})],
-        );
-
-        queue_item(
-            &mut partitions[1],
-            "item0",
-            vec![json!({"item": 1}), json!({"item": "zzzz"})],
-        );
-        queue_item(
-            &mut partitions[1],
-            "item1",
-            vec![json!({"item": 2}), json!({"item": "bbbb"})],
-        );
-        queue_item(
-            &mut partitions[1],
-            "item2",
-            vec![json!({"item": 3}), json!({"item": "zzzz"})],
-        );
-        queue_item(
-            &mut partitions[1],
-            "item3",
-            vec![json!({"item": 7}), json!({"item": "zzzz"})],
-        );
-        queue_item(
-            &mut partitions[1],
-            "item4",
-            vec![json!({"item": 8}), json!({"item": "zzzz"})],
-        );
-        queue_item(
-            &mut partitions[1],
-            "item5",
-            vec![json!({"item": 9}), json!({"item": "zzzz"})],
-        );
+        partitions[0].extend(p0items, Some("p0c0".to_string()));
+        partitions[1].extend(p1items, Some("p1c0".to_string()));
 
         // We should stop once any partition's queue is empty.
         let items = drain_partitions(&strategy, &mut partitions)?;
@@ -304,7 +310,7 @@ mod tests {
         );
 
         // Mark partition 0 as done, with no additional data provided
-        partitions[0].set_stage(PartitionStage::Done);
+        partitions[0].extend(vec![], None);
 
         // We should get the rest of partition1's items.
         let items = drain_partitions(&strategy, &mut partitions)?;

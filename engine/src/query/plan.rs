@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -12,10 +14,10 @@ pub struct QueryPlan {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QueryInfo {
-    pub distinct_type: String,
+    pub distinct_type: Cow<'static, str>,
     pub order_by: Vec<SortOrder>,
     pub order_by_expressions: Vec<String>,
-    pub rewritten_query: String,
+    pub rewritten_query: Cow<'static, str>,
 }
 
 #[derive(Deserialize)]
@@ -27,8 +29,8 @@ pub enum SortOrder {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QueryRange {
-    pub min: String,
-    pub max: String,
+    pub min: Cow<'static, str>,
+    pub max: Cow<'static, str>,
     pub is_min_inclusive: bool,
     pub is_max_inclusive: bool,
 }
