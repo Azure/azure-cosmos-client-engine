@@ -4,8 +4,20 @@ pub type Result<T> = ::std::result::Result<T, Error>;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum ErrorKind {
+    /// Indicates that the query plan is invalid.
+    ///
+    /// This error is not recoverable and indicates a bug in the query planner (which is in the backend).
     QueryPlanInvalid,
+
+    /// Indicates a deserialization failure, the details of which should be available in [`Error::source`].
+    ///
+    /// This error is not recoverable and indicates a bug in the Gateway, as it should not be possible to receive a response that cannot be deserialized.
     DeserializationError,
+
+    /// Indicates that a call specified a partition key range ID that is not known to the query pipeline.
+    ///
+    /// The error is not recoverable and indicates a bug in the language binding or backend, since it should not be possible to specify a partition key range ID that is not known.
+    UnknownPartitionKeyRange,
 }
 
 impl Display for ErrorKind {
@@ -13,6 +25,7 @@ impl Display for ErrorKind {
         match self {
             ErrorKind::QueryPlanInvalid => write!(f, "query plan is invalid"),
             ErrorKind::DeserializationError => write!(f, "deserialization error"),
+            ErrorKind::UnknownPartitionKeyRange => write!(f, "unknown partition key range"),
         }
     }
 }
