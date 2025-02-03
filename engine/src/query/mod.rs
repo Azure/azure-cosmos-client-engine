@@ -1,15 +1,14 @@
-use std::{
-    borrow::Cow,
-    collections::{BTreeMap, VecDeque},
-};
+use std::borrow::Cow;
 
+use node::{LimitPipelineNode, PipelineNode, PipelineResult, PipelineSlice};
 use serde::Deserialize;
 
-mod merge_strategy;
+pub mod node;
 mod plan;
+mod producer;
 mod query_result;
 
-use merge_strategy::MergeStrategy;
+use producer::{ItemProducer, MergeStrategy};
 
 pub use plan::{QueryInfo, QueryPlan, QueryRange, SortOrder};
 pub use query_result::{QueryClauseItem, QueryResult};
@@ -44,78 +43,6 @@ impl PartitionKeyRange {
             min_inclusive: min_inclusive.into(),
             max_exclusive: max_exclusive.into(),
         }
-    }
-}
-
-/// Represents the current stage that a partition is in during the query.
-enum PartitionStage {
-    /// The partition is ready for the first data request. There should be no data in the queue yet.
-    Initial,
-
-    /// The partition has a pending continuation. When the current queue is exhausted, the continuation can be used to fetch more data.
-    Continuing(String),
-
-    /// The partition has been exhausted. When the current queue is exhausted, the partition is done.
-    Done,
-}
-
-struct PartitionState {
-    pkrange: PartitionKeyRange,
-    queue: VecDeque<QueryResult>,
-    stage: PartitionStage,
-}
-
-impl PartitionState {
-    pub fn new(pkrange: PartitionKeyRange) -> Self {
-        Self {
-            pkrange,
-            queue: VecDeque::new(),
-            stage: PartitionStage::Initial,
-        }
-    }
-
-    /// Returns a boolean indicating if the partition is exhausted (i.e. the queue is empty and the stage is `PartitionStage::Done`, so requesting more data will not produce any new data).
-    pub fn exhausted(&self) -> bool {
-        self.queue.is_empty() && matches!(self.stage, PartitionStage::Done)
-    }
-
-    pub fn enqueue(&mut self, item: QueryResult) {
-        self.queue.push_back(item);
-    }
-
-    pub fn extend(
-        &mut self,
-        item: impl IntoIterator<Item = QueryResult>,
-        continuation: Option<String>,
-    ) {
-        self.queue.extend(item);
-        self.stage = continuation.map_or_else(
-            || PartitionStage::Done,
-            |token| PartitionStage::Continuing(token),
-        );
-    }
-
-    pub fn next_data_request(&self) -> Option<DataRequest> {
-        // If the queue is not empty, we don't need to request more data.
-        if !self.queue.is_empty() {
-            return None;
-        }
-
-        match &self.stage {
-            PartitionStage::Initial => Some(DataRequest {
-                pkrange_id: self.pkrange.id.clone().into(),
-                continuation: None,
-            }),
-            PartitionStage::Continuing(token) => Some(DataRequest {
-                pkrange_id: self.pkrange.id.clone().into(),
-                continuation: Some(token.clone()),
-            }),
-            PartitionStage::Done => None,
-        }
-    }
-
-    pub fn has_started(&self) -> bool {
-        !matches!(self.stage, PartitionStage::Initial)
     }
 }
 
@@ -159,8 +86,11 @@ pub enum PipelineResponse {
 
 pub struct QueryPipeline {
     query: Query,
-    partitions: Vec<PartitionState>,
-    merge_strategy: MergeStrategy,
+    pipeline: Vec<Box<dyn PipelineNode>>,
+    producer: ItemProducer,
+
+    // Indicates if the pipeline has been terminated early.
+    terminated: bool,
 }
 
 impl QueryPipeline {
@@ -175,25 +105,25 @@ impl QueryPipeline {
         plan: QueryPlan,
         pkranges: impl IntoIterator<Item = PartitionKeyRange>,
     ) -> Self {
-        let partitions = pkranges
-            .into_iter()
-            .map(|r| PartitionState {
-                pkrange: r,
-                queue: VecDeque::new(),
-                stage: PartitionStage::Initial,
-            })
-            .collect();
-
         let merge_strategy = if plan.query_info.order_by.is_empty() {
             MergeStrategy::Unordered
         } else {
             MergeStrategy::Ordered(plan.query_info.order_by)
         };
 
+        let producer = ItemProducer::new(pkranges, merge_strategy);
+
+        let mut pipeline: Vec<Box<dyn PipelineNode>> = Vec::new();
+
+        if let Some(limit) = plan.query_info.limit {
+            pipeline.push(Box::new(LimitPipelineNode::new(limit)));
+        }
+
         Self {
             query,
-            partitions,
-            merge_strategy,
+            pipeline,
+            producer,
+            terminated: false,
         }
     }
 
@@ -203,38 +133,36 @@ impl QueryPipeline {
         data: Vec<QueryResult>,
         continuation: Option<String>,
     ) -> crate::Result<()> {
-        // We currently store partitions as a Vec, so we need to search to find the partition to update.
-        // The number of PK ranges is expected to be "small" (certainly compared to the item count), so this is not a performance concern right now.
-        // If it becomes a concern, we can use a BTreeMap keyed by PK range ID (this has some, solvable, implications to the merge strategy, which is why we haven't done it yet).
-        let partition = self
-            .partitions
-            .iter_mut()
-            .find(|p| p.pkrange.id == pkrange_id)
-            .ok_or_else(|| {
-                ErrorKind::UnknownPartitionKeyRange
-                    .with_message(format!("unknown partition key range ID: {}", pkrange_id))
-            })?;
-
-        partition.extend(data, continuation);
-
-        Ok(())
+        self.producer.provide_data(pkrange_id, data, continuation)
     }
 
     /// Advances the pipeline to the next batch of results.
     ///
     /// This method will return a [`PipelineResponse`] that describes the next action to take.
     pub fn next_batch(&mut self) -> crate::Result<PipelineResponse> {
-        // TODO: Run each item through a pipeline
-        let item_iter = self.merge_strategy.item_iter(&mut self.partitions);
-        let batch = item_iter.collect::<crate::Result<Vec<_>>>()?;
+        if self.terminated {
+            return Ok(PipelineResponse::Done);
+        }
+
+        let mut slice = PipelineSlice::new(&mut self.pipeline, &mut self.producer);
+
+        let mut batch = Vec::new();
+        loop {
+            match slice.next_item()? {
+                PipelineResult::Result(item) => batch.push(item),
+                PipelineResult::EarlyTermination => {
+                    self.terminated = true;
+
+                    // We still need to emit any items in this batch.
+                    break;
+                }
+                PipelineResult::NoResult => break,
+            }
+        }
 
         if batch.is_empty() {
             // If there are no items in the batch, we need to request more data.
-            let requests = self
-                .partitions
-                .iter()
-                .filter_map(|p| p.next_data_request())
-                .collect::<Vec<_>>();
+            let requests = self.producer.data_requests();
 
             // If there were no outstanding requests, then we are done.
             if requests.is_empty() {
@@ -317,15 +245,10 @@ mod test {
             .collect()
     }
 
-    fn create_pipeline() -> QueryPipeline {
+    fn create_pipeline(query_info: Option<QueryInfo>) -> QueryPipeline {
         let plan = QueryPlan {
             partitioned_query_execution_info_version: 1,
-            query_info: QueryInfo {
-                distinct_type: "None".into(),
-                order_by: vec![],
-                order_by_expressions: vec![],
-                rewritten_query: "".into(),
-            },
+            query_info: query_info.unwrap_or_default(),
             query_ranges: vec![],
         };
         let query = Query {
@@ -350,13 +273,77 @@ mod test {
             .collect::<Result<Vec<Item>, _>>()
     }
 
-    // We're making a tactical choice here not to test _every_ possible permutation of the pipeline here.
-    // The Merge Strategy is well tested, and each node type will be tested in isolation.
-    // Here, we're largely testing the batching, orchestration (running items through the pipeline), state management, and pipeline construction logic.
+    // We do most of our testing here, because this is what the user will interact with.
+    // The one exception is the merge strategies, which are tested in the producer module.
 
     #[test]
     pub fn next_batch_no_nodes() -> Result<(), Box<dyn std::error::Error>> {
-        let mut pipeline = create_pipeline();
+        let mut pipeline = create_pipeline(None);
+
+        // First call should ask for more data from all partitions
+        let requests =
+            assert_match!(pipeline.next_batch()?, PipelineResponse::MoreDataNeeded(e) => e);
+        assert_eq!(
+            vec![
+                DataRequest::new("partition0", None),
+                DataRequest::new("partition1", None),
+            ],
+            requests
+        );
+
+        // Now insert some data, and a continuation token for each partition.
+        pipeline.provide_data(
+            "partition0",
+            create_items("partition0", 0, 3),
+            Some("p1c0".into()),
+        )?;
+        pipeline.provide_data(
+            "partition1",
+            create_items("partition1", 0, 3),
+            Some("p1c0".into()),
+        )?;
+
+        // We should get a single batch with only the items in partition 0, but none from partition 1 (because there may be more data in partition 0)
+        let batch = drain_pipeline(&mut pipeline)?;
+        assert_eq!(
+            vec![
+                Item::new("item0", "partition0", "partition0 / item0"),
+                Item::new("item1", "partition0", "partition0 / item1"),
+                Item::new("item2", "partition0", "partition0 / item2"),
+            ],
+            batch
+        );
+
+        // We can now add some more data for partition 0, but mark it done.
+        pipeline.provide_data("partition0", create_items("partition0", 3, 3), None)?;
+
+        // Now we should get all the remaining data from partition 0, and the items from partition 1.
+        let batch = drain_pipeline(&mut pipeline)?;
+        assert_eq!(
+            vec![
+                Item::new("item3", "partition0", "partition0 / item3"),
+                Item::new("item4", "partition0", "partition0 / item4"),
+                Item::new("item5", "partition0", "partition0 / item5"),
+                Item::new("item0", "partition1", "partition1 / item0"),
+                Item::new("item1", "partition1", "partition1 / item1"),
+                Item::new("item2", "partition1", "partition1 / item2"),
+            ],
+            batch
+        );
+
+        // Completing partition 1 should complete the entire pipeline.
+        pipeline.provide_data("partition1", vec![], None)?;
+        assert_match!(pipeline.next_batch()?, PipelineResponse::Done);
+
+        Ok(())
+    }
+
+    #[test]
+    pub fn next_batch_with_limit() -> Result<(), Box<dyn std::error::Error>> {
+        let mut pipeline = create_pipeline(Some(QueryInfo {
+            top: Some(7), // All items in p0, one item from p1
+            ..Default::default()
+        }));
 
         // First call should ask for more data from all partitions
         let requests =
