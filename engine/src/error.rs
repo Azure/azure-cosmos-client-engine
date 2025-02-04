@@ -23,6 +23,14 @@ pub enum ErrorKind {
     ///
     /// This error is not recoverable, and indicates a bug in the client engine. We return this error only to allow the calling SDK to log the error and report it to the user.
     InternalError,
+
+    /// Indicates that the query plan requires features that are not supported by the query engine.
+    ///
+    /// This error is not recoverable, and should be very rare (or even impossible).
+    /// The [`SUPPORTED_FEATURES_STRING`](crate::query::SUPPORTED_FEATURES_STRING) constant reports the features supported by the engine, and the language binding must provide that information to the gateway when generating a query plan.
+    /// The gateway will return an error if the query requires features not listed in the supported features.
+    /// We provide this error to cover cases where the language binding is incorrectly reporting the supported features, or edge cases where the engine is not correctly reporting the features it supports.
+    UnsupportedQueryPlan,
 }
 
 impl Display for ErrorKind {
@@ -32,6 +40,7 @@ impl Display for ErrorKind {
             ErrorKind::DeserializationError => write!(f, "deserialization error"),
             ErrorKind::UnknownPartitionKeyRange => write!(f, "unknown partition key range"),
             ErrorKind::InternalError => write!(f, "internal client engine error"),
+            ErrorKind::UnsupportedQueryPlan => write!(f, "unsupported query plan"),
         }
     }
 }

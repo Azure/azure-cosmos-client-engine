@@ -11,6 +11,7 @@ use super::SortOrder;
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QueryResult<T = Box<serde_json::value::RawValue>> {
+    #[allow(dead_code)]
     #[serde(default)]
     group_by_items: Vec<QueryClauseItem>,
 

@@ -1,3 +1,6 @@
+// Warnings are errors when building on CI.
+#![cfg_attr(not(debug_assertions), deny(warnings))]
+
 #[cfg(feature = "c_api")]
 pub mod c_api;
 
