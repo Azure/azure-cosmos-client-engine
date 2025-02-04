@@ -68,7 +68,7 @@ pub fn unordered_query() -> Result<(), Box<dyn std::error::Error>> {
             query_info: Default::default(),
             query_ranges: Vec::new(),
         },
-        Some(3),
+        3,
     );
 
     let results = engine.execute()?;

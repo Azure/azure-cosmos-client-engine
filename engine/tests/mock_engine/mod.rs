@@ -11,8 +11,6 @@ use azure_data_cosmos_client_engine::query::{
     PartitionKeyRange, PipelineResponse, QueryPipeline, QueryPlan, QueryResult,
 };
 
-pub const DEFAULT_PAGE_SIZE: usize = 10;
-
 pub struct Engine<T> {
     container: Container<T>,
     pipeline: QueryPipeline<T>,
@@ -20,8 +18,23 @@ pub struct Engine<T> {
 }
 
 impl<T: Clone> Engine<T> {
-    pub fn new(container: Container<T>, plan: QueryPlan, request_page_size: Option<usize>) -> Self {
-        let request_page_size = request_page_size.unwrap_or(DEFAULT_PAGE_SIZE);
+    /// Creates a new engine with the given container and query plan.
+    ///
+    /// # Parameters
+    ///
+    /// * `container` - The container to query.
+    /// * `plan` - The query plan to execute.
+    /// * `request_page_size` - Limits the number of items returned in each page of results when querying a partition, see pagination below.
+    ///
+    /// # Pagination
+    ///
+    /// NOTE: The `request_page_size` parameter does NOT guarantee that results will be returned in pages of that size.
+    /// It only limits the number of items returned in each page of results when querying EACH PARTITION.
+    /// So if a two partitions have `request_page_size` items, and can be fully merged and returned without requesting more data, the result will contain `2 * request_page_size` items.
+    /// Or, if fewer than `request_page_size` items can be emitted before needing to request more data, the result will contain fewer items.
+    ///
+    /// It's up to language bindings to handle pagination and buffer data as needed.
+    pub fn new(container: Container<T>, plan: QueryPlan, request_page_size: usize) -> Self {
         let partitions = container
             .partitions
             .keys()
