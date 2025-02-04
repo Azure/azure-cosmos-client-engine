@@ -52,8 +52,8 @@ impl PartitionKeyRange {
 /// It contains the information necessary for the caller to make an HTTP request to the Cosmos APIs to fetch the next batch of data.
 #[derive(Debug, PartialEq, Eq)]
 pub struct DataRequest {
-    pkrange_id: Cow<'static, str>,
-    continuation: Option<String>,
+    pub pkrange_id: Cow<'static, str>,
+    pub continuation: Option<String>,
 }
 
 impl DataRequest {
@@ -67,7 +67,7 @@ impl DataRequest {
 
 /// The response from the query pipeline when requesting the next item.
 #[derive(Debug)]
-pub enum PipelineResponse {
+pub enum PipelineResponse<T> {
     // We could probably collapse these a bit, since often more data will be needed after a batch is provided.
     // But for now, we're keeping them separate to keep things clear and simple. Optimization can come later and be done without impacting language SDKs.
     /// The pipeline has insufficient data to complete this request.
@@ -78,33 +78,28 @@ pub enum PipelineResponse {
     /// The pipeline has produced a batch of query results.
     ///
     /// The receiver should return these results to the user.
-    Batch(Vec<QueryResult>),
+    Batch(Vec<T>),
 
     /// The pipeline has concluded processing and has no more results to produce.
     Done,
 }
 
-pub struct QueryPipeline {
-    query: Query,
-    pipeline: Vec<Box<dyn PipelineNode>>,
-    producer: ItemProducer,
+pub struct QueryPipeline<T> {
+    pipeline: Vec<Box<dyn PipelineNode<T>>>,
+    producer: ItemProducer<T>,
 
     // Indicates if the pipeline has been terminated early.
     terminated: bool,
 }
 
-impl QueryPipeline {
+impl<T> QueryPipeline<T> {
     /// Creates a new query pipeline.
     ///
     /// # Parameters
     /// * `query` - The ORIGINAL query specified by the user. If the [`QueryPlan`] has a `rewritten_query`, the pipeline will handle rewriting it.
     /// * `plan` - The query plan that describes how to execute the query.
     /// * `pkranges` - An iterator that produces the [`PartitionKeyRange`]s that the query will be executed against.
-    pub fn new(
-        query: Query,
-        plan: QueryPlan,
-        pkranges: impl IntoIterator<Item = PartitionKeyRange>,
-    ) -> Self {
+    pub fn new(plan: QueryPlan, pkranges: impl IntoIterator<Item = PartitionKeyRange>) -> Self {
         let merge_strategy = if plan.query_info.order_by.is_empty() {
             MergeStrategy::Unordered
         } else {
@@ -113,14 +108,13 @@ impl QueryPipeline {
 
         let producer = ItemProducer::new(pkranges, merge_strategy);
 
-        let mut pipeline: Vec<Box<dyn PipelineNode>> = Vec::new();
+        let mut pipeline: Vec<Box<dyn PipelineNode<T>>> = Vec::new();
 
         if let Some(limit) = plan.query_info.limit {
             pipeline.push(Box::new(LimitPipelineNode::new(limit)));
         }
 
         Self {
-            query,
             pipeline,
             producer,
             terminated: false,
@@ -130,7 +124,7 @@ impl QueryPipeline {
     pub fn provide_data(
         &mut self,
         pkrange_id: &str,
-        data: Vec<QueryResult>,
+        data: Vec<QueryResult<T>>,
         continuation: Option<String>,
     ) -> crate::Result<()> {
         self.producer.provide_data(pkrange_id, data, continuation)
@@ -139,7 +133,7 @@ impl QueryPipeline {
     /// Advances the pipeline to the next batch of results.
     ///
     /// This method will return a [`PipelineResponse`] that describes the next action to take.
-    pub fn next_batch(&mut self) -> crate::Result<PipelineResponse> {
+    pub fn next_batch(&mut self) -> crate::Result<PipelineResponse<T>> {
         if self.terminated {
             return Ok(PipelineResponse::Done);
         }
@@ -149,7 +143,7 @@ impl QueryPipeline {
         let mut batch = Vec::new();
         loop {
             match slice.next_item()? {
-                PipelineResult::Result(item) => batch.push(item),
+                PipelineResult::Result(item) => batch.push(item.into_payload()),
                 PipelineResult::EarlyTermination => {
                     self.terminated = true;
 
@@ -221,22 +215,20 @@ mod test {
         partition_id: &str,
         id: String,
         order_by_items: Vec<serde_json::Value>,
-    ) -> QueryResult {
+    ) -> QueryResult<Item> {
         let item = Item::new(
             id.clone(),
             partition_id.to_string(),
             format!("{} / {}", partition_id, id),
         );
-        let s = serde_json::to_string(&item).unwrap();
-        let raw = serde_json::value::RawValue::from_string(s).unwrap();
         let order_by_items = order_by_items
             .into_iter()
             .map(|value| serde_json::from_value(value).unwrap())
             .collect();
-        QueryResult::new(vec![], order_by_items, raw)
+        QueryResult::new(vec![], order_by_items, item)
     }
 
-    fn create_items(partition_id: &str, start_id: usize, count: usize) -> Vec<QueryResult> {
+    fn create_items(partition_id: &str, start_id: usize, count: usize) -> Vec<QueryResult<Item>> {
         (0..count)
             .map(|i| {
                 let id = format!("item{}", start_id + i);
@@ -245,18 +237,13 @@ mod test {
             .collect()
     }
 
-    fn create_pipeline(query_info: Option<QueryInfo>) -> QueryPipeline {
+    fn create_pipeline(query_info: Option<QueryInfo>) -> QueryPipeline<Item> {
         let plan = QueryPlan {
             partitioned_query_execution_info_version: 1,
             query_info: query_info.unwrap_or_default(),
             query_ranges: vec![],
         };
-        let query = Query {
-            text: "SELECT * FROM c".into(),
-            encoded_parameters: None,
-        };
         QueryPipeline::new(
-            query,
             plan,
             [
                 PartitionKeyRange::new("partition0", "00", "99"),
@@ -265,12 +252,8 @@ mod test {
         )
     }
 
-    fn drain_pipeline(pipeline: &mut QueryPipeline) -> crate::Result<Vec<Item>> {
-        let batch = assert_match!(pipeline.next_batch()?, PipelineResponse::Batch(e) => e);
-        batch
-            .iter()
-            .map(|r| r.payload_into())
-            .collect::<Result<Vec<Item>, _>>()
+    fn drain_pipeline(pipeline: &mut QueryPipeline<Item>) -> crate::Result<Vec<Item>> {
+        Ok(assert_match!(pipeline.next_batch()?, PipelineResponse::Batch(e) => e))
     }
 
     // We do most of our testing here, because this is what the user will interact with.

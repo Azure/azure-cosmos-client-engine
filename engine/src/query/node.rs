@@ -1,8 +1,8 @@
 use super::{producer::ItemProducer, QueryResult};
 
-pub enum PipelineResult {
+pub enum PipelineResult<T> {
     /// Indicates that a query result was produced.
-    Result(QueryResult),
+    Result(QueryResult<T>),
 
     /// Indicates that no result was produced, but the pipeline may still produce results if additional data is provided.
     NoResult,
@@ -20,18 +20,21 @@ pub enum PipelineResult {
 ///
 /// This type exists so that nodes don't have to deal with slicing the list of nodes, and so that the item producer can be passed around easily.
 /// Since the Item Producer and Pipeline Nodes are both owned by the [`QueryPipeline`], we can't create an owned type that contains both.
-pub struct PipelineSlice<'a> {
-    nodes: &'a mut [Box<dyn PipelineNode>],
-    producer: &'a mut ItemProducer,
+pub struct PipelineSlice<'a, T> {
+    nodes: &'a mut [Box<dyn PipelineNode<T>>],
+    producer: &'a mut ItemProducer<T>,
 }
 
-impl<'a> PipelineSlice<'a> {
-    pub fn new(nodes: &'a mut [Box<dyn PipelineNode>], producer: &'a mut ItemProducer) -> Self {
+impl<'a, T> PipelineSlice<'a, T> {
+    pub fn new(
+        nodes: &'a mut [Box<dyn PipelineNode<T>>],
+        producer: &'a mut ItemProducer<T>,
+    ) -> Self {
         Self { nodes, producer }
     }
 
     /// Retrieves the next item from the first node in the span, passing the rest of the span as the "next" parameter.
-    pub fn next_item(&mut self) -> crate::Result<PipelineResult> {
+    pub fn next_item(&mut self) -> crate::Result<PipelineResult<T>> {
         match self.nodes.split_first_mut() {
             Some((node, rest)) => node.next_item(PipelineSlice {
                 nodes: rest,
@@ -48,12 +51,12 @@ impl<'a> PipelineSlice<'a> {
 /// Represents a node in the query pipeline.
 ///
 /// Nodes are the building blocks of the query pipeline. They are used to represent different stages of query execution, such as filtering, sorting, and aggregation.
-pub trait PipelineNode {
+pub trait PipelineNode<T> {
     /// Retrieves the next item from this node in the pipeline.
     ///
     /// # Parameters
     /// * `next` - The next node in the pipeline, or `Ok(None)` if this is the last node in the pipeline.
-    fn next_item(&mut self, rest: PipelineSlice) -> crate::Result<PipelineResult>;
+    fn next_item(&mut self, rest: PipelineSlice<T>) -> crate::Result<PipelineResult<T>>;
 }
 
 /// A pipeline node that limits the number of items that can pass through it by a fixed number.
@@ -69,8 +72,8 @@ impl LimitPipelineNode {
     }
 }
 
-impl PipelineNode for LimitPipelineNode {
-    fn next_item(&mut self, mut rest: PipelineSlice) -> crate::Result<PipelineResult> {
+impl<T> PipelineNode<T> for LimitPipelineNode {
+    fn next_item(&mut self, mut rest: PipelineSlice<T>) -> crate::Result<PipelineResult<T>> {
         if self.remaining == 0 {
             // There's no need to continue executing the pipeline. The limit has been reached.
             return Ok(PipelineResult::EarlyTermination);
