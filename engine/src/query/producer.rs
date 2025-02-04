@@ -24,13 +24,13 @@ pub enum MergeStrategy {
     Unordered,
 }
 
-struct PartitionState {
+struct PartitionState<T> {
     pkrange: PartitionKeyRange,
-    queue: VecDeque<QueryResult>,
+    queue: VecDeque<QueryResult<T>>,
     stage: PartitionStage,
 }
 
-impl PartitionState {
+impl<T> PartitionState<T> {
     pub fn new(pkrange: PartitionKeyRange) -> Self {
         Self {
             pkrange,
@@ -44,13 +44,13 @@ impl PartitionState {
         self.queue.is_empty() && matches!(self.stage, PartitionStage::Done)
     }
 
-    pub fn enqueue(&mut self, item: QueryResult) {
+    pub fn enqueue(&mut self, item: QueryResult<T>) {
         self.queue.push_back(item);
     }
 
     pub fn extend(
         &mut self,
-        item: impl IntoIterator<Item = QueryResult>,
+        item: impl IntoIterator<Item = QueryResult<T>>,
         continuation: Option<String>,
     ) {
         self.queue.extend(item);
@@ -84,12 +84,12 @@ impl PartitionState {
     }
 }
 
-pub struct ItemProducer {
-    partitions: Vec<PartitionState>,
+pub struct ItemProducer<T> {
+    partitions: Vec<PartitionState<T>>,
     strategy: MergeStrategy,
 }
 
-impl ItemProducer {
+impl<T> ItemProducer<T> {
     pub fn new(
         pkranges: impl IntoIterator<Item = PartitionKeyRange>,
         strategy: MergeStrategy,
@@ -118,7 +118,7 @@ impl ItemProducer {
     pub fn provide_data(
         &mut self,
         pkrange_id: &str,
-        data: Vec<QueryResult>,
+        data: Vec<QueryResult<T>>,
         continuation: Option<String>,
     ) -> crate::Result<()> {
         // We currently store partitions as a Vec, so we need to search to find the partition to update.
@@ -138,7 +138,7 @@ impl ItemProducer {
         Ok(())
     }
 
-    pub fn produce_item(&mut self) -> crate::Result<Option<QueryResult>> {
+    pub fn produce_item(&mut self) -> crate::Result<Option<QueryResult<T>>> {
         let mut next_partition = None;
         for partition in &mut self.partitions {
             // If any partition hasn't started, we can't return any items.
@@ -167,10 +167,10 @@ impl ItemProducer {
     }
 }
 
-fn compare_partitions(
+fn compare_partitions<T>(
     strategy: &MergeStrategy,
-    left: &PartitionState,
-    right: &PartitionState,
+    left: &PartitionState<T>,
+    right: &PartitionState<T>,
 ) -> crate::Result<Ordering> {
     match strategy {
         MergeStrategy::Unordered => {
@@ -225,26 +225,24 @@ mod tests {
         pkrange_id: &str,
         id: impl Into<String>,
         order_by_items: Vec<serde_json::Value>,
-    ) -> QueryResult {
+    ) -> QueryResult<Item> {
         let id = id.into();
         let item = Item::new(
             id.clone(),
             pkrange_id.to_string(),
             format!("{} / {}", pkrange_id, id),
         );
-        let s = serde_json::to_string(&item).unwrap();
-        let raw = serde_json::value::RawValue::from_string(s).unwrap();
         let order_by_items = order_by_items
             .into_iter()
             .map(|value| serde_json::from_value(value).unwrap())
             .collect();
-        QueryResult::new(vec![], order_by_items, raw)
+        QueryResult::new(vec![], order_by_items, item)
     }
 
-    fn drain_producer(producer: &mut ItemProducer) -> crate::Result<Vec<Item>> {
+    fn drain_producer<T>(producer: &mut ItemProducer<T>) -> crate::Result<Vec<T>> {
         let mut items = Vec::new();
         while let Some(item) = producer.produce_item()? {
-            let item: Item = item.payload_into()?;
+            let item = item.into_payload();
             items.push(item);
         }
         Ok(items)
@@ -254,7 +252,7 @@ mod tests {
     pub fn unordered_strategy_orders_by_partition_key_minimum(
     ) -> Result<(), Box<dyn std::error::Error>> {
         fn fill_partition(
-            producer: &mut ItemProducer,
+            producer: &mut ItemProducer<Item>,
             pkrange_id: &str,
             start_id: usize,
             count: usize,

@@ -1,0 +1,160 @@
+//! This module contains a kind of simulated Cosmos DB backend that can be used to test the query engine.
+//!
+//! The backend here is VERY simple and depends on a few assumptions:
+//! * Partitions are all "physical", there are no logical partitions.
+//! * If testing an ORDER BY query, the data in each partition is ALREADY sorted by the ORDER BY field(s).
+//! * Partitions are "ordered" by their ID (in Cosmos DB, physical partitions are ordered by the minimum logical partition key value covered by the physical partition).
+
+use std::collections::BTreeMap;
+
+use azure_data_cosmos_client_engine::query::{
+    PartitionKeyRange, PipelineResponse, QueryPipeline, QueryPlan, QueryResult,
+};
+
+pub const DEFAULT_PAGE_SIZE: usize = 10;
+
+pub struct Engine<T> {
+    container: Container<T>,
+    pipeline: QueryPipeline<T>,
+    request_page_size: usize,
+}
+
+impl<T: Clone> Engine<T> {
+    pub fn new(container: Container<T>, plan: QueryPlan, request_page_size: Option<usize>) -> Self {
+        let request_page_size = request_page_size.unwrap_or(DEFAULT_PAGE_SIZE);
+        let partitions = container
+            .partitions
+            .keys()
+            .enumerate()
+            .map(|(index, pkrange_id)| {
+                PartitionKeyRange::new(
+                    pkrange_id.clone(),
+                    format!("{}", index),
+                    format!("{}", index + 1),
+                )
+            });
+        let pipeline = QueryPipeline::new(plan, partitions);
+        Engine {
+            container,
+            pipeline,
+            request_page_size,
+        }
+    }
+
+    pub fn execute(mut self) -> Result<Vec<Vec<T>>, azure_data_cosmos_client_engine::Error> {
+        let mut pages = Vec::new();
+        loop {
+            match self.pipeline.next_batch()? {
+                PipelineResponse::Done => break,
+                PipelineResponse::Batch(batch) => {
+                    pages.push(batch);
+                }
+                PipelineResponse::MoreDataNeeded(requests) => {
+                    for request in requests {
+                        let page = self.container.get_data(
+                            &request.pkrange_id,
+                            request.continuation.as_deref(),
+                            self.request_page_size,
+                        );
+                        self.pipeline.provide_data(
+                            &request.pkrange_id,
+                            page.items,
+                            page.continuation,
+                        )?;
+                    }
+                }
+            }
+        }
+
+        Ok(pages)
+    }
+}
+
+pub struct Page<T> {
+    pub items: Vec<QueryResult<T>>,
+    pub continuation: Option<String>,
+}
+
+/// Represents a container in the simulated Cosmos DB backend.
+///
+/// Because we don't need to simulate Database or Account operations, this is the root of the simulated engine.
+pub struct Container<T> {
+    partitions: BTreeMap<String, Partition<T>>,
+}
+
+impl<T: Clone> Container<T> {
+    pub fn new() -> Self {
+        Container {
+            partitions: BTreeMap::new(),
+        }
+    }
+
+    pub fn insert(
+        &mut self,
+        partition_key: impl Into<String>,
+        items: impl IntoIterator<Item = QueryResult<T>>,
+    ) {
+        let partition_key = partition_key.into();
+        self.partitions
+            .entry(partition_key)
+            .or_insert_with(Partition::new)
+            .extend(items);
+    }
+
+    pub fn get_data(
+        &self,
+        partition_key: &str,
+        continuation: Option<&str>,
+        page_size: usize,
+    ) -> Page<T> {
+        self.partitions
+            .get(partition_key)
+            .map(|partition| partition.get_data(continuation, page_size))
+            .unwrap_or_else(|| Page {
+                items: Vec::new(),
+                continuation: None,
+            })
+    }
+}
+
+/// Represents the sequence of pages that will be returned by a given partition.
+pub struct Partition<T> {
+    data: Vec<QueryResult<T>>,
+}
+
+impl<T: Clone> Partition<T> {
+    pub fn new() -> Self {
+        Partition { data: Vec::new() }
+    }
+
+    pub fn extend(&mut self, items: impl IntoIterator<Item = QueryResult<T>>) {
+        self.data.extend(items)
+    }
+
+    pub fn get_data(&self, continuation: Option<&str>, page_size: usize) -> Page<T> {
+        let index = continuation
+            .map(|c| c.parse::<usize>().unwrap())
+            .unwrap_or(0);
+
+        let items = self
+            .data
+            .iter()
+            .skip(index)
+            .take(page_size)
+            .cloned()
+            .collect::<Vec<_>>();
+
+        let end = index + items.len();
+
+        let continuation = if end < self.data.len() {
+            Some(end.to_string())
+        } else {
+            None
+        };
+
+        Page {
+            items,
+            continuation,
+        }
+    }
+}

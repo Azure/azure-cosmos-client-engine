@@ -20,3 +20,6 @@ cbindgen = { version = "0.27.0", optional = true }
 # Builds the C API
 c_api = ["dep:cbindgen"]
 python = ["dep:pyo3", "pyo3/extension-module"]
+
+[dev-dependencies]
+pretty_assertions = "1.4.1"

@@ -1,4 +1,4 @@
-use serde::{de::DeserializeOwned, Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer};
 
 use crate::ErrorKind;
 
@@ -8,23 +8,23 @@ use super::SortOrder;
 ///
 /// When we generate a query plan, the gateway rewrites the query so that it can be properly executed against each partition.
 /// For example, order by items are collected into a well-known property with a well-known format so that the pipeline can easily access them.
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct QueryResult {
+pub struct QueryResult<T = Box<serde_json::value::RawValue>> {
     #[serde(default)]
     group_by_items: Vec<QueryClauseItem>,
 
     #[serde(default)]
     order_by_items: Vec<QueryClauseItem>,
 
-    payload: Box<serde_json::value::RawValue>,
+    payload: T,
 }
 
-impl QueryResult {
+impl<T> QueryResult<T> {
     pub fn new(
         group_by_items: Vec<QueryClauseItem>,
         order_by_items: Vec<QueryClauseItem>,
-        payload: Box<serde_json::value::RawValue>,
+        payload: T,
     ) -> Self {
         Self {
             group_by_items,
@@ -38,7 +38,7 @@ impl QueryResult {
     /// This constructor is used when we've identified that the _projections_ of the query haven't been rewritten by the query planner.
     /// For example, if the query doesn't include any `ORDER BY` or `GROUP BY` clauses, the payload will be the same as the original query.
     /// However, if the query DOES include `ORDER BY` or `GROUP BY` clauses, you should use the implementation of `Deserialize` to directly deserialize the query result received for each partition.
-    pub fn from_payload(payload: Box<serde_json::value::RawValue>) -> Self {
+    pub fn from_payload(payload: T) -> Self {
         // NOTE: An empty vec that _stays empty_ is "free" allocation-wise. It's basically just a null pointer.
         Self {
             group_by_items: Vec::new(),
@@ -52,7 +52,7 @@ impl QueryResult {
     /// We can't just implement [`PartialOrd`] here, because we need to accept a sort order and return an error.
     pub fn compare(
         &self,
-        other: &QueryResult,
+        other: &QueryResult<T>,
         orderings: &[SortOrder],
     ) -> crate::Result<std::cmp::Ordering> {
         if self.order_by_items.len() != other.order_by_items.len() {
@@ -87,17 +87,16 @@ impl QueryResult {
         Ok(std::cmp::Ordering::Equal)
     }
 
-    pub fn payload(&self) -> &serde_json::value::RawValue {
+    pub fn payload(&self) -> &T {
         &self.payload
     }
 
-    pub fn payload_into<T: DeserializeOwned>(&self) -> crate::Result<T> {
-        let payload = self.payload.get();
-        serde_json::from_str(payload).map_err(|e| ErrorKind::DeserializationError.with_source(e))
+    pub fn into_payload(self) -> T {
+        self.payload
     }
 }
 
-#[derive(Debug, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
 pub struct QueryClauseItem {
     #[serde(default, deserialize_with = "deserialize_item")]
     pub item: Option<serde_json::Value>,
