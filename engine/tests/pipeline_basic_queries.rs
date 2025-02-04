@@ -3,9 +3,9 @@ use std::vec;
 use azure_data_cosmos_client_engine::query::{QueryPlan, QueryResult};
 use pretty_assertions::assert_eq;
 
-use backend::{Container, Engine};
+use mock_engine::{Container, Engine};
 
-mod backend;
+mod mock_engine;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Item {
