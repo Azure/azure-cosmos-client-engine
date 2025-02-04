@@ -63,6 +63,7 @@ pub trait PipelineNode<T> {
 ///
 /// This can be used to implement both `TOP` and `LIMIT` clauses in a query.
 pub struct LimitPipelineNode {
+    /// The number of items that can pass through this node before it terminates the pipeline.
     remaining: u64,
 }
 
@@ -75,12 +76,47 @@ impl LimitPipelineNode {
 impl<T> PipelineNode<T> for LimitPipelineNode {
     fn next_item(&mut self, mut rest: PipelineSlice<T>) -> crate::Result<PipelineResult<T>> {
         if self.remaining == 0 {
-            // There's no need to continue executing the pipeline. The limit has been reached.
             return Ok(PipelineResult::EarlyTermination);
         }
 
-        self.remaining -= 1;
+        match rest.next_item()? {
+            PipelineResult::Result(item) => {
+                self.remaining -= 1;
+                Ok(PipelineResult::Result(item))
+            }
 
+            // Pass through other results
+            x => Ok(x),
+        }
+    }
+}
+
+/// A pipeline node that skips a fixed number of items before allowing any items to pass through it.
+///
+/// This can be used to implement both `OFFSET` clauses in a query.
+pub struct OffsetPipelineNode {
+    /// The number of items that should be skipped before allowing any items to pass through.
+    remaining: u64,
+}
+
+impl OffsetPipelineNode {
+    pub fn new(offset: u64) -> Self {
+        Self { remaining: offset }
+    }
+}
+
+impl<T> PipelineNode<T> for OffsetPipelineNode {
+    fn next_item(&mut self, mut rest: PipelineSlice<T>) -> crate::Result<PipelineResult<T>> {
+        while self.remaining > 0 {
+            match rest.next_item()? {
+                PipelineResult::Result(_) => self.remaining -= 1,
+
+                // Pass through any early terminations or no results.
+                x => return Ok(x),
+            }
+        }
+
+        // Now, we're no longer skipping items, so we can pass through the rest of the pipeline.
         rest.next_item()
     }
 }

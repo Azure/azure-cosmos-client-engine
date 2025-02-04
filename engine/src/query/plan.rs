@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, collections::HashMap};
 
 use serde::Deserialize;
 
@@ -11,10 +11,12 @@ pub struct QueryPlan {
     // TODO: hybridSearchQueryInfo
 }
 
-#[derive(Deserialize, Default)]
+#[derive(Deserialize, Default, PartialEq, Eq)]
 pub enum DistinctType {
     #[default]
     None,
+    Ordered,
+    Unordered,
 }
 
 #[derive(Deserialize, Default)]
@@ -26,7 +28,13 @@ pub struct QueryInfo {
     pub limit: Option<u64>,
     pub order_by: Vec<SortOrder>,
     pub order_by_expressions: Vec<String>,
+    pub group_by_expressions: Vec<String>,
+    pub group_by_aliases: Vec<String>,
+    pub aggregates: Vec<String>,
+    pub group_by_alias_to_aggregate_type: HashMap<String, String>,
     pub rewritten_query: Cow<'static, str>,
+    pub has_select_value: bool,
+    pub has_non_streaming_order_by: bool,
 }
 
 #[derive(Deserialize)]

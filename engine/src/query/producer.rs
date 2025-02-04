@@ -5,8 +5,6 @@ use crate::{
     ErrorKind,
 };
 
-use super::node::{PipelineNode, PipelineSlice};
-
 /// Represents the current stage that a partition is in during the query.
 enum PartitionStage {
     /// The partition is ready for the first data request. There should be no data in the queue yet.
@@ -42,10 +40,6 @@ impl<T> PartitionState<T> {
     /// Returns a boolean indicating if the partition is exhausted (i.e. the queue is empty and the stage is `PartitionStage::Done`, so requesting more data will not produce any new data).
     pub fn exhausted(&self) -> bool {
         self.queue.is_empty() && matches!(self.stage, PartitionStage::Done)
-    }
-
-    pub fn enqueue(&mut self, item: QueryResult<T>) {
-        self.queue.push_back(item);
     }
 
     pub fn extend(

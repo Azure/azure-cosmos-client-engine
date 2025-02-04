@@ -34,7 +34,11 @@ impl<T: Clone> Engine<T> {
     /// Or, if fewer than `request_page_size` items can be emitted before needing to request more data, the result will contain fewer items.
     ///
     /// It's up to language bindings to handle pagination and buffer data as needed.
-    pub fn new(container: Container<T>, plan: QueryPlan, request_page_size: usize) -> Self {
+    pub fn new(
+        container: Container<T>,
+        plan: QueryPlan,
+        request_page_size: usize,
+    ) -> Result<Self, azure_data_cosmos_client_engine::Error> {
         let partitions = container
             .partitions
             .keys()
@@ -46,24 +50,28 @@ impl<T: Clone> Engine<T> {
                     format!("{}", index + 1),
                 )
             });
-        let pipeline = QueryPipeline::new(plan, partitions);
-        Engine {
+        let pipeline = QueryPipeline::new(plan, partitions)?;
+        Ok(Engine {
             container,
             pipeline,
             request_page_size,
-        }
+        })
     }
 
-    pub fn execute(mut self) -> Result<Vec<Vec<T>>, azure_data_cosmos_client_engine::Error> {
-        let mut pages = Vec::new();
+    /// Executes the query, returning the result in individual batches.
+    ///
+    /// Each separate `Vec<T>` represents a single [`PipelineResponse`] recieved from the query pipeline.
+    /// After each batch, the engine automatically fulfills any requests for additional data from the pipeline and moves to the next batch.
+    pub fn execute(
+        mut self,
+    ) -> Result<Vec<PipelineResponse<T>>, azure_data_cosmos_client_engine::Error> {
+        let mut responses = Vec::new();
         loop {
             match self.pipeline.next_batch()? {
-                PipelineResponse::Done => break,
-                PipelineResponse::Batch(batch) => {
-                    pages.push(batch);
-                }
-                PipelineResponse::MoreDataNeeded(requests) => {
-                    for request in requests {
+                None => break,
+                Some(r) => {
+                    responses.push(r.clone());
+                    for request in r.requests {
                         let page = self.container.get_data(
                             &request.pkrange_id,
                             request.continuation.as_deref(),
@@ -79,7 +87,7 @@ impl<T: Clone> Engine<T> {
             }
         }
 
-        Ok(pages)
+        Ok(responses)
     }
 }
 
