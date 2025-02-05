@@ -12,6 +12,7 @@ pyo3 = { version = "0.23.4", optional = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["raw_value"] }
 tracing = "0.1.40"
+tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
 
 [build-dependencies]
 cbindgen = { version = "0.27.0", optional = true }

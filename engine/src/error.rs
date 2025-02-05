@@ -2,7 +2,7 @@ use std::{borrow::Cow, fmt::Display};
 
 pub type Result<T> = ::std::result::Result<T, Error>;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ErrorKind {
     /// Indicates that the query plan is invalid.
     ///
@@ -31,6 +31,11 @@ pub enum ErrorKind {
     /// The gateway will return an error if the query requires features not listed in the supported features.
     /// We provide this error to cover cases where the language binding is incorrectly reporting the supported features, or edge cases where the engine is not correctly reporting the features it supports.
     UnsupportedQueryPlan,
+
+    /// Indicates that a string parameter is not valid UTF-8.
+    ///
+    /// This error indicates either a bug in the language binding, or invalid data returned by the backend.
+    InvalidUtf8String,
 }
 
 impl Display for ErrorKind {
@@ -41,6 +46,7 @@ impl Display for ErrorKind {
             ErrorKind::UnknownPartitionKeyRange => write!(f, "unknown partition key range"),
             ErrorKind::InternalError => write!(f, "internal client engine error"),
             ErrorKind::UnsupportedQueryPlan => write!(f, "unsupported query plan"),
+            ErrorKind::InvalidUtf8String => write!(f, "invalid UTF-8 string"),
         }
     }
 }
@@ -83,8 +89,8 @@ impl Error {
         self
     }
 
-    pub fn kind(&self) -> &ErrorKind {
-        &self.kind
+    pub fn kind(&self) -> ErrorKind {
+        self.kind
     }
 }
 

@@ -2,7 +2,7 @@ use std::{borrow::Cow, collections::HashMap};
 
 use serde::Deserialize;
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QueryPlan {
     pub partitioned_query_execution_info_version: usize,
@@ -11,7 +11,7 @@ pub struct QueryPlan {
     // TODO: hybridSearchQueryInfo
 }
 
-#[derive(Deserialize, Default, PartialEq, Eq)]
+#[derive(Debug, Deserialize, Default, PartialEq, Eq)]
 pub enum DistinctType {
     #[default]
     None,
@@ -19,7 +19,7 @@ pub enum DistinctType {
     Unordered,
 }
 
-#[derive(Deserialize, Default)]
+#[derive(Debug, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct QueryInfo {
     pub distinct_type: DistinctType,
@@ -37,13 +37,13 @@ pub struct QueryInfo {
     pub has_non_streaming_order_by: bool,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 pub enum SortOrder {
     Ascending,
     Descending,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QueryRange {
     pub min: Cow<'static, str>,

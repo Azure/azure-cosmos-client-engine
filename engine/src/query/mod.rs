@@ -42,7 +42,7 @@ pub struct Query {
     pub encoded_parameters: Option<Box<serde_json::value::RawValue>>,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PartitionKeyRange {
     id: String,

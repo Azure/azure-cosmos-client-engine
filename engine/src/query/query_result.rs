@@ -406,6 +406,6 @@ mod tests {
         let err = left
             .compare(&right, &[SortOrder::Ascending, SortOrder::Descending])
             .unwrap_err();
-        assert_eq!(&ErrorKind::QueryPlanInvalid, err.kind());
+        assert_eq!(ErrorKind::QueryPlanInvalid, err.kind());
     }
 }

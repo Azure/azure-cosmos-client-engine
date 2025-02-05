@@ -13,6 +13,85 @@
 #include <stdlib.h>
 
 /**
+ * A result code for FFI functions, which indicates the success or failure of the operation.
+ */
+enum CosmosCxResultCode {
+  Success = 0,
+  UnknownError = -1,
+  QueryPlanInvalid = -2,
+  DeserializationError = -3,
+  UnknownPartitionKeyRange = -4,
+  InternalError = -5,
+  UnsupportedQueryPlan = -6,
+  InvalidUtf8String = -7,
+};
+typedef intptr_t CosmosCxResultCode;
+
+/**
+ * Opaque type representing the query pipeline.
+ * Callers should not attempt to access the fields of this struct directly.
+ */
+typedef struct CosmosCxPipeline CosmosCxPipeline;
+
+/**
+ * A result type for FFI functions.
+ */
+typedef struct CosmosCxResult {
+  CosmosCxResultCode code;
+  const void *value;
+} CosmosCxResult;
+
+/**
+ * Represents a contiguous sequence of objects.
+ *
+ * This struct is used to pass a sequence of objects from the caller to the engine.
+ * The engine will never take ownership over the data in the slice, and will use it only for the duration of a single function call.
+ * The documentation for each function or struct that references `Slice` will specify what type of data is expected in the slice.
+ *
+ * This type shouldn't actually appear on the public API. Instead, it will be typedef'd to more specific slice types.
+ */
+typedef struct CosmosCxSlice {
+  const void *data;
+  uintptr_t len;
+} CosmosCxSlice;
+
+/**
+ * Represents a string of UTF-8 characters.
+ *
+ * This is effectively the same as a [`Slice`] of [`u8`], but it is used to clearly indicate that the data is a string.
+ */
+typedef struct CosmosCxSlice CosmosCxStr;
+
+/**
  * Returns the version of the Cosmos Client Engine in use.
  */
 const char *cosmoscx_version(void);
+
+/**
+ * Returns a string that describes the query features supported by the Cosmos Client Engine.
+ *
+ * This string is suitable to be sent as the value for the `x-ms-cosmos-supported-query-features` header in a query plan request.
+ */
+const char *cosmoscx_v0_query_supported_features(void);
+
+/**
+ * Enables built-in tracing for the Cosmos Client Engine.
+ *
+ * This is an early version of the tracing API and is subject to change.
+ * For now, it activates the default console tracing in [`tracing_subscriber::fmt`] and enables the [`EnvFilter`](`tracing_subscriber::EnvFilter`) using the `COSMOSCX_LOG` environment variable.
+ *
+ * Once enabled in this way, tracing cannot be disabled.
+ */
+void cosmoscx_v0_tracing_enable(void);
+
+/**
+ * Creates a new query pipeline from a JSON query plan and list of partitions.
+ *
+ * # Parameters
+ * - `query_plan_json`: A [`Str`] containing the query plan as recieved from the gateway, in JSON.
+ * - `partitions`: A [`Slice`] of [`PartitionKeyRange`] objects representing the partition key ranges to query.
+ */
+struct CosmosCxResult cosmoscx_v0_query_pipeline_create(CosmosCxStr query_plan_json,
+                                                        CosmosCxPartitionKeyRangeList partitions);
+
+CosmosCxResultCode cosmoscx_v0_query_pipeline_free(struct CosmosCxPipeline *pipeline);
