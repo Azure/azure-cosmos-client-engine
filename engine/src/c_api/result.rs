@@ -1,4 +1,6 @@
 /// A result code for FFI functions, which indicates the success or failure of the operation.
+/// cbindgen:prefix-with-name
+/// cbindgen:rename-all=SCREAMING_SNAKE_CASE
 #[repr(isize)]
 pub enum ResultCode {
     Success = 0,
@@ -39,17 +41,20 @@ pub struct FfiResult {
 
 impl<T> From<Result<*const T, crate::Error>> for FfiResult {
     fn from(value: Result<*const T, crate::Error>) -> Self {
-        // TODO: Store the error details in a thread local to be retrieved by a "get last error" function.
-
         match value {
             Ok(value) => Self {
                 code: ResultCode::Success,
                 value: value as *const T as *const std::ffi::c_void,
             },
-            Err(e) => Self {
-                code: e.into(),
-                value: std::ptr::null(),
-            },
+            Err(e) => {
+                tracing::error!(error = ?e, "an error occurred");
+                // TODO: Store the error details in a thread local to be retrieved by a "get last error" function.
+
+                Self {
+                    code: e.into(),
+                    value: std::ptr::null(),
+                }
+            }
         }
     }
 }

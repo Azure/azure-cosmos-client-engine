@@ -31,23 +31,6 @@ impl<'a> Slice<'a> {
     }
 }
 
-macro_rules! slice_type {
-    ($name: ident, $element: ty) => {
-        #[doc = concat!("Represents a sequence of [`", stringify!($element), "`] objects.")]
-        #[doc = ""]
-        #[doc = concat!("This is effectively the same as a [`Slice`] of [`", stringify!($element), "`], but it is used to clearly indicate that the data type.")]
-        #[repr(transparent)]
-        pub struct $name<'a>(Slice<'a>);
-
-        impl<'a> $name<'a> {
-            /// Converts the slice into a Rust slice. This slice is not owned by the engine and should not be used after the function call returns.
-            pub unsafe fn as_slice(&self) -> &'a [$element] {
-                self.0.as_slice()
-            }
-        }
-    }
-}
-
 /// Represents a string of UTF-8 characters.
 ///
 /// This is effectively the same as a [`Slice`] of [`u8`], but it is used to clearly indicate that the data is a string.
@@ -62,6 +45,7 @@ impl<'a> Str<'a> {
 }
 
 /// Describes a partition key range used to create a query pipeline.
+/// cbindgen:export
 #[repr(C)]
 pub struct PartitionKeyRange<'a> {
     /// The ID of the partition key range.
@@ -73,7 +57,6 @@ pub struct PartitionKeyRange<'a> {
     /// The maximum value of the partition key range (exclusive).
     max_exclusive: Str<'a>,
 }
-slice_type!(PartitionKeyRangeList, PartitionKeyRange<'a>);
 
 /// Creates a new query pipeline from a JSON query plan and list of partitions.
 ///
@@ -83,17 +66,17 @@ slice_type!(PartitionKeyRangeList, PartitionKeyRange<'a>);
 #[no_mangle]
 extern "C" fn cosmoscx_v0_query_pipeline_create<'a>(
     query_plan_json: Str<'a>,
-    partitions: PartitionKeyRangeList<'a>,
+    partitions: Slice<'a>,
 ) -> FfiResult {
     fn inner<'a>(
         query_plan_json: Str<'a>,
-        partitions: PartitionKeyRangeList<'a>,
+        partitions: Slice<'a>,
     ) -> crate::Result<*const Pipeline> {
         let query_plan_json = unsafe { query_plan_json.as_str() }?;
         let query_plan: QueryPlan = serde_json::from_str(query_plan_json)
             .map_err(|e| crate::ErrorKind::QueryPlanInvalid.with_source(e))?;
 
-        let partitions = unsafe { partitions.as_slice() }
+        let partitions = unsafe { partitions.as_slice::<PartitionKeyRange>() }
             .iter()
             .map(|p| -> crate::Result<query::PartitionKeyRange> {
                 let id = unsafe { p.id.as_str()? }.to_string();
@@ -121,13 +104,11 @@ extern "C" fn cosmoscx_v0_query_pipeline_create<'a>(
 }
 
 #[no_mangle]
-extern "C" fn cosmoscx_v0_query_pipeline_free(pipeline: *mut Pipeline) -> ResultCode {
+extern "C" fn cosmoscx_v0_query_pipeline_free(pipeline: *mut Pipeline) {
     // SAFETY: We have to trust that the caller is giving us a valid pipeline created by `cosmoscx_query_pipeline_create`.
     unsafe {
-        // Return the pointer to a Box, and let it be dropped.
-        Box::from_raw(pipeline as *mut RawQueryPipeline)
+        // Return the pointer to a Box, and drop it.
+        drop(Box::from_raw(pipeline as *mut RawQueryPipeline))
     };
     tracing::debug!("query pipeline freed");
-
-    ResultCode::Success
 }

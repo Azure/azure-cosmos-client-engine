@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+#/ Usage: script/codespace-oncreate
+#/
+#/ Run when creating the codespace
+script_dir=$(dirname "$(readlink -f "$0")")
+cd "$script_dir/.."
+repo_root="$PWD"
+
+parent_dir=$(cd "$repo_root/.." && pwd)
+
+script/bootstrap
+
+gosdk_path="$parent_dir/azure-sdk-for-go"
+if [ ! -d $gosdk_path ]; then
+    echo "Cloning Go SDK to $gosdk_path"
+    git clone https://github.com/Azure/azure-sdk-for-go $gosdk_path
+fi
+
+pysdk_path="$parent_dir/azure-sdk-for-python"
+if [ ! -d $pysdk_path ]; then
+    echo "Cloning Python SDK to $pysdk_path"
+    git clone https://github.com/Azure/azure-sdk-for-python $pysdk_path
+fi

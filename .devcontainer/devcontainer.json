@@ -1,7 +1,7 @@
 {
 	"name": "Azure Cosmos Client Engine Dev Container",
 	"image": "mcr.microsoft.com/devcontainers/rust:1-1-bullseye",
-	"onCreateCommand": "./script/bootstrap",
+	"onCreateCommand": "./script/codespace-oncreate",
 	"features": {
 		"ghcr.io/devcontainers/features/azure-cli:1": {},
 		"ghcr.io/devcontainers/features/github-cli:1": {},
@@ -10,5 +10,21 @@
 		"ghcr.io/devcontainers/features/node:1": {},
 		"ghcr.io/devcontainers/features/python:1": {},
 		"ghcr.io/devcontainers/features/docker-in-docker:2": {}
+	},
+	"customizations": {
+		"codespaces": {
+			"repositories": {
+				"Azure/azure-sdk-for-go": {
+					"permissions": {
+						"contents": "write"
+					}
+				},
+				"Azure/azure-sdk-for-python": {
+					"permissions": {
+						"contents": "write"
+					}
+				}
+			}
+		}
 	}
 }

@@ -15,9 +15,9 @@ features = ["c_api"]
 
 [export]
 prefix = "CosmosCx"
+include = ["PartitionKeyRange", "PartitionKeyRangeList"]
 
 [export.mangle]
-rename_types = "snake_case"
 remove_underscores = false
 
 [export.rename]

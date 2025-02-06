@@ -16,14 +16,14 @@
  * A result code for FFI functions, which indicates the success or failure of the operation.
  */
 enum CosmosCxResultCode {
-  Success = 0,
-  UnknownError = -1,
-  QueryPlanInvalid = -2,
-  DeserializationError = -3,
-  UnknownPartitionKeyRange = -4,
-  InternalError = -5,
-  UnsupportedQueryPlan = -6,
-  InvalidUtf8String = -7,
+  COSMOS_CX_RESULT_CODE_SUCCESS = 0,
+  COSMOS_CX_RESULT_CODE_UNKNOWN_ERROR = -1,
+  COSMOS_CX_RESULT_CODE_QUERY_PLAN_INVALID = -2,
+  COSMOS_CX_RESULT_CODE_DESERIALIZATION_ERROR = -3,
+  COSMOS_CX_RESULT_CODE_UNKNOWN_PARTITION_KEY_RANGE = -4,
+  COSMOS_CX_RESULT_CODE_INTERNAL_ERROR = -5,
+  COSMOS_CX_RESULT_CODE_UNSUPPORTED_QUERY_PLAN = -6,
+  COSMOS_CX_RESULT_CODE_INVALID_UTF8_STRING = -7,
 };
 typedef intptr_t CosmosCxResultCode;
 
@@ -63,6 +63,24 @@ typedef struct CosmosCxSlice {
 typedef struct CosmosCxSlice CosmosCxStr;
 
 /**
+ * Describes a partition key range used to create a query pipeline.
+ */
+typedef struct CosmosCxPartitionKeyRange {
+  /**
+   * The ID of the partition key range.
+   */
+  CosmosCxStr id;
+  /**
+   * The minimum value of the partition key range (inclusive).
+   */
+  CosmosCxStr min_inclusive;
+  /**
+   * The maximum value of the partition key range (exclusive).
+   */
+  CosmosCxStr max_exclusive;
+} CosmosCxPartitionKeyRange;
+
+/**
  * Returns the version of the Cosmos Client Engine in use.
  */
 const char *cosmoscx_version(void);
@@ -92,6 +110,6 @@ void cosmoscx_v0_tracing_enable(void);
  * - `partitions`: A [`Slice`] of [`PartitionKeyRange`] objects representing the partition key ranges to query.
  */
 struct CosmosCxResult cosmoscx_v0_query_pipeline_create(CosmosCxStr query_plan_json,
-                                                        CosmosCxPartitionKeyRangeList partitions);
+                                                        struct CosmosCxSlice partitions);
 
-CosmosCxResultCode cosmoscx_v0_query_pipeline_free(struct CosmosCxPipeline *pipeline);
+void cosmoscx_v0_query_pipeline_free(struct CosmosCxPipeline *pipeline);

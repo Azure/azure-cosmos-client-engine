@@ -20,6 +20,7 @@ pub enum DistinctType {
 }
 
 #[derive(Debug, Deserialize, Default)]
+#[serde(default)]
 #[serde(rename_all = "camelCase")]
 pub struct QueryInfo {
     pub distinct_type: DistinctType,
