@@ -3,17 +3,17 @@ use crate::{
         result::ResultExt,
         slice::{OwnedSlice, Slice},
     },
-    query::{self, QueryPlan},
-    ErrorKind,
+    query, ErrorKind,
 };
 
 use super::{
-    result::FfiResult,
+    result::{FfiResult, ResultCode},
     slice::{OwnedString, Str},
 };
 
 // The C API uses "Box<serde_json::value::RawValue>" as the payload type for the query pipeline.
 type RawQueryPipeline = query::QueryPipeline<Box<serde_json::value::RawValue>>;
+type RawQueryResult = query::QueryResult<Box<serde_json::value::RawValue>>;
 
 /// Opaque type representing the query pipeline.
 /// Callers should not attempt to access the fields of this struct directly.
@@ -49,7 +49,7 @@ extern "C" fn cosmoscx_v0_query_pipeline_create<'a>(
     ) -> crate::Result<Box<RawQueryPipeline>> {
         let query_plan_json =
             unsafe { query_plan_json.as_str() }?.ok_or_else(|| ErrorKind::ArgumentNull)?;
-        let query_plan: QueryPlan = serde_json::from_str(query_plan_json)
+        let query_plan: query::QueryPlan = serde_json::from_str(query_plan_json)
             .map_err(|e| crate::ErrorKind::QueryPlanInvalid.with_source(e))?;
 
         let partitions = unsafe { partitions.as_slice() }
@@ -166,4 +166,48 @@ extern "C" fn cosmoscx_v0_query_pipeline_next_batch<'a>(
 #[no_mangle]
 extern "C" fn cosmoscx_v0_query_pipeline_free_result<'a>(result: *mut PipelineResult) {
     unsafe { crate::c_api::free(result) }
+}
+
+/// Inserts additional raw data, in response to a [`DataRequest`] from the pipeline.
+#[no_mangle]
+extern "C" fn cosmoscx_v0_query_pipeline_provide_data<'a>(
+    pipeline: *mut Pipeline,
+    pkrange_id: Str<'a>,
+    data: Str<'a>,
+    continuation: Str<'a>,
+) -> ResultCode {
+    fn inner<'a>(
+        pipeline: *mut Pipeline,
+        pkrange_id: Str<'a>,
+        data: Str<'a>,
+        continuation: Str<'a>,
+    ) -> crate::Result<()> {
+        let pipeline = unsafe {
+            (pipeline as *mut RawQueryPipeline)
+                .as_mut()
+                .ok_or_else(|| ErrorKind::ArgumentNull.with_message("pipeline was null"))
+        }?;
+
+        // Parse the data
+        let pkrange_id = unsafe { pkrange_id.as_str().not_null()? };
+
+        // TODO: Only queries with order by/group by will come back from the server formatted as QueryResults. The rest will be raw payloads!
+        // We need to handle that
+
+        let query_results: Vec<RawQueryResult> =
+            serde_json::from_str(unsafe { data.as_str().not_null()? })
+                .map_err(|e| ErrorKind::DeserializationError.with_source(e))?;
+        let continuation = unsafe {
+            match continuation.into_string()? {
+                // Normalize empty strings to 'None'
+                Some(s) if s.is_empty() => None,
+                x => x,
+            }
+        };
+
+        // And insert it!
+        pipeline.provide_data(pkrange_id, query_results, continuation)
+    }
+
+    inner(pipeline, pkrange_id, data, continuation).into()
 }

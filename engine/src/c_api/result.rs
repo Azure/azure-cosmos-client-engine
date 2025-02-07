@@ -34,6 +34,20 @@ impl From<crate::ErrorKind> for ResultCode {
     }
 }
 
+impl From<Result<(), crate::Error>> for ResultCode {
+    fn from(value: Result<(), crate::Error>) -> Self {
+        match value {
+            Ok(_) => ResultCode::Success,
+            Err(e) => {
+                tracing::error!(error = ?e, "an error occurred");
+                // TODO: Store the error details in a thread local to be retrieved by a "get last error" function.
+
+                e.into()
+            }
+        }
+    }
+}
+
 /// A result type for FFI functions.
 #[repr(C)]
 pub struct FfiResult<T> {

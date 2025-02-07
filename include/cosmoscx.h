@@ -205,3 +205,11 @@ struct CosmosCxFfiResult_PipelineResult cosmoscx_v0_query_pipeline_next_batch(st
  * Calling this function will release all the strings and buffers provided within the [`PipelineResult`], so ensure you have copied it all out before calling this.
  */
 void cosmoscx_v0_query_pipeline_free_result(struct CosmosCxPipelineResult *result);
+
+/**
+ * Inserts additional raw data, in response to a [`DataRequest`] from the pipeline.
+ */
+CosmosCxResultCode cosmoscx_v0_query_pipeline_provide_data(struct CosmosCxPipeline *pipeline,
+                                                           CosmosCxStr pkrange_id,
+                                                           CosmosCxStr data,
+                                                           CosmosCxStr continuation);

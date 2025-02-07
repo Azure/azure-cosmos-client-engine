@@ -4,10 +4,9 @@
 
 use std::ffi::CStr;
 
-use tracing_subscriber::EnvFilter;
-
 use crate::query;
 
+pub mod diag;
 pub mod pipeline;
 pub mod result;
 pub mod slice;
@@ -68,17 +67,4 @@ const C_SUPPORTED_FEATURES: &CStr = const {
 #[no_mangle]
 extern "C" fn cosmoscx_v0_query_supported_features() -> *const std::ffi::c_char {
     C_SUPPORTED_FEATURES.as_ptr()
-}
-
-/// Enables built-in tracing for the Cosmos Client Engine.
-///
-/// This is an early version of the tracing API and is subject to change.
-/// For now, it activates the default console tracing in [`tracing_subscriber::fmt`] and enables the [`EnvFilter`](`tracing_subscriber::EnvFilter`) using the `COSMOSCX_LOG` environment variable.
-///
-/// Once enabled in this way, tracing cannot be disabled.
-#[no_mangle]
-extern "C" fn cosmoscx_v0_tracing_enable() {
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_env("COSMOSCX_LOG"))
-        .init();
 }

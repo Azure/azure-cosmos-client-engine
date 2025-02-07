@@ -52,6 +52,13 @@ func (p Pipeline) NextBatch() (PipelineResult, error) {
 	return PipelineResult(r.value), nil
 }
 
+func (p Pipeline) ProvideData(pkrangeid string, data string, continuation string) error {
+	pkrangeidC := makeStr(pkrangeid)
+	dataC := makeStr(data)
+	continuationC := makeStr(continuation)
+	return mapErr(C.cosmoscx_v0_query_pipeline_provide_data(p, pkrangeidC, dataC, continuationC))
+}
+
 type PipelineResult = *C.CosmosCxPipelineResult
 
 func (r PipelineResult) Free() {
@@ -67,6 +74,15 @@ func (r PipelineResult) IsCompleted() bool {
 func (r PipelineResult) Items() []EngineString {
 	ptr := (*EngineString)(r.items.data)
 	return unsafe.Slice(ptr, r.items.len)
+}
+
+func (r PipelineResult) ItemsCloned() []string {
+	items := r.Items()
+	result := make([]string, 0, len(items))
+	for _, item := range items {
+		result = append(result, item.Clone())
+	}
+	return result
 }
 
 func (r PipelineResult) Requests() []DataRequest {

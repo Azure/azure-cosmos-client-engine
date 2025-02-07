@@ -10,7 +10,7 @@ use super::SortOrder;
 /// For example, order by items are collected into a well-known property with a well-known format so that the pipeline can easily access them.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct QueryResult<T = Box<serde_json::value::RawValue>> {
+pub struct QueryResult<T> {
     #[allow(dead_code)]
     #[serde(default)]
     group_by_items: Vec<QueryClauseItem>,
@@ -191,7 +191,8 @@ mod tests {
     #[test]
     pub fn query_result_deserializes_order_by_items_only() {
         const JSON: &str = r#"{"orderByItems":[{"item":1}], "payload": {"a":1}}"#;
-        let result: QueryResult = serde_json::from_str(JSON).unwrap();
+        let result: QueryResult<Box<serde_json::value::RawValue>> =
+            serde_json::from_str(JSON).unwrap();
         assert_eq!(result.group_by_items, vec![]);
         assert_eq!(
             result.order_by_items,
@@ -205,7 +206,8 @@ mod tests {
     #[test]
     pub fn query_result_deserializes_group_by_items_only() {
         const JSON: &str = r#"{"groupByItems":[{"item":"yoot"}], "payload": {"a":1}}"#;
-        let result: QueryResult = serde_json::from_str(JSON).unwrap();
+        let result: QueryResult<Box<serde_json::value::RawValue>> =
+            serde_json::from_str(JSON).unwrap();
         assert_eq!(
             result.group_by_items,
             vec![QueryClauseItem {
@@ -219,7 +221,8 @@ mod tests {
     #[test]
     pub fn query_result_deserializes_full_content() {
         const JSON: &str = r#"{"orderByItems":[{"item":1}], "groupByItems":[{"item":"yoot"}], "payload": {"a":1}}"#;
-        let result: QueryResult = serde_json::from_str(JSON).unwrap();
+        let result: QueryResult<Box<serde_json::value::RawValue>> =
+            serde_json::from_str(JSON).unwrap();
         assert_eq!(
             result.group_by_items,
             vec![QueryClauseItem {

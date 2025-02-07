@@ -100,6 +100,7 @@ impl<T> QueryPipeline<T> {
         })
     }
 
+    /// Provides more data for the specified partition key range.
     pub fn provide_data(
         &mut self,
         pkrange_id: &str,

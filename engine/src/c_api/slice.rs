@@ -40,6 +40,10 @@ impl<'a> Str<'a> {
         Some(std::str::from_utf8(slice).map_err(|_| crate::ErrorKind::InvalidUtf8String.into()))
             .transpose()
     }
+
+    pub unsafe fn into_string(&self) -> crate::Result<Option<String>> {
+        self.as_str().map(|o| o.map(|s| s.to_string()))
+    }
 }
 
 /// Represents a contiguous sequence of objects OWNED BY THE ENGINE.
