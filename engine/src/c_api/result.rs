@@ -41,13 +41,17 @@ pub struct FfiResult<T> {
     value: *const T,
 }
 
-impl<T> From<Result<*const T, crate::Error>> for FfiResult<T> {
-    fn from(value: Result<*const T, crate::Error>) -> Self {
+impl<T, U> From<Result<Box<T>, crate::Error>> for FfiResult<U> {
+    fn from(value: Result<Box<T>, crate::Error>) -> Self {
         match value {
-            Ok(value) => Self {
-                code: ResultCode::Success,
-                value: value as *const T,
-            },
+            Ok(value) => {
+                let ptr = Box::into_raw(value) as *const U;
+                tracing::trace!(?ptr, typ = std::any::type_name::<Box<T>>(), "allocated");
+                Self {
+                    code: ResultCode::Success,
+                    value: ptr,
+                }
+            }
             Err(e) => {
                 tracing::error!(error = ?e, "an error occurred");
                 // TODO: Store the error details in a thread local to be retrieved by a "get last error" function.

@@ -78,7 +78,7 @@ impl<T> From<Box<[T]>> for OwnedSlice<T> {
             Self::EMPTY
         } else {
             let data = Box::into_raw(value) as *mut _;
-            tracing::trace!(ptr = ?data, len = len, typ = std::any::type_name::<OwnedSlice<T>>(), from = std::any::type_name::<Box<[T]>>(), "allocating");
+            tracing::trace!(ptr = ?data, len = len, typ = std::any::type_name::<OwnedSlice<T>>(), from = std::any::type_name::<Box<[T]>>(), "allocated");
             Self { data, len }
         }
     }

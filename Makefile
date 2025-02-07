@@ -17,7 +17,7 @@ export CARGO_BUILD_TARGET ?= $(shell rustc -vV | grep 'host: ' | cut -d ' ' -f 2
 target_dir := $(target_root)/$(CARGO_BUILD_TARGET)/$(CONFIGURATION)
 artifacts_dir := $(artifacts_root)/$(CARGO_BUILD_TARGET)/$(CONFIGURATION)
 
-crate_name := azure_data_cosmos_client_engine
+crate_name := azure_cosmoscx
 shared_lib_name := cosmoscx
 
 cosmoscx_header_name := $(shared_lib_name).h

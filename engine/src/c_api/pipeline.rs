@@ -46,7 +46,7 @@ extern "C" fn cosmoscx_v0_query_pipeline_create<'a>(
     fn inner<'a>(
         query_plan_json: Str<'a>,
         partitions: Slice<'a, PartitionKeyRange>,
-    ) -> crate::Result<*const Pipeline> {
+    ) -> crate::Result<Box<RawQueryPipeline>> {
         let query_plan_json =
             unsafe { query_plan_json.as_str() }?.ok_or_else(|| ErrorKind::ArgumentNull)?;
         let query_plan: QueryPlan = serde_json::from_str(query_plan_json)
@@ -71,17 +71,7 @@ extern "C" fn cosmoscx_v0_query_pipeline_create<'a>(
 
         tracing::debug!(query_plan = ?query_plan, partitions = ?partitions, "created query pipeline");
         let pipeline = RawQueryPipeline::new(query_plan, partitions)?;
-
-        let ptr = Box::into_raw(Box::new(pipeline)) as *const _;
-        tracing::trace!(
-            ?ptr,
-            typ = std::any::type_name::<Box<RawQueryPipeline>>(),
-            "allocating"
-        );
-
-        // Box and "leak" the pipeline to the caller.
-        // The caller is now responsible for calling `cosmoscx_query_pipeline_free` to free the memory.
-        Ok(ptr)
+        Ok(Box::new(pipeline))
     }
 
     inner(query_plan_json, partitions).into()
@@ -90,10 +80,7 @@ extern "C" fn cosmoscx_v0_query_pipeline_create<'a>(
 /// Frees the memory associated with a pipeline.
 #[no_mangle]
 extern "C" fn cosmoscx_v0_query_pipeline_free(pipeline: *mut Pipeline) {
-    // SAFETY: We have to trust that the caller is giving us a valid pipeline created by `cosmoscx_query_pipeline_create`.
-    let owned = unsafe { Box::from_raw(pipeline as *mut RawQueryPipeline) };
-    tracing::trace!(ptr = ?pipeline, typ = std::any::type_name_of_val(&owned), "free");
-    drop(owned)
+    unsafe { crate::c_api::free(pipeline) }
 }
 
 #[repr(C)]
@@ -124,7 +111,7 @@ pub struct PipelineResult {
 extern "C" fn cosmoscx_v0_query_pipeline_next_batch<'a>(
     pipeline: *mut Pipeline,
 ) -> FfiResult<PipelineResult> {
-    fn inner<'a>(pipeline: *mut Pipeline) -> crate::Result<*const PipelineResult> {
+    fn inner<'a>(pipeline: *mut Pipeline) -> crate::Result<Box<PipelineResult>> {
         let pipeline = unsafe {
             (pipeline as *mut RawQueryPipeline)
                 .as_mut()
@@ -167,13 +154,7 @@ extern "C" fn cosmoscx_v0_query_pipeline_next_batch<'a>(
             })
         };
 
-        let ptr = Box::into_raw(result);
-        tracing::trace!(
-            ?ptr,
-            typ = std::any::type_name::<Box<PipelineResult>>(),
-            "allocating"
-        );
-        Ok(ptr)
+        Ok(result)
     }
 
     inner(pipeline).into()
@@ -184,8 +165,5 @@ extern "C" fn cosmoscx_v0_query_pipeline_next_batch<'a>(
 /// Calling this function will release all the strings and buffers provided within the [`PipelineResult`], so ensure you have copied it all out before calling this.
 #[no_mangle]
 extern "C" fn cosmoscx_v0_query_pipeline_free_result<'a>(result: *mut PipelineResult) {
-    // SAFETY: We have to trust that the caller is giving us a valid pipeline result from calling "next_batch"
-    let owned = unsafe { Box::from_raw(result) };
-    tracing::trace!(ptr = ?result, typ = std::any::type_name_of_val(&owned), "freeing");
-    drop(owned);
+    unsafe { crate::c_api::free(result) }
 }

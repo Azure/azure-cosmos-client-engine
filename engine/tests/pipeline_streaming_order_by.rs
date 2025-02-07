@@ -1,6 +1,6 @@
 use std::vec;
 
-use azure_data_cosmos_client_engine::query::{
+use azure_cosmoscx::query::{
     DataRequest, PipelineResponse, QueryClauseItem, QueryInfo, QueryPlan, QueryResult, SortOrder,
 };
 use pretty_assertions::assert_eq;

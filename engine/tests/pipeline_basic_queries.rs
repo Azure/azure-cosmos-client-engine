@@ -1,8 +1,6 @@
 use std::vec;
 
-use azure_data_cosmos_client_engine::query::{
-    DataRequest, PipelineResponse, QueryPlan, QueryResult,
-};
+use azure_cosmoscx::query::{DataRequest, PipelineResponse, QueryPlan, QueryResult};
 use pretty_assertions::assert_eq;
 
 use mock_engine::{Container, Engine};

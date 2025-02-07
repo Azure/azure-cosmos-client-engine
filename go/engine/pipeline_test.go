@@ -60,7 +60,7 @@ func TestEmptyPipelineReturnsRequests(t *testing.T) {
 
 	for i, request := range requests {
 		expectedId := fmt.Sprintf("partition%d", i)
-		assert.Equal(t, expectedId, request.PartitionKeyRangeID())
-		assert.Empty(t, request.Continuation())
+		assert.Equal(t, expectedId, request.PartitionKeyRangeID().Borrow())
+		assert.Empty(t, request.Continuation().Borrow())
 	}
 }

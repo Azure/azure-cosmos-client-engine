@@ -4,6 +4,7 @@ package engine
 // #include <cosmoscx.h>
 import "C"
 import (
+	"strings"
 	"unsafe"
 )
 
@@ -75,16 +76,24 @@ func (r PipelineResult) Requests() []DataRequest {
 
 type EngineString = C.CosmosCxOwnedString
 
-func (e EngineString) GoString() string {
+// Borrow returns a "borrowed" copy of the string, as a Go String.
+// The string returned here will become invalid when the PipelineResult that owned this is freed.
+// Use Clone to create a copy of the string in Go memory
+func (e EngineString) Borrow() string {
 	return unsafe.String((*byte)(e.data), e.len)
+}
+
+// Clone creates a brand-new Go string, in Go-managed memory, containing the same data as the original string.
+func (e EngineString) Clone() string {
+	return strings.Clone(e.Borrow())
 }
 
 type DataRequest = C.CosmosCxDataRequest
 
-func (r *DataRequest) PartitionKeyRangeID() string {
-	return EngineString(r.pkrangeid).GoString()
+func (r *DataRequest) PartitionKeyRangeID() EngineString {
+	return EngineString(r.pkrangeid)
 }
 
-func (r *DataRequest) Continuation() string {
-	return EngineString(r.continuation).GoString()
+func (r *DataRequest) Continuation() EngineString {
+	return EngineString(r.continuation)
 }

@@ -13,12 +13,3 @@ func makeStr(s string) C.CosmosCxStr {
 		len:  C.uintptr_t(len(s)),
 	}
 }
-
-type BorrowedSlice[T any] struct {
-	ptr unsafe.Pointer
-	len uint
-}
-
-func NewBorrowedSlice[T any](ptr unsafe.Pointer, len uint) BorrowedSlice[T] {
-	return BorrowedSlice[T]{ptr, len}
-}
