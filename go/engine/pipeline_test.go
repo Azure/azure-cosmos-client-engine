@@ -17,7 +17,7 @@ func init() {
 func TestAllocAndFree(t *testing.T) {
 	plan := "{\"partitionedQueryExecutionInfoVersion\": 1, \"queryInfo\":{}, \"queryRanges\": []}"
 	pkranges := []engine.PartitionKeyRange{
-		engine.PartitionKeyRange{
+		{
 			ID:           "partition0",
 			MinInclusive: "00",
 			MaxExclusive: "FF",
@@ -31,12 +31,12 @@ func TestAllocAndFree(t *testing.T) {
 func TestEmptyPipelineReturnsRequests(t *testing.T) {
 	plan := "{\"partitionedQueryExecutionInfoVersion\": 1, \"queryInfo\":{}, \"queryRanges\": []}"
 	pkranges := []engine.PartitionKeyRange{
-		engine.PartitionKeyRange{
+		{
 			ID:           "partition0",
 			MinInclusive: "00",
 			MaxExclusive: "99",
 		},
-		engine.PartitionKeyRange{
+		{
 			ID:           "partition1",
 			MinInclusive: "99",
 			MaxExclusive: "FF",
