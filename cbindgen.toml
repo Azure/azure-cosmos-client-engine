@@ -15,7 +15,6 @@ features = ["c_api"]
 
 [export]
 prefix = "CosmosCx"
-include = ["PartitionKeyRange", "PartitionKeyRangeList"]
 
 [export.mangle]
 remove_underscores = false

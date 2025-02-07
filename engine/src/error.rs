@@ -36,6 +36,9 @@ pub enum ErrorKind {
     ///
     /// This error indicates either a bug in the language binding, or invalid data returned by the backend.
     InvalidUtf8String,
+
+    /// Indicates that one of the provided arguments was null.
+    ArgumentNull,
 }
 
 impl Display for ErrorKind {
@@ -47,6 +50,7 @@ impl Display for ErrorKind {
             ErrorKind::InternalError => write!(f, "internal client engine error"),
             ErrorKind::UnsupportedQueryPlan => write!(f, "unsupported query plan"),
             ErrorKind::InvalidUtf8String => write!(f, "invalid UTF-8 string"),
+            ErrorKind::ArgumentNull => write!(f, "provided argument was null"),
         }
     }
 }

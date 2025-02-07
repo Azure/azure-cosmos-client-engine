@@ -3,13 +3,12 @@ package engine
 // #cgo CFLAGS: -I${SRCDIR}/../../include
 // #include <cosmoscx.h>
 import "C"
-import "unsafe"
 
-func unwrapResult(r C.CosmosCxResult) (unsafe.Pointer, error) {
-	if r.code == C.COSMOS_CX_RESULT_CODE_SUCCESS {
-		return r.value, nil
+func mapErr(code C.CosmosCxResultCode) error {
+	if code == C.COSMOS_CX_RESULT_CODE_SUCCESS {
+		return nil
 	} else {
-		return nil, &Error{Code: r.code}
+		return &Error{Code: code}
 	}
 }
 
@@ -33,6 +32,8 @@ func (e *Error) Error() string {
 		return "unsupported query plan"
 	case C.COSMOS_CX_RESULT_CODE_INVALID_UTF8_STRING:
 		return "invalid UTF-8 string"
+	case C.COSMOS_CX_RESULT_CODE_ARGUMENT_NULL:
+		return "provided argument was null"
 	default:
 		return "unknown error"
 	}

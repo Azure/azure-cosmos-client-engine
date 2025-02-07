@@ -9,15 +9,16 @@ import "C"
 func makeStr(s string) C.CosmosCxStr {
 	ptr := unsafe.StringData(s)
 	return C.CosmosCxStr{
-		data: unsafe.Pointer(ptr),
+		data: (*C.uint8_t)(ptr),
 		len:  C.uintptr_t(len(s)),
 	}
 }
 
-func makeSlice[T any](a []T) C.CosmosCxSlice {
-	ptr := unsafe.SliceData(a)
-	return C.CosmosCxSlice{
-		data: unsafe.Pointer(ptr),
-		len:  C.uintptr_t(len(a)),
-	}
+type BorrowedSlice[T any] struct {
+	ptr unsafe.Pointer
+	len uint
+}
+
+func NewBorrowedSlice[T any](ptr unsafe.Pointer, len uint) BorrowedSlice[T] {
+	return BorrowedSlice[T]{ptr, len}
 }

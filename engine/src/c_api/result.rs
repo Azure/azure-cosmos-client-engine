@@ -11,6 +11,7 @@ pub enum ResultCode {
     InternalError = -5,
     UnsupportedQueryPlan = -6,
     InvalidUtf8String = -7,
+    ArgumentNull = -8,
 }
 
 impl From<crate::Error> for ResultCode {
@@ -28,23 +29,24 @@ impl From<crate::ErrorKind> for ResultCode {
             crate::ErrorKind::InternalError => ResultCode::InternalError,
             crate::ErrorKind::UnsupportedQueryPlan => ResultCode::UnsupportedQueryPlan,
             crate::ErrorKind::InvalidUtf8String => ResultCode::InvalidUtf8String,
+            crate::ErrorKind::ArgumentNull => ResultCode::ArgumentNull,
         }
     }
 }
 
 /// A result type for FFI functions.
 #[repr(C)]
-pub struct FfiResult {
+pub struct FfiResult<T> {
     code: ResultCode,
-    value: *const std::ffi::c_void,
+    value: *const T,
 }
 
-impl<T> From<Result<*const T, crate::Error>> for FfiResult {
+impl<T> From<Result<*const T, crate::Error>> for FfiResult<T> {
     fn from(value: Result<*const T, crate::Error>) -> Self {
         match value {
             Ok(value) => Self {
                 code: ResultCode::Success,
-                value: value as *const T as *const std::ffi::c_void,
+                value: value as *const T,
             },
             Err(e) => {
                 tracing::error!(error = ?e, "an error occurred");
@@ -55,6 +57,22 @@ impl<T> From<Result<*const T, crate::Error>> for FfiResult {
                     value: std::ptr::null(),
                 }
             }
+        }
+    }
+}
+
+pub trait ResultExt {
+    type Output;
+    fn not_null(self) -> Result<Self::Output, crate::Error>;
+}
+
+impl<T> ResultExt for Result<Option<T>, crate::Error> {
+    type Output = T;
+    fn not_null(self) -> Result<Self::Output, crate::Error> {
+        match self {
+            Ok(Some(t)) => Ok(t),
+            Err(e) => Err(e),
+            Ok(None) => Err(crate::ErrorKind::ArgumentNull.into()),
         }
     }
 }

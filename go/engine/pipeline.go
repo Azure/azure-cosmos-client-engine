@@ -3,12 +3,13 @@ package engine
 // #cgo CFLAGS: -I${SRCDIR}/../../include
 // #include <cosmoscx.h>
 import "C"
+import (
+	"unsafe"
+)
 
-type Pipeline struct {
-	ptr *C.CosmosCxPipeline
-}
+type Pipeline = *C.CosmosCxPipeline
 
-func NewPipeline(queryPlan string, partitionKeyRanges []PartitionKeyRange) (*Pipeline, error) {
+func NewPipeline(queryPlan string, partitionKeyRanges []PartitionKeyRange) (Pipeline, error) {
 	queryPlanC := makeStr(queryPlan)
 	pkRanges := make([]C.CosmosCxPartitionKeyRange, 0, len(partitionKeyRanges))
 	for _, srcRange := range partitionKeyRanges {
@@ -21,19 +22,69 @@ func NewPipeline(queryPlan string, partitionKeyRanges []PartitionKeyRange) (*Pip
 			max_exclusive: maxExclusive,
 		})
 	}
-	pkRangeList := makeSlice(pkRanges)
+	pkRangeList := C.CosmosCxSlice_PartitionKeyRange{
+		data: unsafe.SliceData(pkRanges),
+		len:  C.uintptr_t(len(pkRanges)),
+	}
 
-	ptr, err := unwrapResult(C.cosmoscx_v0_query_pipeline_create(queryPlanC, pkRangeList))
-	if err != nil {
+	r := C.cosmoscx_v0_query_pipeline_create(queryPlanC, pkRangeList)
+	if err := mapErr(r.code); err != nil {
 		return nil, err
 	}
-	return &Pipeline{ptr: (*C.CosmosCxPipeline)(ptr)}, nil
+
+	return Pipeline(r.value), nil
 }
 
 // Free disposes of the native resources held by the pipeline.
 // This should always be called when you're finished working with the pipeline.
-func (p *Pipeline) Free() {
-	if p.ptr != nil {
-		C.cosmoscx_v0_query_pipeline_free(p.ptr)
+func (p Pipeline) Free() {
+	if p != nil {
+		C.cosmoscx_v0_query_pipeline_free(p)
 	}
+}
+
+func (p Pipeline) NextBatch() (PipelineResult, error) {
+	r := C.cosmoscx_v0_query_pipeline_next_batch(p)
+	if err := mapErr(r.code); err != nil {
+		return nil, err
+	}
+	return PipelineResult(r.value), nil
+}
+
+type PipelineResult = *C.CosmosCxPipelineResult
+
+func (r PipelineResult) Free() {
+	if r != nil {
+		C.cosmoscx_v0_query_pipeline_free_result(r)
+	}
+}
+
+func (r PipelineResult) IsCompleted() bool {
+	return bool(r.completed)
+}
+
+func (r PipelineResult) Items() []EngineString {
+	ptr := (*EngineString)(r.items.data)
+	return unsafe.Slice(ptr, r.items.len)
+}
+
+func (r PipelineResult) Requests() []DataRequest {
+	ptr := (*DataRequest)(r.requests.data)
+	return unsafe.Slice(ptr, r.requests.len)
+}
+
+type EngineString = C.CosmosCxOwnedString
+
+func (e EngineString) GoString() string {
+	return unsafe.String((*byte)(e.data), e.len)
+}
+
+type DataRequest = C.CosmosCxDataRequest
+
+func (r *DataRequest) PartitionKeyRangeID() string {
+	return EngineString(r.pkrangeid).GoString()
+}
+
+func (r *DataRequest) Continuation() string {
+	return EngineString(r.continuation).GoString()
 }

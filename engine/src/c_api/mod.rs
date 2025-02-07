@@ -10,6 +10,7 @@ use crate::query;
 
 pub mod pipeline;
 pub mod result;
+pub mod slice;
 
 const C_VERSION: &CStr = const {
     // We need a const CStr to return from cosmoscx_version, but env! only returns a &str
