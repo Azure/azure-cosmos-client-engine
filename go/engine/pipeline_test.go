@@ -16,32 +16,15 @@ func init() {
 
 func TestAllocAndFree(t *testing.T) {
 	plan := "{\"partitionedQueryExecutionInfoVersion\": 1, \"queryInfo\":{}, \"queryRanges\": []}"
-	pkranges := []engine.PartitionKeyRange{
-		{
-			ID:           "partition0",
-			MinInclusive: "00",
-			MaxExclusive: "FF",
-		},
-	}
+	pkranges := `[{"id":"partition0","minInclusive":"00","maxExclusive":"FF"}]`
 	pipeline, err := engine.NewPipeline(plan, pkranges)
 	require.NoError(t, err)
 	defer pipeline.Free()
 }
 
 func TestEmptyPipelineReturnsRequests(t *testing.T) {
-	plan := "{\"partitionedQueryExecutionInfoVersion\": 1, \"queryInfo\":{}, \"queryRanges\": []}"
-	pkranges := []engine.PartitionKeyRange{
-		{
-			ID:           "partition0",
-			MinInclusive: "00",
-			MaxExclusive: "99",
-		},
-		{
-			ID:           "partition1",
-			MinInclusive: "99",
-			MaxExclusive: "FF",
-		},
-	}
+	plan := `{"partitionedQueryExecutionInfoVersion": 1, "queryInfo":{}, "queryRanges": []}`
+	pkranges := `[{"id":"partition0","minInclusive":"00","maxExclusive":"99"},{"id":"partition1","minInclusive":"99","maxExclusive":"FF"}]`
 	pipeline, err := engine.NewPipeline(plan, pkranges)
 	require.NoError(t, err)
 	defer pipeline.Free()
@@ -67,18 +50,7 @@ func TestEmptyPipelineReturnsRequests(t *testing.T) {
 
 func TestPipelineWithDataReturnsData(t *testing.T) {
 	plan := "{\"partitionedQueryExecutionInfoVersion\": 1, \"queryInfo\":{}, \"queryRanges\": []}"
-	pkranges := []engine.PartitionKeyRange{
-		{
-			ID:           "partition0",
-			MinInclusive: "00",
-			MaxExclusive: "99",
-		},
-		{
-			ID:           "partition1",
-			MinInclusive: "99",
-			MaxExclusive: "FF",
-		},
-	}
+	pkranges := `[{"id":"partition0","minInclusive":"00","maxExclusive":"99"},{"id":"partition1","minInclusive":"99","maxExclusive":"FF"}]`
 	pipeline, err := engine.NewPipeline(plan, pkranges)
 	require.NoError(t, err)
 	defer pipeline.Free()

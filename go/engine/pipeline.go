@@ -10,25 +10,11 @@ import (
 
 type Pipeline = *C.CosmosCxPipeline
 
-func NewPipeline(queryPlan string, partitionKeyRanges []PartitionKeyRange) (Pipeline, error) {
+func NewPipeline(queryPlan string, partitionKeyRanges string) (Pipeline, error) {
 	queryPlanC := makeStr(queryPlan)
-	pkRanges := make([]C.CosmosCxPartitionKeyRange, 0, len(partitionKeyRanges))
-	for _, srcRange := range partitionKeyRanges {
-		id := makeStr(srcRange.ID)
-		minInclusive := makeStr(srcRange.MinInclusive)
-		maxExclusive := makeStr(srcRange.MaxExclusive)
-		pkRanges = append(pkRanges, C.CosmosCxPartitionKeyRange{
-			id:            id,
-			min_inclusive: minInclusive,
-			max_exclusive: maxExclusive,
-		})
-	}
-	pkRangeList := C.CosmosCxSlice_PartitionKeyRange{
-		data: unsafe.SliceData(pkRanges),
-		len:  C.uintptr_t(len(pkRanges)),
-	}
+	pkRangesC := makeStr(partitionKeyRanges)
 
-	r := C.cosmoscx_v0_query_pipeline_create(queryPlanC, pkRangeList)
+	r := C.cosmoscx_v0_query_pipeline_create(queryPlanC, pkRangesC)
 	if err := mapErr(r.code); err != nil {
 		return nil, err
 	}

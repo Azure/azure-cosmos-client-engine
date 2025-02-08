@@ -5,7 +5,7 @@
 pub enum ResultCode {
     Success = 0,
     UnknownError = -1,
-    QueryPlanInvalid = -2,
+    InvalidGatewayResponse = -2,
     DeserializationError = -3,
     UnknownPartitionKeyRange = -4,
     InternalError = -5,
@@ -23,7 +23,7 @@ impl From<crate::Error> for ResultCode {
 impl From<crate::ErrorKind> for ResultCode {
     fn from(value: crate::ErrorKind) -> Self {
         match value {
-            crate::ErrorKind::QueryPlanInvalid => ResultCode::QueryPlanInvalid,
+            crate::ErrorKind::InvalidGatewayResponse => ResultCode::InvalidGatewayResponse,
             crate::ErrorKind::DeserializationError => ResultCode::DeserializationError,
             crate::ErrorKind::UnknownPartitionKeyRange => ResultCode::UnknownPartitionKeyRange,
             crate::ErrorKind::InternalError => ResultCode::InternalError,

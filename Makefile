@@ -119,7 +119,7 @@ test_rust:
 .PHONY: test_go
 test_go: #/ Runs the Go language binding tests
 	@echo "Running Go tests..."
-	go -C ./go/engine test -v -c ./...
+	go -C ./go/engine test -v ./...
 
 .PHONY: test_python
 test_python: _check-venv #/ Runs the Python language binding tests

@@ -4,10 +4,10 @@ pub type Result<T> = ::std::result::Result<T, Error>;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ErrorKind {
-    /// Indicates that the query plan is invalid.
+    /// Indicates that the query plan or other information gathered from the gateway is invalid.
     ///
-    /// This error is not recoverable and indicates a bug in the query planner (which is in the backend).
-    QueryPlanInvalid,
+    /// This error is not recoverable and indicates a bug in the gateway.
+    InvalidGatewayResponse,
 
     /// Indicates a deserialization failure, the details of which should be available in [`Error::source`].
     ///
@@ -44,7 +44,7 @@ pub enum ErrorKind {
 impl Display for ErrorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            ErrorKind::QueryPlanInvalid => write!(f, "query plan is invalid"),
+            ErrorKind::InvalidGatewayResponse => write!(f, "invalid data recieved from gateway"),
             ErrorKind::DeserializationError => write!(f, "deserialization error"),
             ErrorKind::UnknownPartitionKeyRange => write!(f, "unknown partition key range"),
             ErrorKind::InternalError => write!(f, "internal client engine error"),

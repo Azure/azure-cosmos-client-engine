@@ -57,12 +57,12 @@ impl<T> QueryResult<T> {
         orderings: &[SortOrder],
     ) -> crate::Result<std::cmp::Ordering> {
         if self.order_by_items.len() != other.order_by_items.len() {
-            return Err(ErrorKind::QueryPlanInvalid
+            return Err(ErrorKind::InvalidGatewayResponse
                 .with_message("items have inconsistent numbers of order by items"));
         }
 
         if self.order_by_items.len() != orderings.len() {
-            return Err(ErrorKind::QueryPlanInvalid
+            return Err(ErrorKind::InvalidGatewayResponse
                 .with_message("items have inconsistent numbers of order by items"));
         }
 
@@ -143,13 +143,13 @@ impl QueryClauseItem {
                 } else {
                     // We need to compare as floats.
                     let l = left.as_f64().ok_or_else(|| {
-                        ErrorKind::QueryPlanInvalid.with_message("encountered NaN or Infinity while comparing floats")
+                        ErrorKind::InvalidGatewayResponse.with_message("encountered NaN or Infinity while comparing floats")
                     })?;
                     let r = right.as_f64().ok_or_else(|| {
-                        ErrorKind::QueryPlanInvalid.with_message("encountered NaN or Infinity while comparing floats")
+                        ErrorKind::InvalidGatewayResponse.with_message("encountered NaN or Infinity while comparing floats")
                     })?;
                     l.partial_cmp(&r).ok_or_else(|| {
-                        ErrorKind::QueryPlanInvalid.with_message("encountered NaN or Infinity while comparing floats")
+                        ErrorKind::InvalidGatewayResponse.with_message("encountered NaN or Infinity while comparing floats")
                     })
                 }
             }
@@ -176,7 +176,7 @@ impl QueryClauseItem {
             Some(serde_json::Value::Number(_)) => Ok(4),
             Some(serde_json::Value::String(_)) => Ok(5),
             _ => {
-                Err(ErrorKind::QueryPlanInvalid.with_message("cannot compare non-primitive values"))
+                Err(ErrorKind::InvalidGatewayResponse.with_message("cannot compare non-primitive values"))
             }
         }
     }
@@ -409,6 +409,6 @@ mod tests {
         let err = left
             .compare(&right, &[SortOrder::Ascending, SortOrder::Descending])
             .unwrap_err();
-        assert_eq!(ErrorKind::QueryPlanInvalid, err.kind());
+        assert_eq!(ErrorKind::InvalidGatewayResponse, err.kind());
     }
 }

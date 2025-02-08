@@ -15,9 +15,3 @@ func Version() string {
 func EnableTracing() {
 	C.cosmoscx_v0_tracing_enable()
 }
-
-type PartitionKeyRange struct {
-	ID           string
-	MinInclusive string
-	MaxExclusive string
-}

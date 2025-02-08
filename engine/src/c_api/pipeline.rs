@@ -1,9 +1,7 @@
 use crate::{
-    c_api::{
-        result::ResultExt,
-        slice::{OwnedSlice, Slice},
-    },
-    query, ErrorKind,
+    c_api::{result::ResultExt, slice::OwnedSlice},
+    query::{self, PartitionKeyRange},
+    ErrorKind,
 };
 
 use super::{
@@ -19,62 +17,37 @@ type RawQueryResult = query::QueryResult<Box<serde_json::value::RawValue>>;
 /// Callers should not attempt to access the fields of this struct directly.
 pub struct Pipeline;
 
-/// Describes a partition key range used to create a query pipeline.
-/// cbindgen:export
-#[repr(C)]
-pub struct PartitionKeyRange<'a> {
-    /// The ID of the partition key range.
-    id: Str<'a>,
-
-    /// The minimum value of the partition key range (inclusive).
-    min_inclusive: Str<'a>,
-
-    /// The maximum value of the partition key range (exclusive).
-    max_exclusive: Str<'a>,
-}
-
 /// Creates a new query pipeline from a JSON query plan and list of partitions.
 ///
 /// # Parameters
-/// - `query_plan_json`: A [`Str`] containing the query plan as recieved from the gateway, in JSON.
-/// - `partitions`: A [`Slice`] of [`PartitionKeyRange`] objects representing the partition key ranges to query.
+/// - `query_plan_json`: A [`Str`] containing the serialized query plan, as recieved from the gateway, in JSON.
+/// - `pkranges`: A [`Str`] containing the serialized partition key ranges list, as recieved from the gateway, in JSON.
 #[no_mangle]
 extern "C" fn cosmoscx_v0_query_pipeline_create<'a>(
     query_plan_json: Str<'a>,
-    partitions: Slice<'a, PartitionKeyRange>,
+    pkranges: Str<'a>,
 ) -> FfiResult<Pipeline> {
     fn inner<'a>(
         query_plan_json: Str<'a>,
-        partitions: Slice<'a, PartitionKeyRange>,
+        pkranges: Str<'a>,
     ) -> crate::Result<Box<RawQueryPipeline>> {
         let query_plan_json =
             unsafe { query_plan_json.as_str() }?.ok_or_else(|| ErrorKind::ArgumentNull)?;
         let query_plan: query::QueryPlan = serde_json::from_str(query_plan_json)
-            .map_err(|e| crate::ErrorKind::QueryPlanInvalid.with_source(e))?;
+            .map_err(|e| crate::ErrorKind::InvalidGatewayResponse.with_source(e))?;
 
-        let partitions = unsafe { partitions.as_slice() }
-            .ok_or_else(|| ErrorKind::ArgumentNull)?
-            .iter()
-            .map(|p| -> crate::Result<query::PartitionKeyRange> {
-                let id = unsafe { p.id.as_str().not_null()? }.to_string();
-                let min_inclusive = unsafe { p.min_inclusive.as_str().not_null()? }.to_string();
-                let max_exclusive = unsafe { p.max_exclusive.as_str().not_null()? }.to_string();
-                Ok(query::PartitionKeyRange::new(
-                    id,
-                    min_inclusive,
-                    max_exclusive,
-                ))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+        let pkranges_json = unsafe { pkranges.as_str() }?.ok_or_else(|| ErrorKind::ArgumentNull)?;
+        let pkranges: Vec<PartitionKeyRange> = serde_json::from_str(pkranges_json)
+            .map_err(|e| crate::ErrorKind::InvalidGatewayResponse.with_source(e))?;
 
         // SAFETY: We should no longer need either of the parameter slices, we copied them into owned data.
 
-        tracing::debug!(query_plan = ?query_plan, partitions = ?partitions, "created query pipeline");
-        let pipeline = RawQueryPipeline::new(query_plan, partitions)?;
+        tracing::debug!(query_plan = ?query_plan, pkranges = ?pkranges, "created query pipeline");
+        let pipeline = RawQueryPipeline::new(query_plan, pkranges)?;
         Ok(Box::new(pipeline))
     }
 
-    inner(query_plan_json, partitions).into()
+    inner(query_plan_json, pkranges).into()
 }
 
 /// Frees the memory associated with a pipeline.

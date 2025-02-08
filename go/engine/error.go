@@ -20,8 +20,8 @@ func (e *Error) Error() string {
 	switch e.Code {
 	case C.COSMOS_CX_RESULT_CODE_SUCCESS:
 		return "action was successful" // Shouldn't call this, but might as well return something descriptive.
-	case C.COSMOS_CX_RESULT_CODE_QUERY_PLAN_INVALID:
-		return "query plan invalid"
+	case C.COSMOS_CX_RESULT_CODE_INVALID_GATEWAY_RESPONSE:
+		return "invalid response from gateway"
 	case C.COSMOS_CX_RESULT_CODE_DESERIALIZATION_ERROR:
 		return "deserialization error"
 	case C.COSMOS_CX_RESULT_CODE_UNKNOWN_PARTITION_KEY_RANGE:

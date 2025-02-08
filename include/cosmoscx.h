@@ -18,7 +18,7 @@
 enum CosmosCxResultCode {
   COSMOS_CX_RESULT_CODE_SUCCESS = 0,
   COSMOS_CX_RESULT_CODE_UNKNOWN_ERROR = -1,
-  COSMOS_CX_RESULT_CODE_QUERY_PLAN_INVALID = -2,
+  COSMOS_CX_RESULT_CODE_INVALID_GATEWAY_RESPONSE = -2,
   COSMOS_CX_RESULT_CODE_DESERIALIZATION_ERROR = -3,
   COSMOS_CX_RESULT_CODE_UNKNOWN_PARTITION_KEY_RANGE = -4,
   COSMOS_CX_RESULT_CODE_INTERNAL_ERROR = -5,
@@ -55,36 +55,6 @@ typedef struct CosmosCxSlice_u8 {
 } CosmosCxSlice_u8;
 
 typedef struct CosmosCxSlice_u8 CosmosCxStr;
-
-/**
- * Describes a partition key range used to create a query pipeline.
- */
-typedef struct CosmosCxPartitionKeyRange {
-  /**
-   * The ID of the partition key range.
-   */
-  CosmosCxStr id;
-  /**
-   * The minimum value of the partition key range (inclusive).
-   */
-  CosmosCxStr min_inclusive;
-  /**
-   * The maximum value of the partition key range (exclusive).
-   */
-  CosmosCxStr max_exclusive;
-} CosmosCxPartitionKeyRange;
-
-/**
- * Represents a contiguous sequence of objects OWNED BY THE CALLING CODE.
- *
- * The language binding owns this memory. It must keep the memory valid for the duration of any function call that receives it.
- * For example, the [`Slice`]s passed to [`cosmoscx_v0_query_pipeline_create`] must remain valid until that function returns.
- * After the function returns, the language binding may free the memory.
- */
-typedef struct CosmosCxSlice_PartitionKeyRange {
-  const struct CosmosCxPartitionKeyRange *data;
-  uintptr_t len;
-} CosmosCxSlice_PartitionKeyRange;
 
 /**
  * Represents a contiguous sequence of objects OWNED BY THE ENGINE.
@@ -181,11 +151,11 @@ void cosmoscx_v0_tracing_enable(void);
  * Creates a new query pipeline from a JSON query plan and list of partitions.
  *
  * # Parameters
- * - `query_plan_json`: A [`Str`] containing the query plan as recieved from the gateway, in JSON.
- * - `partitions`: A [`Slice`] of [`PartitionKeyRange`] objects representing the partition key ranges to query.
+ * - `query_plan_json`: A [`Str`] containing the serialized query plan, as recieved from the gateway, in JSON.
+ * - `pkranges`: A [`Str`] containing the serialized partition key ranges list, as recieved from the gateway, in JSON.
  */
 struct CosmosCxFfiResult_Pipeline cosmoscx_v0_query_pipeline_create(CosmosCxStr query_plan_json,
-                                                                    struct CosmosCxSlice_PartitionKeyRange partitions);
+                                                                    CosmosCxStr pkranges);
 
 /**
  * Frees the memory associated with a pipeline.
