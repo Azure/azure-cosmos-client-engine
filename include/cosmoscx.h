@@ -57,6 +57,14 @@ typedef struct CosmosCxSlice_u8 {
 typedef struct CosmosCxSlice_u8 CosmosCxStr;
 
 /**
+ * A result type for FFI functions.
+ */
+typedef struct CosmosCxFfiResult_Str {
+  CosmosCxResultCode code;
+  const CosmosCxStr *value;
+} CosmosCxFfiResult_Str;
+
+/**
  * Represents a contiguous sequence of objects OWNED BY THE ENGINE.
  *
  * The language binding MUST free the memory associated with this sequence by calling the appropriate 'free' function.
@@ -154,13 +162,22 @@ void cosmoscx_v0_tracing_enable(void);
  * - `query_plan_json`: A [`Str`] containing the serialized query plan, as recieved from the gateway, in JSON.
  * - `pkranges`: A [`Str`] containing the serialized partition key ranges list, as recieved from the gateway, in JSON.
  */
-struct CosmosCxFfiResult_Pipeline cosmoscx_v0_query_pipeline_create(CosmosCxStr query_plan_json,
+struct CosmosCxFfiResult_Pipeline cosmoscx_v0_query_pipeline_create(CosmosCxStr query,
+                                                                    CosmosCxStr query_plan_json,
                                                                     CosmosCxStr pkranges);
 
 /**
  * Frees the memory associated with a pipeline.
  */
 void cosmoscx_v0_query_pipeline_free(struct CosmosCxPipeline *pipeline);
+
+/**
+ * Gets the, possibly rewritten, query that this pipeline is executing.
+ *
+ * The string returned here should be copied to a language-specific string type before being used.
+ * It remains valid until the pipeline is freed by a call to [`cosmoscx_v0_query_pipeline_free`].
+ */
+struct CosmosCxFfiResult_Str cosmoscx_v0_query_pipeline_query(struct CosmosCxPipeline *pipeline);
 
 /**
  * Fetches the next batch of query results.

@@ -1,13 +1,13 @@
-package engine_test
+package azcosmoscx_test
 
 import (
 	"testing"
 
-	"github.com/Azure/azure-cosmos-client-engine/go/engine"
+	"github.com/Azure/azure-cosmos-client-engine/go/azcosmoscx"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestVersion(t *testing.T) {
-	version := engine.Version()
+	version := azcosmoscx.Version()
 	assert.Regexp(t, `\d+\.\d+\.\d+`, version)
 }

@@ -30,6 +30,16 @@ impl<'a, T> Slice<'a, T> {
     }
 }
 
+impl<'a, T> From<&'a [T]> for Slice<'a, T> {
+    fn from(value: &'a [T]) -> Self {
+        Self {
+            data: value.as_ptr(),
+            len: value.len(),
+            _phantom: PhantomData,
+        }
+    }
+}
+
 pub type Str<'a> = Slice<'a, u8>;
 
 impl<'a> Str<'a> {
@@ -43,6 +53,12 @@ impl<'a> Str<'a> {
 
     pub unsafe fn into_string(&self) -> crate::Result<Option<String>> {
         self.as_str().map(|o| o.map(|s| s.to_string()))
+    }
+}
+
+impl<'a> From<&'a str> for Str<'a> {
+    fn from(value: &'a str) -> Self {
+        value.as_bytes().into()
     }
 }
 

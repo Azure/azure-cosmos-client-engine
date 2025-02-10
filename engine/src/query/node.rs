@@ -1,6 +1,8 @@
+use std::fmt::Debug;
+
 use super::{producer::ItemProducer, QueryResult};
 
-pub enum PipelineResult<T> {
+pub enum PipelineResult<T: Debug> {
     /// Indicates that a query result was produced.
     Result(QueryResult<T>),
 
@@ -20,12 +22,12 @@ pub enum PipelineResult<T> {
 ///
 /// This type exists so that nodes don't have to deal with slicing the list of nodes, and so that the item producer can be passed around easily.
 /// Since the Item Producer and Pipeline Nodes are both owned by the [`QueryPipeline`], we can't create an owned type that contains both.
-pub struct PipelineSlice<'a, T> {
+pub struct PipelineSlice<'a, T: Debug> {
     nodes: &'a mut [Box<dyn PipelineNode<T>>],
     producer: &'a mut ItemProducer<T>,
 }
 
-impl<'a, T> PipelineSlice<'a, T> {
+impl<'a, T: Debug> PipelineSlice<'a, T> {
     pub fn new(
         nodes: &'a mut [Box<dyn PipelineNode<T>>],
         producer: &'a mut ItemProducer<T>,
@@ -36,14 +38,20 @@ impl<'a, T> PipelineSlice<'a, T> {
     /// Retrieves the next item from the first node in the span, passing the rest of the span as the "next" parameter.
     pub fn next_item(&mut self) -> crate::Result<PipelineResult<T>> {
         match self.nodes.split_first_mut() {
-            Some((node, rest)) => node.next_item(PipelineSlice {
-                nodes: rest,
-                producer: self.producer,
-            }),
-            None => match self.producer.produce_item()? {
-                Some(item) => Ok(PipelineResult::Result(item)),
-                None => Ok(PipelineResult::NoResult),
-            },
+            Some((node, rest)) => {
+                tracing::trace!(node_name = ?node.name(), "running pipeline node");
+                node.next_item(PipelineSlice {
+                    nodes: rest,
+                    producer: self.producer,
+                })
+            }
+            None => {
+                tracing::trace!("retrieving item from producer");
+                match self.producer.produce_item()? {
+                    Some(item) => Ok(PipelineResult::Result(item)),
+                    None => Ok(PipelineResult::NoResult),
+                }
+            }
         }
     }
 }
@@ -51,12 +59,17 @@ impl<'a, T> PipelineSlice<'a, T> {
 /// Represents a node in the query pipeline.
 ///
 /// Nodes are the building blocks of the query pipeline. They are used to represent different stages of query execution, such as filtering, sorting, and aggregation.
-pub trait PipelineNode<T> {
+pub trait PipelineNode<T: Debug> {
     /// Retrieves the next item from this node in the pipeline.
     ///
     /// # Parameters
     /// * `next` - The next node in the pipeline, or `Ok(None)` if this is the last node in the pipeline.
     fn next_item(&mut self, rest: PipelineSlice<T>) -> crate::Result<PipelineResult<T>>;
+
+    /// Retrieves the name of this node, which defaults to it's type name.
+    fn name(&self) -> &'static str {
+        std::any::type_name_of_val(self)
+    }
 }
 
 /// A pipeline node that limits the number of items that can pass through it by a fixed number.
@@ -73,14 +86,16 @@ impl LimitPipelineNode {
     }
 }
 
-impl<T> PipelineNode<T> for LimitPipelineNode {
+impl<T: Debug> PipelineNode<T> for LimitPipelineNode {
     fn next_item(&mut self, mut rest: PipelineSlice<T>) -> crate::Result<PipelineResult<T>> {
         if self.remaining == 0 {
+            tracing::trace!("limit reached, terminating pipeline");
             return Ok(PipelineResult::EarlyTermination);
         }
 
         match rest.next_item()? {
             PipelineResult::Result(item) => {
+                tracing::trace!("limit not yet reached, returning item");
                 self.remaining -= 1;
                 Ok(PipelineResult::Result(item))
             }
@@ -105,11 +120,14 @@ impl OffsetPipelineNode {
     }
 }
 
-impl<T> PipelineNode<T> for OffsetPipelineNode {
+impl<T: Debug> PipelineNode<T> for OffsetPipelineNode {
     fn next_item(&mut self, mut rest: PipelineSlice<T>) -> crate::Result<PipelineResult<T>> {
         while self.remaining > 0 {
             match rest.next_item()? {
-                PipelineResult::Result(_) => self.remaining -= 1,
+                PipelineResult::Result(_) => {
+                    tracing::trace!("offset not reached, skipping item");
+                    self.remaining -= 1
+                }
 
                 // Pass through any early terminations or no results.
                 x => return Ok(x),
@@ -117,6 +135,7 @@ impl<T> PipelineNode<T> for OffsetPipelineNode {
         }
 
         // Now, we're no longer skipping items, so we can pass through the rest of the pipeline.
+        tracing::trace!("offset reached, returning item");
         rest.next_item()
     }
 }

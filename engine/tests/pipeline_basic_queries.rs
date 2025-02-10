@@ -62,6 +62,7 @@ pub fn unordered_query() -> Result<(), Box<dyn std::error::Error>> {
 
     let engine = Engine::new(
         container,
+        "SELECT * FROM c",
         QueryPlan {
             partitioned_query_execution_info_version: 1,
             query_info: Default::default(),

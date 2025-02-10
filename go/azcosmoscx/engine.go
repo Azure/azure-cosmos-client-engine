@@ -1,0 +1,114 @@
+package azcosmoscx
+
+// TODO: We need to evaluate how to distribute the native library itself and how best to link it (static/shared).
+
+// #cgo CFLAGS: -I${SRCDIR}/../../include
+// #include <cosmoscx.h>
+import "C"
+
+import (
+	"github.com/Azure/azure-cosmos-client-engine/go/azcosmoscx/internal/native"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
+)
+
+type Error = native.Error
+
+func Version() string {
+	return C.GoString(C.cosmoscx_version())
+}
+
+// EnableTracing enables Cosmos Client Engine tracing.
+// Once enabled, tracing cannot be disabled (for now). Tracing is controlled by setting the COSMOSCX_LOG environment variable, using the syntax of the `RUST_LOG` (https://docs.rs/env_logger/latest/env_logger/#enabling-logging) env var.
+func EnableTracing() {
+	C.cosmoscx_v0_tracing_enable()
+}
+
+type nativeQueryEngine struct {
+}
+
+// NewQueryEngine creates a new azcosmoscx query engine.
+func NewQueryEngine() azcosmos.QueryEngine {
+	return &nativeQueryEngine{}
+}
+
+// CreateQueryPipeline creates a new query pipeline from the provided plan and partition key ranges.
+func (e *nativeQueryEngine) CreateQueryPipeline(query string, plan string, pkranges string) (azcosmos.QueryPipeline, error) {
+	pipeline, err := native.NewPipeline(query, plan, pkranges)
+	if err != nil {
+		return nil, err
+	}
+
+	query, err = pipeline.Query()
+	if err != nil {
+		// The only expected error here is if the pipeline is null. Still, we should report it.
+		pipeline.Free()
+		return nil, err
+	}
+	return &clientEngineQueryPipeline{pipeline, query, nil}, nil
+}
+
+func (e *nativeQueryEngine) SupportedFeatures() string {
+	return native.SupportedFeatures()
+}
+
+type clientEngineQueryPipeline struct {
+	pipeline     *native.Pipeline
+	query        string
+	activeResult *native.PipelineResult
+}
+
+// GetRewrittenQuery returns the query text, possibly rewritten by the gateway, which will be used for per-partition queries.
+func (p *clientEngineQueryPipeline) Query() string {
+	return p.query
+}
+
+func (p *clientEngineQueryPipeline) Close() {
+	p.activeResult.Free()
+	p.pipeline.Free()
+}
+
+// IsComplete gets a boolean indicating if the pipeline has concluded
+func (p *clientEngineQueryPipeline) IsComplete() bool {
+	return p.activeResult != nil && p.activeResult.IsCompleted()
+}
+
+// NextBatch gets the next batch of items, which will be empty if there are no more items in the buffer.
+// The number of items retrieved will be capped by the provided maxPageSize if it is positive.
+// Any remaining items will be returned by the next call to NextBatch.
+func (p *clientEngineQueryPipeline) NextBatch(maxPageSize int32) ([][]byte, []azcosmos.DataRequest, error) {
+	// If there's an active result, free it. This is safe to call on nil values.
+	if p.activeResult != nil {
+		p.activeResult.Free()
+		p.activeResult = nil
+	}
+
+	result, err := p.pipeline.NextBatch()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	p.activeResult = result
+
+	items, err := result.ItemsCloned()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	sourceRequests, err := result.Requests()
+	if err != nil {
+		return nil, nil, err
+	}
+	requests := make([]azcosmos.DataRequest, 0, len(sourceRequests))
+	for _, request := range sourceRequests {
+		requests = append(requests, azcosmos.DataRequest{
+			PartitionKeyRangeID: string(request.PartitionKeyRangeID().BorrowString()),
+			Continuation:        string(request.Continuation().BorrowString()),
+		})
+	}
+	return items, requests, nil
+}
+
+// ProvideData provides more data for a given partition key range ID, using data retrieved from the server in response to making a DataRequest.
+func (p *clientEngineQueryPipeline) ProvideData(partitionKeyRangeId string, data string, continuation string) error {
+	return p.pipeline.ProvideData(partitionKeyRangeId, data, continuation)
+}

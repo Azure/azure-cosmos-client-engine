@@ -1,4 +1,5 @@
 use serde::{Deserialize, Deserializer};
+use std::fmt::Debug;
 
 use crate::ErrorKind;
 
@@ -10,7 +11,7 @@ use super::SortOrder;
 /// For example, order by items are collected into a well-known property with a well-known format so that the pipeline can easily access them.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct QueryResult<T> {
+pub struct QueryResult<T: Debug> {
     #[allow(dead_code)]
     #[serde(default)]
     group_by_items: Vec<QueryClauseItem>,
@@ -21,7 +22,7 @@ pub struct QueryResult<T> {
     payload: T,
 }
 
-impl<T> QueryResult<T> {
+impl<T: Debug> QueryResult<T> {
     pub fn new(
         group_by_items: Vec<QueryClauseItem>,
         order_by_items: Vec<QueryClauseItem>,
@@ -175,9 +176,8 @@ impl QueryClauseItem {
             // 3 is skipped in the current implementation for both Python and JS.
             Some(serde_json::Value::Number(_)) => Ok(4),
             Some(serde_json::Value::String(_)) => Ok(5),
-            _ => {
-                Err(ErrorKind::InvalidGatewayResponse.with_message("cannot compare non-primitive values"))
-            }
+            _ => Err(ErrorKind::InvalidGatewayResponse
+                .with_message("cannot compare non-primitive values")),
         }
     }
 }

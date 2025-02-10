@@ -1,3 +1,5 @@
+use serde::Deserialize;
+
 use crate::{
     c_api::{result::ResultExt, slice::OwnedSlice},
     query::{self, PartitionKeyRange},
@@ -17,6 +19,16 @@ type RawQueryResult = query::QueryResult<Box<serde_json::value::RawValue>>;
 /// Callers should not attempt to access the fields of this struct directly.
 pub struct Pipeline;
 
+impl Pipeline {
+    // We can't make this into a "method" without the arbitrary_self_types feature
+    // (https://github.com/rust-lang/rust/issues/44874)
+    pub unsafe fn unwrap_ptr(pipeline: *mut Self) -> crate::Result<&'static mut RawQueryPipeline> {
+        (pipeline as *mut RawQueryPipeline)
+            .as_mut()
+            .ok_or_else(|| ErrorKind::ArgumentNull.with_message("pipeline was null"))
+    }
+}
+
 /// Creates a new query pipeline from a JSON query plan and list of partitions.
 ///
 /// # Parameters
@@ -24,36 +36,58 @@ pub struct Pipeline;
 /// - `pkranges`: A [`Str`] containing the serialized partition key ranges list, as recieved from the gateway, in JSON.
 #[no_mangle]
 extern "C" fn cosmoscx_v0_query_pipeline_create<'a>(
+    query: Str<'a>,
     query_plan_json: Str<'a>,
     pkranges: Str<'a>,
 ) -> FfiResult<Pipeline> {
+    #[derive(Deserialize)]
+    struct PartitionKeyRangeResult {
+        #[serde(rename = "PartitionKeyRanges")]
+        pub ranges: Vec<PartitionKeyRange>,
+    }
+
     fn inner<'a>(
+        query: Str<'a>,
         query_plan_json: Str<'a>,
         pkranges: Str<'a>,
     ) -> crate::Result<Box<RawQueryPipeline>> {
-        let query_plan_json =
-            unsafe { query_plan_json.as_str() }?.ok_or_else(|| ErrorKind::ArgumentNull)?;
+        let query = unsafe { query.as_str().not_null() }?;
+        let query_plan_json = unsafe { query_plan_json.as_str().not_null() }?;
+        let pkranges_json = unsafe { pkranges.as_str().not_null() }?;
+
         let query_plan: query::QueryPlan = serde_json::from_str(query_plan_json)
             .map_err(|e| crate::ErrorKind::InvalidGatewayResponse.with_source(e))?;
-
-        let pkranges_json = unsafe { pkranges.as_str() }?.ok_or_else(|| ErrorKind::ArgumentNull)?;
-        let pkranges: Vec<PartitionKeyRange> = serde_json::from_str(pkranges_json)
+        let pkranges: PartitionKeyRangeResult = serde_json::from_str(pkranges_json)
             .map_err(|e| crate::ErrorKind::InvalidGatewayResponse.with_source(e))?;
 
         // SAFETY: We should no longer need either of the parameter slices, we copied them into owned data.
 
-        tracing::debug!(query_plan = ?query_plan, pkranges = ?pkranges, "created query pipeline");
-        let pipeline = RawQueryPipeline::new(query_plan, pkranges)?;
+        tracing::debug!(query = ?query, query_plan = ?query_plan, pkranges = ?pkranges.ranges, "creating query pipeline");
+        let pipeline = RawQueryPipeline::new(query, query_plan, pkranges.ranges)?;
         Ok(Box::new(pipeline))
     }
 
-    inner(query_plan_json, pkranges).into()
+    inner(query, query_plan_json, pkranges).into()
 }
 
 /// Frees the memory associated with a pipeline.
 #[no_mangle]
 extern "C" fn cosmoscx_v0_query_pipeline_free(pipeline: *mut Pipeline) {
     unsafe { crate::c_api::free(pipeline) }
+}
+
+/// Gets the, possibly rewritten, query that this pipeline is executing.
+///
+/// The string returned here should be copied to a language-specific string type before being used.
+/// It remains valid until the pipeline is freed by a call to [`cosmoscx_v0_query_pipeline_free`].
+#[no_mangle]
+extern "C" fn cosmoscx_v0_query_pipeline_query(pipeline: *mut Pipeline) -> FfiResult<Str<'static>> {
+    fn inner(pipeline: *mut Pipeline) -> crate::Result<Box<Str<'static>>> {
+        let pipeline = unsafe { Pipeline::unwrap_ptr(pipeline) }?;
+        Ok(Box::new(pipeline.query().into()))
+    }
+
+    inner(pipeline).into()
 }
 
 #[repr(C)]
@@ -85,11 +119,7 @@ extern "C" fn cosmoscx_v0_query_pipeline_next_batch<'a>(
     pipeline: *mut Pipeline,
 ) -> FfiResult<PipelineResult> {
     fn inner<'a>(pipeline: *mut Pipeline) -> crate::Result<Box<PipelineResult>> {
-        let pipeline = unsafe {
-            (pipeline as *mut RawQueryPipeline)
-                .as_mut()
-                .ok_or_else(|| ErrorKind::ArgumentNull.with_message("pipeline was null"))
-        }?;
+        let pipeline = unsafe { Pipeline::unwrap_ptr(pipeline) }?;
         let batch = pipeline.next_batch()?;
 
         let result = if let Some(batch) = batch {
@@ -155,21 +185,11 @@ extern "C" fn cosmoscx_v0_query_pipeline_provide_data<'a>(
         data: Str<'a>,
         continuation: Str<'a>,
     ) -> crate::Result<()> {
-        let pipeline = unsafe {
-            (pipeline as *mut RawQueryPipeline)
-                .as_mut()
-                .ok_or_else(|| ErrorKind::ArgumentNull.with_message("pipeline was null"))
-        }?;
+        let pipeline = unsafe { Pipeline::unwrap_ptr(pipeline) }?;
 
         // Parse the data
         let pkrange_id = unsafe { pkrange_id.as_str().not_null()? };
-
-        // TODO: Only queries with order by/group by will come back from the server formatted as QueryResults. The rest will be raw payloads!
-        // We need to handle that
-
-        let query_results: Vec<RawQueryResult> =
-            serde_json::from_str(unsafe { data.as_str().not_null()? })
-                .map_err(|e| ErrorKind::DeserializationError.with_source(e))?;
+        let data = unsafe { data.as_str().not_null()? };
         let continuation = unsafe {
             match continuation.into_string()? {
                 // Normalize empty strings to 'None'
@@ -177,6 +197,8 @@ extern "C" fn cosmoscx_v0_query_pipeline_provide_data<'a>(
                 x => x,
             }
         };
+
+        let query_results = pipeline.deserialize_payload(data)?;
 
         // And insert it!
         pipeline.provide_data(pkrange_id, query_results, continuation)

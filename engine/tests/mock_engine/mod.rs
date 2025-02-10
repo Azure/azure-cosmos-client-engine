@@ -5,19 +5,19 @@
 //! * If testing an ORDER BY query, the data in each partition is ALREADY sorted by the ORDER BY field(s).
 //! * Partitions are "ordered" by their ID (in Cosmos DB, physical partitions are ordered by the minimum logical partition key value covered by the physical partition).
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, fmt::Debug};
 
 use azure_cosmoscx::query::{
     PartitionKeyRange, PipelineResponse, QueryPipeline, QueryPlan, QueryResult,
 };
 
-pub struct Engine<T> {
+pub struct Engine<T: Debug> {
     container: Container<T>,
     pipeline: QueryPipeline<T>,
     request_page_size: usize,
 }
 
-impl<T: Clone> Engine<T> {
+impl<T: Clone + Debug> Engine<T> {
     /// Creates a new engine with the given container and query plan.
     ///
     /// # Parameters
@@ -36,6 +36,7 @@ impl<T: Clone> Engine<T> {
     /// It's up to language bindings to handle pagination and buffer data as needed.
     pub fn new(
         container: Container<T>,
+        query: &str,
         plan: QueryPlan,
         request_page_size: usize,
     ) -> Result<Self, azure_cosmoscx::Error> {
@@ -50,7 +51,7 @@ impl<T: Clone> Engine<T> {
                     format!("{}", index + 1),
                 )
             });
-        let pipeline = QueryPipeline::new(plan, partitions)?;
+        let pipeline = QueryPipeline::new(query, plan, partitions)?;
         Ok(Engine {
             container,
             pipeline,
@@ -89,7 +90,7 @@ impl<T: Clone> Engine<T> {
     }
 }
 
-pub struct Page<T> {
+pub struct Page<T: Debug> {
     pub items: Vec<QueryResult<T>>,
     pub continuation: Option<String>,
 }
@@ -97,11 +98,11 @@ pub struct Page<T> {
 /// Represents a container in the simulated Cosmos DB backend.
 ///
 /// Because we don't need to simulate Database or Account operations, this is the root of the simulated engine.
-pub struct Container<T> {
+pub struct Container<T: Debug> {
     partitions: BTreeMap<String, Partition<T>>,
 }
 
-impl<T: Clone> Container<T> {
+impl<T: Clone + Debug> Container<T> {
     pub fn new() -> Self {
         Container {
             partitions: BTreeMap::new(),
@@ -137,11 +138,11 @@ impl<T: Clone> Container<T> {
 }
 
 /// Represents the sequence of pages that will be returned by a given partition.
-pub struct Partition<T> {
+pub struct Partition<T: Debug> {
     data: Vec<QueryResult<T>>,
 }
 
-impl<T: Clone> Partition<T> {
+impl<T: Clone + Debug> Partition<T> {
     pub fn new() -> Self {
         Partition { data: Vec::new() }
     }

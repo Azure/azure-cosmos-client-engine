@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, collections::VecDeque};
+use std::{cmp::Ordering, collections::VecDeque, fmt::Debug};
 
 use crate::{
     query::{DataRequest, PartitionKeyRange, QueryResult, SortOrder},
@@ -6,6 +6,7 @@ use crate::{
 };
 
 /// Represents the current stage that a partition is in during the query.
+#[derive(Debug)]
 enum PartitionStage {
     /// The partition is ready for the first data request. There should be no data in the queue yet.
     Initial,
@@ -17,18 +18,19 @@ enum PartitionStage {
     Done,
 }
 
+#[derive(Debug)]
 pub enum MergeStrategy {
     Ordered(Vec<SortOrder>),
     Unordered,
 }
 
-struct PartitionState<T> {
+struct PartitionState<T: Debug> {
     pkrange: PartitionKeyRange,
     queue: VecDeque<QueryResult<T>>,
     stage: PartitionStage,
 }
 
-impl<T> PartitionState<T> {
+impl<T: Debug> PartitionState<T> {
     pub fn new(pkrange: PartitionKeyRange) -> Self {
         Self {
             pkrange,
@@ -42,6 +44,7 @@ impl<T> PartitionState<T> {
         self.queue.is_empty() && matches!(self.stage, PartitionStage::Done)
     }
 
+    #[tracing::instrument(level = "trace", skip_all, fields(pkrange_id = %self.pkrange.id))]
     pub fn extend(
         &mut self,
         item: impl IntoIterator<Item = QueryResult<T>>,
@@ -52,24 +55,36 @@ impl<T> PartitionState<T> {
             || PartitionStage::Done,
             |token| PartitionStage::Continuing(token),
         );
+        tracing::trace!(queue_len = self.queue.len(), stage = ?self.stage, "updated partition state");
     }
 
+    #[tracing::instrument(level = "trace", skip_all, fields(pkrange_id = %self.pkrange.id))]
     pub fn next_data_request(&self) -> Option<DataRequest> {
         // If the queue is not empty, we don't need to request more data.
         if !self.queue.is_empty() {
+            tracing::trace!("skipping data request for non-empty queue");
             return None;
         }
 
         match &self.stage {
-            PartitionStage::Initial => Some(DataRequest {
-                pkrange_id: self.pkrange.id.clone().into(),
-                continuation: None,
-            }),
-            PartitionStage::Continuing(token) => Some(DataRequest {
-                pkrange_id: self.pkrange.id.clone().into(),
-                continuation: Some(token.clone()),
-            }),
-            PartitionStage::Done => None,
+            PartitionStage::Initial => {
+                tracing::trace!("starting partition");
+                Some(DataRequest {
+                    pkrange_id: self.pkrange.id.clone().into(),
+                    continuation: None,
+                })
+            }
+            PartitionStage::Continuing(token) => {
+                tracing::trace!(continuation_token = ?token, "continuing partition");
+                Some(DataRequest {
+                    pkrange_id: self.pkrange.id.clone().into(),
+                    continuation: Some(token.clone()),
+                })
+            }
+            PartitionStage::Done => {
+                tracing::trace!("partition exhausted");
+                None
+            }
         }
     }
 
@@ -78,12 +93,12 @@ impl<T> PartitionState<T> {
     }
 }
 
-pub struct ItemProducer<T> {
+pub struct ItemProducer<T: Debug> {
     partitions: Vec<PartitionState<T>>,
     strategy: MergeStrategy,
 }
 
-impl<T> ItemProducer<T> {
+impl<T: Debug> ItemProducer<T> {
     pub fn new(
         pkranges: impl IntoIterator<Item = PartitionKeyRange>,
         strategy: MergeStrategy,
@@ -109,6 +124,7 @@ impl<T> ItemProducer<T> {
             .collect()
     }
 
+    #[tracing::instrument(level = "trace", skip(self), fields(pkrange_id = %pkrange_id))]
     pub fn provide_data(
         &mut self,
         pkrange_id: &str,
@@ -126,21 +142,26 @@ impl<T> ItemProducer<T> {
                 ErrorKind::UnknownPartitionKeyRange
                     .with_message(format!("unknown partition key range ID: {}", pkrange_id))
             })?;
-
         partition.extend(data, continuation);
 
         Ok(())
     }
 
+    #[tracing::instrument(level = "trace", skip(self))]
     pub fn produce_item(&mut self) -> crate::Result<Option<QueryResult<T>>> {
         let mut next_partition = None;
         for partition in &mut self.partitions {
+            let _ = tracing::trace_span!("produce_item::check_partition", pkrange_id = %partition.pkrange.id)
+                .entered();
+
             // If any partition hasn't started, we can't return any items.
             if !partition.has_started() {
+                tracing::trace!(pkrange_id = ?partition.pkrange.id, "found partition that hasn't started yet, returning no item");
                 return Ok(None);
             }
 
             if partition.exhausted() {
+                tracing::trace!(pkrange_id = ?partition.pkrange.id, "skipping exhausted partition");
                 continue;
             }
 
@@ -149,8 +170,10 @@ impl<T> ItemProducer<T> {
                 (Some(left), right) => {
                     // Take the "smaller" partition.
                     if compare_partitions(&self.strategy, left, right)? == Ordering::Greater {
+                        tracing::trace!(left = ?left.pkrange.id, right = ?right.pkrange.id, "right partition sorts earlier");
                         Some(right)
                     } else {
+                        tracing::trace!(left = ?left.pkrange.id, right = ?right.pkrange.id, "left partition sorts earlier");
                         Some(left)
                     }
                 }
@@ -161,13 +184,15 @@ impl<T> ItemProducer<T> {
     }
 }
 
-fn compare_partitions<T>(
+#[tracing::instrument(level = "trace", skip(left, right), fields(left_pkrange_id = %left.pkrange.id, right_pkrange_id = %right.pkrange.id))]
+fn compare_partitions<T: Debug>(
     strategy: &MergeStrategy,
     left: &PartitionState<T>,
     right: &PartitionState<T>,
 ) -> crate::Result<Ordering> {
     match strategy {
         MergeStrategy::Unordered => {
+            tracing::trace!(left_min = ?left.pkrange.min_inclusive, right_min = ?right.pkrange.min_inclusive, "comparing partitions");
             Ok(left.pkrange.min_inclusive.cmp(&right.pkrange.min_inclusive))
         }
         MergeStrategy::Ordered(orderings) => {
@@ -181,6 +206,7 @@ fn compare_partitions<T>(
                     return Ok(left.pkrange.min_inclusive.cmp(&right.pkrange.min_inclusive))
                 }
             };
+            tracing::trace!(?left_item, ?right_item, "comparing items");
             match left_item.compare(right_item, orderings)? {
                 Ordering::Equal => Ok(left.pkrange.min_inclusive.cmp(&right.pkrange.min_inclusive)),
                 order => Ok(order),
@@ -233,7 +259,7 @@ mod tests {
         QueryResult::new(vec![], order_by_items, item)
     }
 
-    fn drain_producer<T>(producer: &mut ItemProducer<T>) -> crate::Result<Vec<T>> {
+    fn drain_producer<T: Debug>(producer: &mut ItemProducer<T>) -> crate::Result<Vec<T>> {
         let mut items = Vec::new();
         while let Some(item) = producer.produce_item()? {
             let item = item.into_payload();
