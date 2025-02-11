@@ -47,7 +47,7 @@ jobs:
       CONFIGURATION: release
     steps:
       - name: Enable long paths on Windows
-        if: ${{ runner.os == 'windows'" }}
+        if: ${{ runner.os == 'windows' }}
         run:
           # This is necessary because the Python repository has some VERY long paths.
           git config --global core.longpaths true
