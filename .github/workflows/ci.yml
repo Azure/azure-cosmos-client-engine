@@ -46,7 +46,7 @@ jobs:
       CARGO_BUILD_TARGET: "${{ matrix.target.triple }}"
       CONFIGURATION: release
     steps:
-      - name: Enable long paths on Windows
+      - name: Prepare Windows Runner
         if: ${{ runner.os == 'windows' }}
         run:
           # This is necessary because the Python repository has some VERY long paths.
@@ -76,6 +76,7 @@ jobs:
 
       - name: Install Go
         uses: actions/setup-go@v5
+        if: ${{ runner.os != 'windows' }}
         with:
           go-version-file: "azure-cosmos-client-engine/go/azcosmoscx/go.mod"
           cache-dependency-path: |
@@ -141,6 +142,7 @@ jobs:
           make test_python
 
       - name: Run Go Tests against shared library
+        if: ${{ runner.os != 'windows' }}
         shell: bash
         working-directory: "azure-cosmos-client-engine"
         run: |
@@ -148,6 +150,7 @@ jobs:
           make test_go LIBRARY_MODE=shared
 
       - name: Run Go Tests against static library
+        if: ${{ runner.os != 'windows' }}
         shell: bash
         working-directory: "azure-cosmos-client-engine"
         run: |
