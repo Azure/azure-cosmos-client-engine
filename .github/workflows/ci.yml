@@ -33,7 +33,7 @@ jobs:
     strategy:
       fail-fast: false # Don't cancel other jobs when one job fails
       matrix:
-        target: 
+        target:
           - host: ubuntu-latest
             triple: x86_64-unknown-linux-gnu
           - host: macos-latest
@@ -54,14 +54,14 @@ jobs:
       - name: Install Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: 'go/engine/go.mod'
+          go-version-file: "go/azcosmoscx/go.mod"
           cache-dependency-path: |
             go/engine/go.sum
       - name: Install Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.13'
-          cache: 'pip'
+          python-version: "3.13"
+          cache: "pip"
 
       - name: Bootstrap Repository and activate venv
         shell: bash
@@ -95,28 +95,28 @@ jobs:
           else
             echo "In Python venv: $python_path"
           fi
-      
+
       - name: Build Engine
         shell: bash
         run: |
           make engine
-      
+
       - name: Run Engine Tests
         shell: bash
         run: |
           make test_rust
-      
+
       - name: Run Python Tests
         shell: bash
         run: |
           make test_python
-      
+
       - name: Run Go Tests against shared library
         shell: bash
         run: |
           go clean -cache
           make test_go LIBRARY_MODE=shared
-      
+
       - name: Run Go Tests against static library
         shell: bash
         run: |
