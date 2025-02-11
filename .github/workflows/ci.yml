@@ -46,6 +46,12 @@ jobs:
       CARGO_BUILD_TARGET: "${{ matrix.target.triple }}"
       CONFIGURATION: release
     steps:
+      - name: Enable long paths on Windows
+        if: ${{ runner.os == 'windows'" }}
+        run:
+          # This is necessary because the Python repository has some VERY long paths.
+          git config --global core.longpaths true
+
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
