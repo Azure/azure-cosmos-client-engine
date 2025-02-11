@@ -5,7 +5,7 @@ go 1.23.3
 replace github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos => ../../../azure-sdk-for-go/sdk/data/azcosmos
 
 require (
-	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.2.0
+	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.2.1
 	github.com/stretchr/testify v1.10.0
 )
 
