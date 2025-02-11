@@ -30,6 +30,11 @@ func NewPipeline(query string, queryPlan string, partitionKeyRanges string) (*Pi
 	return &Pipeline{r.value}, nil
 }
 
+// IsFreed returns a boolean indicating whether the pipeline has been freed.
+func (p *Pipeline) IsFreed() bool {
+	return p.ptr == nil
+}
+
 // Free disposes of the native resources held by the pipeline.
 // This should always be called when you're finished working with the pipeline.
 func (p *Pipeline) Free() {
@@ -56,6 +61,7 @@ func (p *Pipeline) NextBatch() (*PipelineResult, error) {
 	if err := mapErr(r.code); err != nil {
 		return nil, err
 	}
+
 	return &PipelineResult{r.value}, nil
 }
 

@@ -16,6 +16,28 @@ func getenvOrDefault(key, def string) string {
 	return def
 }
 
+func executeQuery(container *azcosmos.ContainerClient, query string) {
+	// Query for all items
+	pager := container.NewQueryItemsPager(query, azcosmos.NewPartitionKey(), nil)
+	defer pager.Close()
+
+	// Just read one page, to test freeing behavior.
+	page, err := pager.NextPage(context.TODO())
+	if err != nil {
+		panic(err)
+	}
+
+	for _, item := range page.Items {
+		fmt.Println(string(item))
+	}
+
+	if pager.More() {
+		fmt.Println("More pages available")
+	} else {
+		fmt.Println("No more pages available")
+	}
+}
+
 func main() {
 	endpoint := "https://localhost:8081"
 	key := "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw=="
@@ -25,8 +47,8 @@ func main() {
 	var query string
 
 	for i := 1; i < len(os.Args); i++ {
-		key := os.Args[i]
-		switch key {
+		arg := os.Args[i]
+		switch arg {
 		case "--endpoint":
 			endpoint = os.Args[i+1]
 			i++
@@ -40,7 +62,7 @@ func main() {
 			containerName = os.Args[i+1]
 			i++
 		default:
-			query = key
+			query = arg
 		}
 	}
 
@@ -68,17 +90,8 @@ func main() {
 		panic(err)
 	}
 
-	// Query for all items
-	pager := container.NewQueryItemsPager(query, azcosmos.NewPartitionKey(), nil)
+	executeQuery(container, query)
 
-	for pager.More() {
-		page, err := pager.NextPage(context.TODO())
-		if err != nil {
-			panic(err)
-		}
-
-		for _, item := range page.Items {
-			fmt.Println(string(item))
-		}
-	}
+	// Run leak checker
+	doLeakCheck()
 }

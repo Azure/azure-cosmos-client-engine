@@ -44,7 +44,7 @@ func (e *nativeQueryEngine) CreateQueryPipeline(query string, plan string, pkran
 		pipeline.Free()
 		return nil, err
 	}
-	return &clientEngineQueryPipeline{pipeline, query, nil}, nil
+	return &clientEngineQueryPipeline{pipeline, query, false}, nil
 }
 
 func (e *nativeQueryEngine) SupportedFeatures() string {
@@ -52,9 +52,9 @@ func (e *nativeQueryEngine) SupportedFeatures() string {
 }
 
 type clientEngineQueryPipeline struct {
-	pipeline     *native.Pipeline
-	query        string
-	activeResult *native.PipelineResult
+	pipeline  *native.Pipeline
+	query     string
+	completed bool
 }
 
 // GetRewrittenQuery returns the query text, possibly rewritten by the gateway, which will be used for per-partition queries.
@@ -63,31 +63,25 @@ func (p *clientEngineQueryPipeline) Query() string {
 }
 
 func (p *clientEngineQueryPipeline) Close() {
-	p.activeResult.Free()
 	p.pipeline.Free()
 }
 
 // IsComplete gets a boolean indicating if the pipeline has concluded
 func (p *clientEngineQueryPipeline) IsComplete() bool {
-	return p.activeResult != nil && p.activeResult.IsCompleted()
+	return p.pipeline.IsFreed() || p.completed
 }
 
 // NextBatch gets the next batch of items, which will be empty if there are no more items in the buffer.
 // The number of items retrieved will be capped by the provided maxPageSize if it is positive.
 // Any remaining items will be returned by the next call to NextBatch.
 func (p *clientEngineQueryPipeline) NextBatch(maxPageSize int32) ([][]byte, []azcosmos.DataRequest, error) {
-	// If there's an active result, free it. This is safe to call on nil values.
-	if p.activeResult != nil {
-		p.activeResult.Free()
-		p.activeResult = nil
-	}
-
 	result, err := p.pipeline.NextBatch()
+	defer result.Free()
 	if err != nil {
 		return nil, nil, err
 	}
 
-	p.activeResult = result
+	p.completed = result.IsCompleted()
 
 	items, err := result.ItemsCloned()
 	if err != nil {
@@ -101,8 +95,8 @@ func (p *clientEngineQueryPipeline) NextBatch(maxPageSize int32) ([][]byte, []az
 	requests := make([]azcosmos.DataRequest, 0, len(sourceRequests))
 	for _, request := range sourceRequests {
 		requests = append(requests, azcosmos.DataRequest{
-			PartitionKeyRangeID: string(request.PartitionKeyRangeID().BorrowString()),
-			Continuation:        string(request.Continuation().BorrowString()),
+			PartitionKeyRangeID: string(request.PartitionKeyRangeID().CloneString()),
+			Continuation:        string(request.Continuation().CloneString()),
 		})
 	}
 	return items, requests, nil

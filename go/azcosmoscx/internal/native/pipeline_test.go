@@ -52,10 +52,12 @@ func TestEmptyPipelineReturnsRequests(t *testing.T) {
 
 	assert.False(t, result.IsCompleted())
 
-	items := result.Items()
+	items, err := result.Items()
+	require.NoError(t, err)
 	assert.Empty(t, items)
 
-	requests := result.Requests()
+	requests, err := result.Requests()
+	require.NoError(t, err)
 	assert.NotEmpty(t, requests)
 
 	for i, request := range requests {
@@ -89,13 +91,15 @@ func TestPipelineWithDataReturnsData(t *testing.T) {
 
 	assert.False(t, result.IsCompleted())
 
-	items := result.ItemsCloned()
+	items, err := result.ItemsCloned()
+	require.NoError(t, err)
 	assert.EqualValues(t, [][]byte{
 		[]byte("1"),
 		[]byte("2"),
 	}, items)
 
-	requests := result.Requests()
+	requests, err := result.Requests()
+	require.NoError(t, err)
 	assert.NotEmpty(t, requests)
 
 	for i, request := range requests {
@@ -117,7 +121,8 @@ func TestPipelineWithDataReturnsData(t *testing.T) {
 	require.NoError(t, err)
 	defer result.Free()
 
-	items = result.ItemsCloned()
+	items, err = result.ItemsCloned()
+	require.NoError(t, err)
 	assert.EqualValues(t, [][]byte{
 		[]byte("3"),
 		[]byte("4"),

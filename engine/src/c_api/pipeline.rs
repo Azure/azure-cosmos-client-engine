@@ -13,7 +13,6 @@ use super::{
 
 // The C API uses "Box<serde_json::value::RawValue>" as the payload type for the query pipeline.
 type RawQueryPipeline = query::QueryPipeline<Box<serde_json::value::RawValue>>;
-type RawQueryResult = query::QueryResult<Box<serde_json::value::RawValue>>;
 
 /// Opaque type representing the query pipeline.
 /// Callers should not attempt to access the fields of this struct directly.
