@@ -17,7 +17,7 @@ func init() {
 
 func TestAllocAndFree(t *testing.T) {
 	plan := `{"partitionedQueryExecutionInfoVersion": 1, "queryInfo":{}, "queryRanges": []}`
-	pkranges := `[{"id":"partition0","minInclusive":"00","maxExclusive":"FF"}]`
+	pkranges := `{"PartitionKeyRanges":[{"id":"partition0","minInclusive":"00","maxExclusive":"FF"}]}`
 	pipeline, err := native.NewPipeline("SELECT * FROM c", plan, pkranges)
 	require.NoError(t, err)
 	defer pipeline.Free()
@@ -29,7 +29,7 @@ func TestAllocAndFree(t *testing.T) {
 
 func TestRewrittenQuery(t *testing.T) {
 	plan := `{"partitionedQueryExecutionInfoVersion": 1, "queryInfo":{"rewrittenQuery": "WE REWRITTEN"}, "queryRanges": []}`
-	pkranges := `[{"id":"partition0","minInclusive":"00","maxExclusive":"FF"}]`
+	pkranges := `{"PartitionKeyRanges":[{"id":"partition0","minInclusive":"00","maxExclusive":"FF"}]}`
 	pipeline, err := native.NewPipeline("SELECT * FROM c", plan, pkranges)
 	require.NoError(t, err)
 	defer pipeline.Free()
@@ -41,7 +41,7 @@ func TestRewrittenQuery(t *testing.T) {
 
 func TestEmptyPipelineReturnsRequests(t *testing.T) {
 	plan := `{"partitionedQueryExecutionInfoVersion": 1, "queryInfo":{}, "queryRanges": []}`
-	pkranges := `[{"id":"partition0","minInclusive":"00","maxExclusive":"99"},{"id":"partition1","minInclusive":"99","maxExclusive":"FF"}]`
+	pkranges := `{"PartitionKeyRanges":[{"id":"partition0","minInclusive":"00","maxExclusive":"99"},{"id":"partition1","minInclusive":"99","maxExclusive":"FF"}]}`
 	pipeline, err := native.NewPipeline("SELECT * FROM c", plan, pkranges)
 	require.NoError(t, err)
 	defer pipeline.Free()
@@ -69,20 +69,18 @@ func TestEmptyPipelineReturnsRequests(t *testing.T) {
 
 func TestPipelineWithDataReturnsData(t *testing.T) {
 	plan := "{\"partitionedQueryExecutionInfoVersion\": 1, \"queryInfo\":{}, \"queryRanges\": []}"
-	pkranges := `[{"id":"partition0","minInclusive":"00","maxExclusive":"99"},{"id":"partition1","minInclusive":"99","maxExclusive":"FF"}]`
+	pkranges := `{"PartitionKeyRanges":[{"id":"partition0","minInclusive":"00","maxExclusive":"99"},{"id":"partition1","minInclusive":"99","maxExclusive":"FF"}]}`
 	pipeline, err := native.NewPipeline("SELECT * FROM c", plan, pkranges)
 	require.NoError(t, err)
 	defer pipeline.Free()
 
-	err = pipeline.ProvideData("partition0", `[
-		{"payload": 1},
-		{"payload": 2}
-	]`, "p0c1")
+	err = pipeline.ProvideData("partition0", `{
+		"Documents": [1, 2]
+	}`, "p0c1")
 	require.NoError(t, err)
-	err = pipeline.ProvideData("partition1", `[
-		{"payload": 3},
-		{"payload": 4}
-	]`, "p1c1")
+	err = pipeline.ProvideData("partition1", `{
+		"Documents": [3, 4]
+	}`, "p1c1")
 	require.NoError(t, err)
 
 	result, err := pipeline.NextBatch()
@@ -111,9 +109,9 @@ func TestPipelineWithDataReturnsData(t *testing.T) {
 	}
 
 	// Provide empty data for the remaining partitions
-	err = pipeline.ProvideData("partition0", `[]`, "")
+	err = pipeline.ProvideData("partition0", `{"Documents":[]}`, "")
 	require.NoError(t, err)
-	err = pipeline.ProvideData("partition1", `[]`, "")
+	err = pipeline.ProvideData("partition1", `{"Documents":[]}`, "")
 	require.NoError(t, err)
 
 	// And we should get the rest
