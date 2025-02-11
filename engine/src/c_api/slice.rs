@@ -137,7 +137,6 @@ pub type OwnedString = OwnedSlice<u8>;
 impl OwnedString {
     /// Converts the Owned String back into a String, using the same pointer
     pub unsafe fn into_string(self) -> crate::Result<Option<String>> {
-        #[cfg(debug_assertions)]
         let original_addr = self.data as *const u8;
 
         let Some(slice) = self.into_boxed_slice() else {
