@@ -1,5 +1,5 @@
 [package]
-name = "azure_data_cosmos_client_engine"
+name = "azure_cosmoscx"
 description = "Azure Cosmos DB Client Engine"
 version = "0.1.0"
 edition = "2021"
@@ -12,6 +12,7 @@ pyo3 = { version = "0.23.4", optional = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["raw_value"] }
 tracing = "0.1.40"
+tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
 
 [build-dependencies]
 cbindgen = { version = "0.27.0", optional = true }
@@ -20,3 +21,6 @@ cbindgen = { version = "0.27.0", optional = true }
 # Builds the C API
 c_api = ["dep:cbindgen"]
 python = ["dep:pyo3", "pyo3/extension-module"]
+
+[dev-dependencies]
+pretty_assertions = "1.4.1"

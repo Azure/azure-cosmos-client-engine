@@ -1,0 +1,35 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Launch Go Sample",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/go/sample",
+            "args": [
+                "SELECT * FROM c OFFSET 0 LIMIT 10"
+            ],
+            "linux": {
+                "env": {
+                    "CGO_LDFLAGS": "-L${workspaceFolder}/artifacts/x86_64-unknown-linux-gnu/debug/lib -lcosmoscx -Wl,-rpath,${workspaceFolder}/artifacts/x86_64-unknown-linux-gnu/debug/lib"
+                }
+            },
+        },
+        {
+            "name": "Debug tests",
+            "type": "go",
+            "request": "launch",
+            "mode": "test",
+            "program": "${fileDirname}",
+            "linux": {
+                "env": {
+                    "CGO_LDFLAGS": "-ldl ${workspaceFolder}/artifacts/x86_64-unknown-linux-gnu/debug/lib/libcosmoscx.a"
+                }
+            },
+        }
+    ]
+}

@@ -1,0 +1,19 @@
+{
+	"folders": [
+		{
+			"name": "azure-cosmos-client-engine",
+			"path": "."
+		},
+		{
+			"name": "azure-sdk-for-go",
+			"path": "../azure-sdk-for-go"
+		},
+		{
+			"name": "azure-sdk-for-python",
+			"path": "../azure-sdk-for-python"
+		}
+	],
+	"settings": {
+		"rust-analyzer.cargo.features": "all"
+	}
+}

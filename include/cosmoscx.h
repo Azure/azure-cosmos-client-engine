@@ -13,6 +13,190 @@
 #include <stdlib.h>
 
 /**
+ * A result code for FFI functions, which indicates the success or failure of the operation.
+ */
+enum CosmosCxResultCode {
+  COSMOS_CX_RESULT_CODE_SUCCESS = 0,
+  COSMOS_CX_RESULT_CODE_UNKNOWN_ERROR = -1,
+  COSMOS_CX_RESULT_CODE_INVALID_GATEWAY_RESPONSE = -2,
+  COSMOS_CX_RESULT_CODE_DESERIALIZATION_ERROR = -3,
+  COSMOS_CX_RESULT_CODE_UNKNOWN_PARTITION_KEY_RANGE = -4,
+  COSMOS_CX_RESULT_CODE_INTERNAL_ERROR = -5,
+  COSMOS_CX_RESULT_CODE_UNSUPPORTED_QUERY_PLAN = -6,
+  COSMOS_CX_RESULT_CODE_INVALID_UTF8_STRING = -7,
+  COSMOS_CX_RESULT_CODE_ARGUMENT_NULL = -8,
+};
+typedef intptr_t CosmosCxResultCode;
+
+/**
+ * Opaque type representing the query pipeline.
+ * Callers should not attempt to access the fields of this struct directly.
+ */
+typedef struct CosmosCxPipeline CosmosCxPipeline;
+
+/**
+ * A result type for FFI functions.
+ */
+typedef struct CosmosCxFfiResult_Pipeline {
+  CosmosCxResultCode code;
+  const struct CosmosCxPipeline *value;
+} CosmosCxFfiResult_Pipeline;
+
+/**
+ * Represents a contiguous sequence of objects OWNED BY THE CALLING CODE.
+ *
+ * The language binding owns this memory. It must keep the memory valid for the duration of any function call that receives it.
+ * For example, the [`Slice`]s passed to [`cosmoscx_v0_query_pipeline_create`] must remain valid until that function returns.
+ * After the function returns, the language binding may free the memory.
+ */
+typedef struct CosmosCxSlice_u8 {
+  const uint8_t *data;
+  uintptr_t len;
+} CosmosCxSlice_u8;
+
+typedef struct CosmosCxSlice_u8 CosmosCxStr;
+
+/**
+ * A result type for FFI functions.
+ */
+typedef struct CosmosCxFfiResult_Str {
+  CosmosCxResultCode code;
+  const CosmosCxStr *value;
+} CosmosCxFfiResult_Str;
+
+/**
+ * Represents a contiguous sequence of objects OWNED BY THE ENGINE.
+ *
+ * The language binding MUST free the memory associated with this sequence by calling the appropriate 'free' function.
+ * For example, all [`OwnedSlice`]s within a [`PipelineResult`] are freed by calling [`cosmoscx_v0_query_pipeline_free_result`].
+ */
+typedef struct CosmosCxOwnedSlice_u8 {
+  uint8_t *data;
+  uintptr_t len;
+} CosmosCxOwnedSlice_u8;
+
+typedef struct CosmosCxOwnedSlice_u8 CosmosCxOwnedString;
+
+/**
+ * Represents a contiguous sequence of objects OWNED BY THE ENGINE.
+ *
+ * The language binding MUST free the memory associated with this sequence by calling the appropriate 'free' function.
+ * For example, all [`OwnedSlice`]s within a [`PipelineResult`] are freed by calling [`cosmoscx_v0_query_pipeline_free_result`].
+ */
+typedef struct CosmosCxOwnedSlice_OwnedString {
+  CosmosCxOwnedString *data;
+  uintptr_t len;
+} CosmosCxOwnedSlice_OwnedString;
+
+typedef struct CosmosCxDataRequest {
+  /**
+   * The Partition Key Range ID to request data from.
+   */
+  CosmosCxOwnedString pkrangeid;
+  /**
+   * The continuation token to provide, or an empty slice (len == 0) if no continuation should be provided.
+   */
+  CosmosCxOwnedString continuation;
+} CosmosCxDataRequest;
+
+/**
+ * Represents a contiguous sequence of objects OWNED BY THE ENGINE.
+ *
+ * The language binding MUST free the memory associated with this sequence by calling the appropriate 'free' function.
+ * For example, all [`OwnedSlice`]s within a [`PipelineResult`] are freed by calling [`cosmoscx_v0_query_pipeline_free_result`].
+ */
+typedef struct CosmosCxOwnedSlice_DataRequest {
+  struct CosmosCxDataRequest *data;
+  uintptr_t len;
+} CosmosCxOwnedSlice_DataRequest;
+
+typedef struct CosmosCxPipelineResult {
+  /**
+   * A boolean indicating if the pipeline has completed.
+   */
+  bool completed;
+  /**
+   * A [`Slice`] of [`Str`]s containing the JSON for each item in the output.
+   */
+  struct CosmosCxOwnedSlice_OwnedString items;
+  /**
+   * A [`Slice`] of [`DataRequest`]s describing additional requests that must be made and provided to [`cosmoscx_v0_query_pipeline_provide_data`] before retrieving the next batch.
+   */
+  struct CosmosCxOwnedSlice_DataRequest requests;
+} CosmosCxPipelineResult;
+
+/**
+ * A result type for FFI functions.
+ */
+typedef struct CosmosCxFfiResult_PipelineResult {
+  CosmosCxResultCode code;
+  const struct CosmosCxPipelineResult *value;
+} CosmosCxFfiResult_PipelineResult;
+
+/**
  * Returns the version of the Cosmos Client Engine in use.
  */
 const char *cosmoscx_version(void);
+
+/**
+ * Returns a string that describes the query features supported by the Cosmos Client Engine.
+ *
+ * This string is suitable to be sent as the value for the `x-ms-cosmos-supported-query-features` header in a query plan request.
+ */
+const char *cosmoscx_v0_query_supported_features(void);
+
+/**
+ * Enables built-in tracing for the Cosmos Client Engine.
+ *
+ * This is an early version of the tracing API and is subject to change.
+ * For now, it activates the default console tracing in [`tracing_subscriber::fmt`] and enables the [`EnvFilter`](`tracing_subscriber::EnvFilter`) using the `COSMOSCX_LOG` environment variable.
+ *
+ * Once enabled in this way, tracing cannot be disabled.
+ */
+void cosmoscx_v0_tracing_enable(void);
+
+/**
+ * Creates a new query pipeline from a JSON query plan and list of partitions.
+ *
+ * # Parameters
+ * - `query_plan_json`: A [`Str`] containing the serialized query plan, as recieved from the gateway, in JSON.
+ * - `pkranges`: A [`Str`] containing the serialized partition key ranges list, as recieved from the gateway, in JSON.
+ */
+struct CosmosCxFfiResult_Pipeline cosmoscx_v0_query_pipeline_create(CosmosCxStr query,
+                                                                    CosmosCxStr query_plan_json,
+                                                                    CosmosCxStr pkranges);
+
+/**
+ * Frees the memory associated with a pipeline.
+ */
+void cosmoscx_v0_query_pipeline_free(struct CosmosCxPipeline *pipeline);
+
+/**
+ * Gets the, possibly rewritten, query that this pipeline is executing.
+ *
+ * The string returned here should be copied to a language-specific string type before being used.
+ * It remains valid until the pipeline is freed by a call to [`cosmoscx_v0_query_pipeline_free`].
+ */
+struct CosmosCxFfiResult_Str cosmoscx_v0_query_pipeline_query(struct CosmosCxPipeline *pipeline);
+
+/**
+ * Fetches the next batch of query results.
+ *
+ * The [`PipelineResult`] returned here MUST be freed using [`cosmoscx_v0_query_pipeline_free_result`].
+ */
+struct CosmosCxFfiResult_PipelineResult cosmoscx_v0_query_pipeline_next_batch(struct CosmosCxPipeline *pipeline);
+
+/**
+ * Frees all the memory associated with a [`PipelineResult`].
+ *
+ * Calling this function will release all the strings and buffers provided within the [`PipelineResult`], so ensure you have copied it all out before calling this.
+ */
+void cosmoscx_v0_query_pipeline_free_result(struct CosmosCxPipelineResult *result);
+
+/**
+ * Inserts additional raw data, in response to a [`DataRequest`] from the pipeline.
+ */
+CosmosCxResultCode cosmoscx_v0_query_pipeline_provide_data(struct CosmosCxPipeline *pipeline,
+                                                           CosmosCxStr pkrange_id,
+                                                           CosmosCxStr data,
+                                                           CosmosCxStr continuation);

@@ -17,7 +17,7 @@ export CARGO_BUILD_TARGET ?= $(shell rustc -vV | grep 'host: ' | cut -d ' ' -f 2
 target_dir := $(target_root)/$(CARGO_BUILD_TARGET)/$(CONFIGURATION)
 artifacts_dir := $(artifacts_root)/$(CARGO_BUILD_TARGET)/$(CONFIGURATION)
 
-crate_name := azure_data_cosmos_client_engine
+crate_name := azure_cosmoscx
 shared_lib_name := cosmoscx
 
 cosmoscx_header_name := $(shared_lib_name).h
@@ -119,7 +119,7 @@ test_rust:
 .PHONY: test_go
 test_go: #/ Runs the Go language binding tests
 	@echo "Running Go tests..."
-	go -C ./go/engine test -v ./...
+	go -C ./go/azcosmoscx test -v ./...
 
 .PHONY: test_python
 test_python: _check-venv #/ Runs the Python language binding tests
@@ -146,3 +146,8 @@ clean_artifacts: #/ Cleans the artifacts directory, which contains the generated
 .PHONY: _check-venv
 _check-venv:
 	@python -c "import sys; exit(1) if sys.prefix == sys.base_prefix else exit(0)" || (echo "Python virtual environment is not activated. Run 'source .venv/bin/activate' to activate it first" && exit 1)
+
+.PHONY: cgo-env
+cgo-env: #/ Prints the environment variables needed to build and run the Go language bindings against the engine. Eval the output of this command to set the environment variables.
+	@echo "export CGO_LDFLAGS=\"$(CGO_LDFLAGS)\""
+	@echo "export LD_LIBRARY_PATH=\"$(LD_LIBRARY_PATH)\"" 

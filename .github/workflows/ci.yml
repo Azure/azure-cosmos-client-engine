@@ -33,7 +33,7 @@ jobs:
     strategy:
       fail-fast: false # Don't cancel other jobs when one job fails
       matrix:
-        target: 
+        target:
           - host: ubuntu-latest
             triple: x86_64-unknown-linux-gnu
           - host: macos-latest
@@ -46,25 +46,51 @@ jobs:
       CARGO_BUILD_TARGET: "${{ matrix.target.triple }}"
       CONFIGURATION: release
     steps:
+      - name: Prepare Windows Runner
+        if: ${{ runner.os == 'windows' }}
+        run:
+          # This is necessary because the Python repository has some VERY long paths.
+          git config --global core.longpaths true
+
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          path: "azure-cosmos-client-engine"
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          repository: Azure/azure-sdk-for-go
+          ref: feature/azcosmos/query-engine
+          path: "azure-sdk-for-go"
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          repository: Azure/azure-sdk-for-python
+          ref: feature/cosmos/query-engine
+          path: "azure-sdk-for-python"
 
       - name: Install rust
         run: rustup target add "${{ matrix.target.triple }}"
+
       - name: Install Go
         uses: actions/setup-go@v5
+        if: ${{ runner.os != 'windows' }}
         with:
-          go-version-file: 'go/engine/go.mod'
+          go-version-file: "azure-cosmos-client-engine/go/azcosmoscx/go.mod"
           cache-dependency-path: |
             go/engine/go.sum
+
       - name: Install Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.13'
-          cache: 'pip'
+          python-version: "3.13"
+          cache: "pip"
 
       - name: Bootstrap Repository and activate venv
         shell: bash
+        working-directory: "azure-cosmos-client-engine"
         run: |
           script/bootstrap --use-pipx
 
@@ -87,6 +113,7 @@ jobs:
 
       - name: Validate virtual environment
         shell: bash
+        working-directory: "azure-cosmos-client-engine"
         run: |
           python_path=$(which python)
           if ! [[ "$python_path" == $(pwd)/.venv/* ]]; then
@@ -95,30 +122,37 @@ jobs:
           else
             echo "In Python venv: $python_path"
           fi
-      
+
       - name: Build Engine
         shell: bash
+        working-directory: "azure-cosmos-client-engine"
         run: |
           make engine
-      
+
       - name: Run Engine Tests
         shell: bash
+        working-directory: "azure-cosmos-client-engine"
         run: |
           make test_rust
-      
+
       - name: Run Python Tests
         shell: bash
+        working-directory: "azure-cosmos-client-engine"
         run: |
           make test_python
-      
+
       - name: Run Go Tests against shared library
+        if: ${{ runner.os != 'windows' }}
         shell: bash
+        working-directory: "azure-cosmos-client-engine"
         run: |
           go clean -cache
           make test_go LIBRARY_MODE=shared
-      
+
       - name: Run Go Tests against static library
+        if: ${{ runner.os != 'windows' }}
         shell: bash
+        working-directory: "azure-cosmos-client-engine"
         run: |
           go clean -cache
           make test_go LIBRARY_MODE=static
