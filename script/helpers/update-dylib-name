@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Updates the so/dylib name of the dynamic library to match it's filename.
+target="$1"
+
+# TODO: This is pivoting on the host OS, but we should pivot on the target OS. For now we don't cross-compile so this is fine.
+
+if [ "$(uname)" = "Darwin" ]; then
+    # Update the dylib name to match the filename and use @rpath so it can be found immediately next to the executable (or anywhere else on an application's rpath)
+    # In addition, add an rpath to this dylib pointing to the build directory so that local testing can find it easily.
+    echo "Updating dylib name for $target to @rpath/$(basename "$target")"
+    install_name_tool -id "@rpath/$(basename "$target")" "$target"
+fi

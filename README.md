@@ -35,6 +35,16 @@ We use a `Makefile` to simplify the build process. To build the engine and run a
 You can also run other targets individually.
 Run `make help` to see a list of available targets.
 
+### Working on the client engine
+
+The client engine is located in `engine/` and is essentially a standard Rust project.
+You can build the engine by running `make engine` from the root of the repository.
+
+If you change the C API, found in the `c_api` module, you will need to regenerate the C header file.
+Because this header file is used to build the Go engine, it's committed to the repository and must be updated manually and committed whenever you make a change to the C API.
+The CI will ensure you've done this correctly and fail the build if the headers don't match the Rust library.
+Don't update the header file yourself, use `make headers` to run `cbindgen` to generate the header file.
+
 ### Building and testing Go
 
 **After** running `make engine`, you can test the Go bindings by running `go -C ./go/engine test ./...`.

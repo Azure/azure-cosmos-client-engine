@@ -1,0 +1,124 @@
+name: Build and Test
+on:
+  push:
+    branches:
+      - main
+
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  check-headers:
+    name: "Check headers are up-to-date"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install rust
+        run: rustup show
+
+      - name: Bootstrap Repository
+        shell: bash
+        run: |
+          script/bootstrap --use-pipx
+
+      - name: Check Headers
+        shell: bash
+        run: |
+          script/check-headers
+
+  build:
+    strategy:
+      fail-fast: false # Don't cancel other jobs when one job fails
+      matrix:
+        target: 
+          - host: ubuntu-latest
+            triple: x86_64-unknown-linux-gnu
+          - host: macos-latest
+            triple: aarch64-apple-darwin
+          - host: windows-latest
+            triple: x86_64-pc-windows-msvc
+    name: "build: ${{ matrix.target.triple }}"
+    runs-on: ${{ matrix.target.host }}
+    env:
+      CARGO_BUILD_TARGET: "${{ matrix.target.triple }}"
+      CONFIGURATION: release
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install rust
+        run: rustup target add "${{ matrix.target.triple }}"
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go/engine/go.mod'
+          cache-dependency-path: |
+            go/engine/go.sum
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+
+      - name: Bootstrap Repository and activate venv
+        shell: bash
+        run: |
+          script/bootstrap --use-pipx
+
+          echo "Activating Virtual Env..."
+          if [ "$OS" = "Windows_NT" ]; then
+            source "./.venv/Scripts/activate"
+          else
+            source "./.venv/bin/activate"
+          fi
+
+          # Export the virtualenv and path variables
+          VENV_BIN="$VIRTUAL_ENV/bin"
+          if [ "$OS" = "Windows_NT" ]; then
+            VIRTUAL_ENV=$(cygpath --windows $VIRTUAL_ENV)
+            VENV_BIN=$(cygpath --windows "$VIRTUAL_ENV/Scripts")
+          fi
+
+          echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> "$GITHUB_ENV"
+          echo "$VENV_BIN" >> "$GITHUB_PATH"
+
+      - name: Validate virtual environment
+        shell: bash
+        run: |
+          python_path=$(which python)
+          if ! [[ "$python_path" == $(pwd)/.venv/* ]]; then
+            echo "Not in Python venv: $python_path"
+            exit 1
+          else
+            echo "In Python venv: $python_path"
+          fi
+      
+      - name: Build Engine
+        shell: bash
+        run: |
+          make engine
+      
+      - name: Run Engine Tests
+        shell: bash
+        run: |
+          make test_rust
+      
+      - name: Run Python Tests
+        shell: bash
+        run: |
+          make test_python
+      
+      - name: Run Go Tests against shared library
+        shell: bash
+        run: |
+          go clean -cache
+          make test_go LIBRARY_MODE=shared
+      
+      - name: Run Go Tests against static library
+        shell: bash
+        run: |
+          go clean -cache
+          make test_go LIBRARY_MODE=static
