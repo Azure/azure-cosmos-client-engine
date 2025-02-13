@@ -2,7 +2,7 @@ use serde::Deserialize;
 
 use crate::{
     c_api::{result::ResultExt, slice::OwnedSlice},
-    query::{self, PartitionKeyRange},
+    query::{JsonQueryClauseItem, PartitionKeyRange, QueryPipeline, QueryPlan},
     ErrorKind,
 };
 
@@ -12,7 +12,7 @@ use super::{
 };
 
 // The C API uses "Box<serde_json::value::RawValue>" as the payload type for the query pipeline.
-type RawQueryPipeline = query::QueryPipeline<Box<serde_json::value::RawValue>>;
+type RawQueryPipeline = QueryPipeline<Box<serde_json::value::RawValue>, JsonQueryClauseItem>;
 
 /// Opaque type representing the query pipeline.
 /// Callers should not attempt to access the fields of this struct directly.
@@ -54,7 +54,7 @@ extern "C" fn cosmoscx_v0_query_pipeline_create<'a>(
         let query_plan_json = unsafe { query_plan_json.as_str().not_null() }?;
         let pkranges_json = unsafe { pkranges.as_str().not_null() }?;
 
-        let query_plan: query::QueryPlan = serde_json::from_str(query_plan_json)
+        let query_plan: QueryPlan = serde_json::from_str(query_plan_json)
             .map_err(|e| crate::ErrorKind::InvalidGatewayResponse.with_source(e))?;
         let pkranges: PartitionKeyRangeResult = serde_json::from_str(pkranges_json)
             .map_err(|e| crate::ErrorKind::InvalidGatewayResponse.with_source(e))?;
@@ -124,7 +124,7 @@ extern "C" fn cosmoscx_v0_query_pipeline_next_batch<'a>(
         let result = if let Some(batch) = batch {
             // Box up each of the JSON values in the batch.
             let items = batch
-                .batch
+                .items
                 .into_iter()
                 .map(|r| Box::<str>::from(r).into_boxed_bytes().into())
                 .collect::<Vec<_>>()

@@ -5,10 +5,12 @@ use serde::{de::DeserializeOwned, Deserialize};
 use crate::ErrorKind;
 
 use super::{
-    node::{LimitPipelineNode, OffsetPipelineNode, PipelineNode, PipelineResult, PipelineSlice},
+    node::{
+        LimitPipelineNode, OffsetPipelineNode, PipelineNode, PipelineNodeResult, PipelineSlice,
+    },
     plan::DistinctType,
     producer::{ItemProducer, MergeStrategy},
-    PartitionKeyRange, PipelineResponse, QueryFeature, QueryPlan, QueryResult,
+    PartitionKeyRange, PipelineResponse, QueryClauseItem, QueryFeature, QueryPlan, QueryResult,
 };
 
 macro_rules! supported_features {
@@ -22,17 +24,17 @@ macro_rules! supported_features {
 
 supported_features!(OffsetAndLimit, OrderBy, MultipleOrderBy, Top);
 
-pub struct QueryPipeline<T: Debug> {
+pub struct QueryPipeline<T: Debug, I: QueryClauseItem> {
     query: String,
-    pipeline: Vec<Box<dyn PipelineNode<T>>>,
-    producer: ItemProducer<T>,
+    pipeline: Vec<Box<dyn PipelineNode<T, I>>>,
+    producer: ItemProducer<T, I>,
     results_are_bare_payloads: bool,
 
     // Indicates if the pipeline has been terminated early.
     terminated: bool,
 }
 
-impl<T: Debug> QueryPipeline<T> {
+impl<T: Debug, I: QueryClauseItem> QueryPipeline<T, I> {
     /// Creates a new query pipeline.
     ///
     /// # Parameters
@@ -65,7 +67,7 @@ impl<T: Debug> QueryPipeline<T> {
         // We are building the pipeline outside-in.
         // That means the first node we push will be the first node executed.
         // This is relevant for nodes like OFFSET and LIMIT, which need to be ordered carefully.
-        let mut pipeline: Vec<Box<dyn PipelineNode<T>>> = Vec::new();
+        let mut pipeline: Vec<Box<dyn PipelineNode<T, I>>> = Vec::new();
 
         // We have to do limiting at right at the outside of the pipeline, so that OFFSET can skip items without affecting the LIMIT counter.
         if let Some(limit) = plan.query_info.limit {
@@ -133,7 +135,7 @@ impl<T: Debug> QueryPipeline<T> {
     pub fn provide_data(
         &mut self,
         pkrange_id: &str,
-        data: Vec<QueryResult<T>>,
+        data: Vec<QueryResult<T, I>>,
         continuation: Option<String>,
     ) -> crate::Result<()> {
         self.producer.provide_data(pkrange_id, data, continuation)
@@ -150,36 +152,42 @@ impl<T: Debug> QueryPipeline<T> {
 
         let mut slice = PipelineSlice::new(&mut self.pipeline, &mut self.producer);
 
-        let mut batch = Vec::new();
+        let mut items = Vec::new();
         loop {
             match slice.next_item()? {
-                PipelineResult::Result(item) => batch.push(item.into_payload()),
-                PipelineResult::EarlyTermination => {
+                PipelineNodeResult::Result(item) => items.push(item.into_payload()),
+                PipelineNodeResult::EarlyTermination => {
                     self.terminated = true;
 
                     // We still need to emit any items in this batch.
                     break;
                 }
-                PipelineResult::NoResult => break,
+                PipelineNodeResult::NoResult => break,
             }
         }
 
         let requests = self.producer.data_requests();
 
-        if batch.is_empty() && requests.is_empty() {
+        if items.is_empty() && requests.is_empty() {
             // We're done!
             Ok(None)
         } else {
-            Ok(Some(PipelineResponse { batch, requests }))
+            Ok(Some(PipelineResponse { items, requests }))
         }
+    }
+
+    pub(crate) fn results_are_bare_payloads(&self) -> bool {
+        self.results_are_bare_payloads
     }
 }
 
-impl<T: Debug + DeserializeOwned> QueryPipeline<T> {
+impl<T: Debug + DeserializeOwned, I: QueryClauseItem + DeserializeOwned + Default>
+    QueryPipeline<T, I>
+{
     /// Deserializes the payload of a query result, according to the expectations of the query plan.
     ///
     /// The query plan can affect the format of the returned data, so this method will deserialize the payload accordingly.
-    pub fn deserialize_payload(&self, input: &str) -> crate::Result<Vec<QueryResult<T>>> {
+    pub fn deserialize_payload(&self, input: &str) -> crate::Result<Vec<QueryResult<T, I>>> {
         #[derive(Deserialize)]
         struct DocumentResult<T> {
             #[serde(rename = "Documents")]

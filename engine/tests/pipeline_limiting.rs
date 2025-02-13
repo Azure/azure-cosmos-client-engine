@@ -96,8 +96,8 @@ pub fn top() -> Result<(), Box<dyn std::error::Error>> {
     let titles = results
         .into_iter()
         .map(|response| PipelineResponse {
-            batch: response
-                .batch
+            items: response
+                .items
                 .into_iter()
                 .map(|item| item.title.clone())
                 .collect::<Vec<_>>(),
@@ -107,14 +107,14 @@ pub fn top() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(
         vec![
             PipelineResponse {
-                batch: vec![],
+                items: vec![],
                 requests: vec![
                     DataRequest::new("partition0", None),
                     DataRequest::new("partition1", None),
                 ]
             },
             PipelineResponse {
-                batch: vec![
+                items: vec![
                     "partition1/item0".to_string(),
                     "partition0/item0".to_string(),
                     "partition0/item1".to_string(),
@@ -124,7 +124,7 @@ pub fn top() -> Result<(), Box<dyn std::error::Error>> {
                 requests: vec![DataRequest::new("partition1", Some("3".into())),],
             },
             PipelineResponse {
-                batch: vec!["partition0/item2".to_string(),],
+                items: vec!["partition0/item2".to_string(),],
                 requests: vec![],
             },
         ],
@@ -179,8 +179,8 @@ pub fn offset_limit() -> Result<(), Box<dyn std::error::Error>> {
     let titles = results
         .into_iter()
         .map(|response| PipelineResponse {
-            batch: response
-                .batch
+            items: response
+                .items
                 .into_iter()
                 .map(|item| item.title.clone())
                 .collect::<Vec<_>>(),
@@ -190,22 +190,22 @@ pub fn offset_limit() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(
         vec![
             PipelineResponse {
-                batch: vec![],
+                items: vec![],
                 requests: vec![
                     DataRequest::new("partition0", None),
                     DataRequest::new("partition1", None),
                 ]
             },
             PipelineResponse {
-                batch: vec![],
+                items: vec![],
                 requests: vec![DataRequest::new("partition0", Some("2".into())),]
             },
             PipelineResponse {
-                batch: vec!["partition1/item1".to_string(),],
+                items: vec!["partition1/item1".to_string(),],
                 requests: vec![DataRequest::new("partition1", Some("2".into())),]
             },
             PipelineResponse {
-                batch: vec![
+                items: vec![
                     "partition1/item2".to_string(),
                     "partition0/item2".to_string(),
                 ],

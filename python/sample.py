@@ -1,5 +1,6 @@
 import sys
 import azure.cosmos
+import azure_cosmoscx
 import warnings
 import urllib3
 
@@ -38,7 +39,8 @@ if query is None:
 
 # TODO: Integrate the native query engine!
 
-client = azure.cosmos.CosmosClient(endpoint, key, connection_verify=False)
+client = azure.cosmos.CosmosClient(
+    endpoint, key, connection_verify=False, query_engine=azure_cosmoscx.NativeQueryEngine())
 db = client.get_database_client(databaseName)
 container = db.get_container_client(containerName)
 

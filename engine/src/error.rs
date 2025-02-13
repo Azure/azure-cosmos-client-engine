@@ -39,6 +39,10 @@ pub enum ErrorKind {
 
     /// Indicates that one of the provided arguments was null.
     ArgumentNull,
+
+    /// Indicates that a Python error occurred. The source of the error will be the original Python error.
+    #[cfg(feature = "python")]
+    PythonError,
 }
 
 impl Display for ErrorKind {
@@ -51,6 +55,9 @@ impl Display for ErrorKind {
             ErrorKind::UnsupportedQueryPlan => write!(f, "unsupported query plan"),
             ErrorKind::InvalidUtf8String => write!(f, "invalid UTF-8 string"),
             ErrorKind::ArgumentNull => write!(f, "provided argument was null"),
+
+            #[cfg(feature = "python")]
+            ErrorKind::PythonError => write!(f, "python error"),
         }
     }
 }
@@ -95,6 +102,10 @@ impl Error {
 
     pub fn kind(&self) -> ErrorKind {
         self.kind
+    }
+
+    pub fn into_source(self) -> Option<Box<dyn std::error::Error>> {
+        self.source
     }
 }
 
