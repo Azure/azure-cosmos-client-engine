@@ -9,7 +9,7 @@ pub enum ErrorKind {
     /// This error is not recoverable and indicates a bug in the gateway.
     InvalidGatewayResponse,
 
-    /// Indicates a deserialization failure, the details of which should be available in [`Error::source`].
+    /// Indicates a deserialization failure, the details of which should be available in [`Error::source`](std::error::Error::source).
     ///
     /// This error is not recoverable and indicates a bug in the Gateway, as it should not be possible to receive a response that cannot be deserialized.
     DeserializationError,

@@ -21,7 +21,7 @@ pub enum PipelineNodeResult<T: Debug, I: QueryClauseItem> {
 /// This struct represents some subset of the nodes, and the item producer.
 ///
 /// This type exists so that nodes don't have to deal with slicing the list of nodes, and so that the item producer can be passed around easily.
-/// Since the Item Producer and Pipeline Nodes are both owned by the [`QueryPipeline`], we can't create an owned type that contains both.
+/// Since the Item Producer and Pipeline Nodes are both owned by the [`QueryPipeline`](super::QueryPipeline), we can't create an owned type that contains both.
 pub struct PipelineSlice<'a, T: Debug, I: QueryClauseItem> {
     nodes: &'a mut [Box<dyn PipelineNode<T, I>>],
     producer: &'a mut ItemProducer<T, I>,

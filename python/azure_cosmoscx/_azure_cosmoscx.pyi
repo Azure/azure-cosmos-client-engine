@@ -7,11 +7,15 @@ def version() -> str:
     pass
 
 
-class NativeQueryEngine(azure.cosmos.query_engine.QueryEngine):
+def enable_tracing() -> None:
     pass
 
 
-class NativeQueryPipeline(azure.cosmos.query_engine.QueryPipeline):
+class QueryEngine(azure.cosmos.query_engine.QueryEngine):
+    pass
+
+
+class QueryPipeline(azure.cosmos.query_engine.QueryPipeline):
     pass
 
 

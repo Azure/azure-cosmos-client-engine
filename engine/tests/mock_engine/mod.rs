@@ -8,12 +8,12 @@
 use std::{collections::BTreeMap, fmt::Debug};
 
 use azure_cosmoscx::query::{
-    PartitionKeyRange, PipelineResponse, QueryPipeline, QueryPlan, QueryResult,
+    JsonQueryClauseItem, PartitionKeyRange, PipelineResponse, QueryPipeline, QueryPlan, QueryResult,
 };
 
 pub struct Engine<T: Debug> {
     container: Container<T>,
-    pipeline: QueryPipeline<T>,
+    pipeline: QueryPipeline<T, JsonQueryClauseItem>,
     request_page_size: usize,
 }
 
@@ -91,7 +91,7 @@ impl<T: Clone + Debug> Engine<T> {
 }
 
 pub struct Page<T: Debug> {
-    pub items: Vec<QueryResult<T>>,
+    pub items: Vec<QueryResult<T, JsonQueryClauseItem>>,
     pub continuation: Option<String>,
 }
 
@@ -112,7 +112,7 @@ impl<T: Clone + Debug> Container<T> {
     pub fn insert(
         &mut self,
         partition_key: impl Into<String>,
-        items: impl IntoIterator<Item = QueryResult<T>>,
+        items: impl IntoIterator<Item = QueryResult<T, JsonQueryClauseItem>>,
     ) {
         let partition_key = partition_key.into();
         self.partitions
@@ -139,7 +139,7 @@ impl<T: Clone + Debug> Container<T> {
 
 /// Represents the sequence of pages that will be returned by a given partition.
 pub struct Partition<T: Debug> {
-    data: Vec<QueryResult<T>>,
+    data: Vec<QueryResult<T, JsonQueryClauseItem>>,
 }
 
 impl<T: Clone + Debug> Partition<T> {
@@ -147,7 +147,7 @@ impl<T: Clone + Debug> Partition<T> {
         Partition { data: Vec::new() }
     }
 
-    pub fn extend(&mut self, items: impl IntoIterator<Item = QueryResult<T>>) {
+    pub fn extend(&mut self, items: impl IntoIterator<Item = QueryResult<T, JsonQueryClauseItem>>) {
         self.data.extend(items)
     }
 

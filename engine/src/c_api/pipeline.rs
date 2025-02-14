@@ -34,7 +34,7 @@ impl Pipeline {
 /// - `query_plan_json`: A [`Str`] containing the serialized query plan, as recieved from the gateway, in JSON.
 /// - `pkranges`: A [`Str`] containing the serialized partition key ranges list, as recieved from the gateway, in JSON.
 #[no_mangle]
-extern "C" fn cosmoscx_v0_query_pipeline_create<'a>(
+pub extern "C" fn cosmoscx_v0_query_pipeline_create<'a>(
     query: Str<'a>,
     query_plan_json: Str<'a>,
     pkranges: Str<'a>,
@@ -71,7 +71,7 @@ extern "C" fn cosmoscx_v0_query_pipeline_create<'a>(
 
 /// Frees the memory associated with a pipeline.
 #[no_mangle]
-extern "C" fn cosmoscx_v0_query_pipeline_free(pipeline: *mut Pipeline) {
+pub extern "C" fn cosmoscx_v0_query_pipeline_free(pipeline: *mut Pipeline) {
     unsafe { crate::c_api::free(pipeline) }
 }
 
@@ -80,7 +80,9 @@ extern "C" fn cosmoscx_v0_query_pipeline_free(pipeline: *mut Pipeline) {
 /// The string returned here should be copied to a language-specific string type before being used.
 /// It remains valid until the pipeline is freed by a call to [`cosmoscx_v0_query_pipeline_free`].
 #[no_mangle]
-extern "C" fn cosmoscx_v0_query_pipeline_query(pipeline: *mut Pipeline) -> FfiResult<Str<'static>> {
+pub extern "C" fn cosmoscx_v0_query_pipeline_query(
+    pipeline: *mut Pipeline,
+) -> FfiResult<Str<'static>> {
     fn inner(pipeline: *mut Pipeline) -> crate::Result<Box<Str<'static>>> {
         let pipeline = unsafe { Pipeline::unwrap_ptr(pipeline) }?;
         Ok(Box::new(pipeline.query().into()))
@@ -114,7 +116,7 @@ pub struct PipelineResult {
 ///
 /// The [`PipelineResult`] returned here MUST be freed using [`cosmoscx_v0_query_pipeline_free_result`].
 #[no_mangle]
-extern "C" fn cosmoscx_v0_query_pipeline_next_batch<'a>(
+pub extern "C" fn cosmoscx_v0_query_pipeline_next_batch<'a>(
     pipeline: *mut Pipeline,
 ) -> FfiResult<PipelineResult> {
     fn inner<'a>(pipeline: *mut Pipeline) -> crate::Result<Box<PipelineResult>> {
@@ -166,13 +168,13 @@ extern "C" fn cosmoscx_v0_query_pipeline_next_batch<'a>(
 ///
 /// Calling this function will release all the strings and buffers provided within the [`PipelineResult`], so ensure you have copied it all out before calling this.
 #[no_mangle]
-extern "C" fn cosmoscx_v0_query_pipeline_free_result<'a>(result: *mut PipelineResult) {
+pub extern "C" fn cosmoscx_v0_query_pipeline_free_result<'a>(result: *mut PipelineResult) {
     unsafe { crate::c_api::free(result) }
 }
 
 /// Inserts additional raw data, in response to a [`DataRequest`] from the pipeline.
 #[no_mangle]
-extern "C" fn cosmoscx_v0_query_pipeline_provide_data<'a>(
+pub extern "C" fn cosmoscx_v0_query_pipeline_provide_data<'a>(
     pipeline: *mut Pipeline,
     pkrange_id: Str<'a>,
     data: Str<'a>,

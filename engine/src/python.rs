@@ -1,3 +1,8 @@
+//! Contains the definition of the Python Extension Module for the Rust Client Engine
+//!
+//! The [`native`] module is exported to Python as `_azure_cosmoscx`.
+
+/// Python
 #[pyo3::pymodule(name = "_azure_cosmoscx")]
 mod native {
     use std::{error::Error, ops::DerefMut, sync::Mutex};
@@ -9,13 +14,14 @@ mod native {
         },
         Bound, FromPyObject, Py, PyAny, PyErr, PyResult, Python,
     };
-    use serde::de::value;
+    use tracing_subscriber::EnvFilter;
 
     use crate::{
         query::{PartitionKeyRange, PipelineResponse, QueryClauseItem, QueryPipeline, QueryResult},
         ErrorKind,
     };
 
+    /// Lazy-initialized static that holds the "numbers.Number" Python type, which we'll need when comparing values.
     static NUMBERS_DOT_NUMBER: GILOnceCell<Py<PyType>> = GILOnceCell::new();
 
     #[pyo3::pyfunction]
@@ -23,7 +29,15 @@ mod native {
         env!("CARGO_PKG_VERSION")
     }
 
-    #[pyo3::pyclass(frozen)]
+    #[pyo3::pyfunction]
+    fn enable_tracing() {
+        // TODO: We could probably wrap Python's OpenTracing API here.
+        tracing_subscriber::fmt()
+            .with_env_filter(EnvFilter::from_env("COSMOSCX_LOG"))
+            .init();
+    }
+
+    #[pyo3::pyclass(frozen, name = "QueryPipeline")]
     struct NativeQueryPipeline {
         // Python may access this object on any thread.
         pipeline: Mutex<QueryPipeline<Py<PyAny>, PyQueryClauseItem>>,
@@ -77,7 +91,6 @@ mod native {
 
         fn provide_data<'py>(
             &self,
-            py: Python<'py>,
             pkrange_id: Bound<'py, PyString>,
             data: Bound<'py, PyList>,
             continuation: Option<Bound<'py, PyString>>,

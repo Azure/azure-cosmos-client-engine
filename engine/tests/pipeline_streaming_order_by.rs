@@ -1,7 +1,8 @@
 use std::vec;
 
 use azure_cosmoscx::query::{
-    DataRequest, PipelineResponse, QueryClauseItem, QueryInfo, QueryPlan, QueryResult, SortOrder,
+    DataRequest, JsonQueryClauseItem, PipelineResponse, QueryInfo, QueryPlan, QueryResult,
+    SortOrder,
 };
 use pretty_assertions::assert_eq;
 
@@ -38,14 +39,14 @@ impl Item {
     }
 }
 
-impl From<Item> for QueryResult<Item> {
+impl From<Item> for QueryResult<Item, JsonQueryClauseItem> {
     fn from(item: Item) -> Self {
-        let sort0: QueryClauseItem = QueryClauseItem {
+        let sort0 = JsonQueryClauseItem {
             item: Some(serde_json::Value::Number(serde_json::Number::from(
                 item.sort0,
             ))),
         };
-        let sort1: QueryClauseItem = QueryClauseItem {
+        let sort1 = JsonQueryClauseItem {
             item: Some(serde_json::Value::String(item.sort1.clone())),
         };
         QueryResult::new(vec![], vec![sort0, sort1], item)

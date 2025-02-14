@@ -18,7 +18,7 @@ class TestPipeline(unittest.TestCase):
                 "maxExclusive": "FF"
             }
         ]
-        pipeline = azure_cosmoscx.NativeQueryEngine().create_pipeline(
+        pipeline = azure_cosmoscx.QueryEngine().create_pipeline(
             "SELECT * FROM c", plan, pkranges)
 
         self.assertEqual("SELECT * FROM c", pipeline.query())
@@ -39,7 +39,7 @@ class TestPipeline(unittest.TestCase):
                 "maxExclusive": "FF"
             }
         ]
-        pipeline = azure_cosmoscx.NativeQueryEngine().create_pipeline(
+        pipeline = azure_cosmoscx.QueryEngine().create_pipeline(
             "SELECT * FROM c", plan, pkranges)
 
         self.assertEqual("WAS REWRITTEN", pipeline.query())
@@ -64,7 +64,7 @@ class TestPipeline(unittest.TestCase):
                 "maxExclusive": "FF"
             }
         ]
-        pipeline = azure_cosmoscx.NativeQueryEngine().create_pipeline(
+        pipeline = azure_cosmoscx.QueryEngine().create_pipeline(
             "SELECT * FROM c", plan, pkranges)
 
         result = pipeline.next_batch()
@@ -99,7 +99,7 @@ class TestPipeline(unittest.TestCase):
                 "maxExclusive": "FF"
             }
         ]
-        pipeline = azure_cosmoscx.NativeQueryEngine().create_pipeline(
+        pipeline = azure_cosmoscx.QueryEngine().create_pipeline(
             "SELECT * FROM c", plan, pkranges)
 
         pipeline.provide_data(
@@ -153,7 +153,7 @@ class TestPipeline(unittest.TestCase):
                 "maxExclusive": "FF"
             }
         ]
-        pipeline = azure_cosmoscx.NativeQueryEngine().create_pipeline(
+        pipeline = azure_cosmoscx.QueryEngine().create_pipeline(
             "SELECT * FROM c", plan, pkranges)
 
         pipeline.provide_data(

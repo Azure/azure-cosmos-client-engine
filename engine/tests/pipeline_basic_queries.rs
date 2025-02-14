@@ -1,6 +1,8 @@
 use std::vec;
 
-use azure_cosmoscx::query::{DataRequest, PipelineResponse, QueryPlan, QueryResult};
+use azure_cosmoscx::query::{
+    DataRequest, JsonQueryClauseItem, PipelineResponse, QueryPlan, QueryResult,
+};
 use pretty_assertions::assert_eq;
 
 use mock_engine::{Container, Engine};
@@ -27,7 +29,7 @@ impl Item {
     }
 }
 
-impl From<Item> for QueryResult<Item> {
+impl From<Item> for QueryResult<Item, JsonQueryClauseItem> {
     fn from(item: Item) -> Self {
         QueryResult::from_payload(item)
     }

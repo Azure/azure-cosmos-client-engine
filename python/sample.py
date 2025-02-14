@@ -11,6 +11,7 @@ endpoint = "https://localhost:8081"
 key = "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw=="
 databaseName = "SampleDB"
 containerName = "SampleContainer"
+use_cosmoscx = False
 query = None
 
 # Parse arguments
@@ -28,19 +29,27 @@ while i < len(sys.argv):
     elif sys.argv[i] == "--container":
         containerName = sys.argv[i+1]
         i += 1
+    elif sys.argv[i] == "--use-cosmoscx":
+        use_cosmoscx = True
     else:
         query = sys.argv[i]
     i += 1
 
 if query is None:
     print(
-        "Usage: main.py [--endpoint ENDPOINT] [--key KEY] [--database DATABASE] [--container CONTAINER] QUERY")
+        "Usage: main.py [--endpoint ENDPOINT] [--key KEY] [--database DATABASE] [--container CONTAINER] [--use-cosmoscx] QUERY")
     sys.exit(1)
 
-# TODO: Integrate the native query engine!
+query_engine = None
+if use_cosmoscx:
+    print("Using cosmoscx query engine")
+    azure_cosmoscx.enable_tracing()
+    query_engine = azure_cosmoscx.QueryEngine()
+else:
+    print("Using python query engine")
 
 client = azure.cosmos.CosmosClient(
-    endpoint, key, connection_verify=False, query_engine=azure_cosmoscx.NativeQueryEngine())
+    endpoint, key, connection_verify=False, query_engine=query_engine)
 db = client.get_database_client(databaseName)
 container = db.get_container_client(containerName)
 
