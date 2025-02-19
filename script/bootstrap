@@ -39,11 +39,10 @@ python3 -m venv ./.venv
 $venv_bindir/pip install -r ./python/dev-requirements.txt
 
 echo "Installing Maturin..."
-if $use_pipx; then
-    pipx install maturin
-else
-    cargo install --locked maturin
-fi
+pipx install maturin
+
+echo "Installing Poetry..."
+pipx install poetry
 
 echo "Installing cbindgen..."
 cargo install --locked cbindgen
