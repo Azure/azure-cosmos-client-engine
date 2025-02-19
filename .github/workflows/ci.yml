@@ -82,6 +82,11 @@ jobs:
           cache-dependency-path: |
             go/engine/go.sum
 
+      # We need to install poetry before installing Python (and bootstrapping)
+      # because setup-python uses poetry for package caching.
+      - name: Install Poetry
+        run: pipx install poetry
+
       - name: Install Python
         uses: actions/setup-python@v5
         with:
