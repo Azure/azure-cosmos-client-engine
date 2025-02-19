@@ -116,6 +116,7 @@ class TestPipeline(unittest.TestCase):
                     for r in result.requests]
         self.assertEqual([
             ("partition0", "p0c0"),
+            ("partition1", "p1c0"),
         ], requests)
 
         pipeline.provide_data(
@@ -175,6 +176,7 @@ class TestPipeline(unittest.TestCase):
         requests = [(r.pkrange_id, r.continuation)
                     for r in result.requests]
         self.assertEqual([
+            ("partition0", "p0c0"),
             ("partition1", "p1c0"),
         ], requests)
 

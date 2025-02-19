@@ -21,20 +21,15 @@ func executeQuery(container *azcosmos.ContainerClient, query string) {
 	pager := container.NewQueryItemsPager(query, azcosmos.NewPartitionKey(), nil)
 	defer pager.Close()
 
-	// Just read one page, to test freeing behavior.
-	page, err := pager.NextPage(context.TODO())
-	if err != nil {
-		panic(err)
-	}
+	for pager.More() {
+		page, err := pager.NextPage(context.TODO())
+		if err != nil {
+			panic(err)
+		}
 
-	for _, item := range page.Items {
-		fmt.Println(string(item))
-	}
-
-	if pager.More() {
-		fmt.Println("More pages available")
-	} else {
-		fmt.Println("No more pages available")
+		for _, item := range page.Items {
+			fmt.Println(string(item))
+		}
 	}
 }
 
@@ -94,4 +89,8 @@ func main() {
 
 	// Run leak checker
 	doLeakCheck()
+
+	fmt.Println()
+	fmt.Println()
+	fmt.Println()
 }

@@ -57,17 +57,11 @@ impl<T: Debug, I: QueryClauseItem> PartitionState<T, I> {
             || PartitionStage::Done,
             |token| PartitionStage::Continuing(token),
         );
-        tracing::trace!(queue_len = self.queue.len(), stage = ?self.stage, "updated partition state");
+        tracing::debug!(queue_len = self.queue.len(), stage = ?self.stage, "received new data");
     }
 
     #[tracing::instrument(level = "trace", skip_all, fields(pkrange_id = %self.pkrange.id))]
     pub fn next_data_request(&self) -> Option<DataRequest> {
-        // If the queue is not empty, we don't need to request more data.
-        if !self.queue.is_empty() {
-            tracing::trace!("skipping data request for non-empty queue");
-            return None;
-        }
-
         match &self.stage {
             PartitionStage::Initial => {
                 tracing::trace!("starting partition");
@@ -126,7 +120,6 @@ impl<T: Debug, I: QueryClauseItem> ItemProducer<T, I> {
             .collect()
     }
 
-    #[tracing::instrument(level = "trace", skip_all, fields(pkrange_id = %pkrange_id, item_count = data.len(), continuation = ?continuation))]
     pub fn provide_data(
         &mut self,
         pkrange_id: &str,

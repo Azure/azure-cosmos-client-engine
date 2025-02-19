@@ -3,6 +3,7 @@ import azure.cosmos
 import azure_cosmoscx
 import warnings
 import urllib3
+import timeit
 
 warnings.filterwarnings(
     "ignore", category=urllib3.exceptions.InsecureRequestWarning)
@@ -53,12 +54,22 @@ client = azure.cosmos.CosmosClient(
 db = client.get_database_client(databaseName)
 container = db.get_container_client(containerName)
 
-items = container.query_items(query, enable_cross_partition_query=True)
 
-pager = items.by_page(None)
-pageNumber = 0
-for page in pager:
-    print(f"*** PAGE {pageNumber} ***")
-    for item in page:
-        print(item)
-    pageNumber += 1
+def run_query():
+    items = container.query_items(query, enable_cross_partition_query=True)
+    pager = items.by_page(None)
+    for page in pager:
+        for item in page:
+            pass
+
+
+# Run once, unmeasured, to warm up
+run_query()
+
+count = 10
+time = timeit.timeit(stmt=run_query, number=count)
+print(f"Ran {count} times in {time * 1000}ms, {(time / count) * 1000}ms per run")
+
+print()
+print()
+print()

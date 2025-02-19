@@ -113,7 +113,13 @@ impl<T: Debug, I: QueryClauseItem> QueryPipeline<T, I> {
         let query = if plan.query_info.rewritten_query.is_empty() {
             query.to_string()
         } else {
-            rewrite_query(&plan.query_info.rewritten_query)
+            let rewritten = rewrite_query(&plan.query_info.rewritten_query);
+            tracing::debug!(
+                original = ?query,
+                ?rewritten,
+                "rewrote query, per gateway query plan"
+            );
+            rewritten
         };
 
         Ok(Self {
@@ -131,7 +137,7 @@ impl<T: Debug, I: QueryClauseItem> QueryPipeline<T, I> {
     }
 
     /// Provides more data for the specified partition key range.
-    #[tracing::instrument(level = "debug", skip(self), fields(pkrange_id = pkrange_id))]
+    #[tracing::instrument(level = "debug", skip_all, fields(pkrange_id = pkrange_id, data_len = data.len(), continuation = continuation.as_deref()))]
     pub fn provide_data(
         &mut self,
         pkrange_id: &str,
@@ -176,6 +182,7 @@ impl<T: Debug, I: QueryClauseItem> QueryPipeline<T, I> {
         }
     }
 
+    #[allow(dead_code)] // Used in some features.
     pub(crate) fn results_are_bare_payloads(&self) -> bool {
         self.results_are_bare_payloads
     }
@@ -212,11 +219,6 @@ impl<T: Debug + DeserializeOwned, I: QueryClauseItem + DeserializeOwned + Defaul
 
 fn rewrite_query(original: &str) -> String {
     let rewritten = original.replace("{documentdb-formattableorderbyquery-filter}", "true");
-    tracing::debug!(
-        ?original,
-        ?rewritten,
-        "rewrote query, per gateway query plan"
-    );
     rewritten
 }
 
