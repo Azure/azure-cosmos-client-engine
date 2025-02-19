@@ -133,6 +133,10 @@ typedef struct CosmosCxFfiResult_PipelineResult {
   const struct CosmosCxPipelineResult *value;
 } CosmosCxFfiResult_PipelineResult;
 
+
+
+
+
 /**
  * Returns the version of the Cosmos Client Engine in use.
  */
