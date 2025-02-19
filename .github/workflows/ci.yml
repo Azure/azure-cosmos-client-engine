@@ -19,10 +19,8 @@ jobs:
       - name: Install rust
         run: rustup show
 
-      - name: Bootstrap Repository
-        shell: bash
-        run: |
-          script/bootstrap
+      - name: Install cbindgen
+        run: cargo install --locked cbindgen
 
       - name: Check Headers
         shell: bash
