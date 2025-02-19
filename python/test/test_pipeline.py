@@ -68,7 +68,7 @@ class TestPipeline(unittest.TestCase):
             "SELECT * FROM c", plan, pkranges)
 
         result = pipeline.next_batch()
-        self.assertIsNotNone(result)
+        self.assertFalse(result.terminated)
 
         self.assertEqual(0, len(result.items))
 
@@ -108,7 +108,7 @@ class TestPipeline(unittest.TestCase):
             "partition1", [3, 4], "p1c0")
 
         result = pipeline.next_batch()
-        self.assertIsNotNone(result)
+        self.assertFalse(result.terminated)
 
         self.assertEqual([1, 2], result.items)
 
@@ -125,13 +125,9 @@ class TestPipeline(unittest.TestCase):
             "partition1", [], None)
 
         result = pipeline.next_batch()
-        self.assertIsNotNone(result)
-
+        self.assertTrue(result.terminated)
         self.assertEqual([3, 4], result.items)
         self.assertEqual([], result.requests)
-
-        result = pipeline.next_batch()
-        self.assertIsNone(result)
 
     def test_pipeline_with_order_by(self):
         plan = {
@@ -169,7 +165,7 @@ class TestPipeline(unittest.TestCase):
             ], "p1c0")
 
         result = pipeline.next_batch()
-        self.assertIsNotNone(result)
+        self.assertFalse(result.terminated)
 
         self.assertEqual([3, 4], result.items)
 
@@ -184,7 +180,7 @@ class TestPipeline(unittest.TestCase):
             "partition1", [], None)
 
         result = pipeline.next_batch()
-        self.assertIsNotNone(result)
+        self.assertFalse(result.terminated)
 
         self.assertEqual([1, 2], result.items)
         requests = [(r.pkrange_id, r.continuation)
@@ -195,4 +191,6 @@ class TestPipeline(unittest.TestCase):
             "partition0", [], None)
 
         result = pipeline.next_batch()
-        self.assertIsNone(result)
+        self.assertTrue(result.terminated)
+        self.assertEqual([], result.items)
+        self.assertEqual([], result.requests)

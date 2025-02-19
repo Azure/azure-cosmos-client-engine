@@ -66,23 +66,22 @@ impl<T: Clone + Debug> Engine<T> {
     pub fn execute(mut self) -> Result<Vec<PipelineResponse<T>>, azure_cosmoscx::Error> {
         let mut responses = Vec::new();
         loop {
-            match self.pipeline.next_batch()? {
-                None => break,
-                Some(r) => {
-                    responses.push(r.clone());
-                    for request in r.requests {
-                        let page = self.container.get_data(
-                            &request.pkrange_id,
-                            request.continuation.as_deref(),
-                            self.request_page_size,
-                        );
-                        self.pipeline.provide_data(
-                            &request.pkrange_id,
-                            page.items,
-                            page.continuation,
-                        )?;
-                    }
-                }
+            let result = self.pipeline.run()?;
+
+            responses.push(result.clone());
+
+            if result.terminated {
+                break;
+            }
+
+            for request in result.requests {
+                let page = self.container.get_data(
+                    &request.pkrange_id,
+                    request.continuation.as_deref(),
+                    self.request_page_size,
+                );
+                self.pipeline
+                    .provide_data(&request.pkrange_id, page.items, page.continuation)?;
             }
         }
 

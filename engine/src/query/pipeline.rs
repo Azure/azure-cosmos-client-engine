@@ -5,9 +5,7 @@ use serde::{de::DeserializeOwned, Deserialize};
 use crate::ErrorKind;
 
 use super::{
-    node::{
-        LimitPipelineNode, OffsetPipelineNode, PipelineNode, PipelineNodeResult, PipelineSlice,
-    },
+    node::{LimitPipelineNode, OffsetPipelineNode, PipelineNode, PipelineSlice},
     plan::DistinctType,
     producer::{ItemProducer, MergeStrategy},
     PartitionKeyRange, PipelineResponse, QueryClauseItem, QueryFeature, QueryPlan, QueryResult,
@@ -151,35 +149,40 @@ impl<T: Debug, I: QueryClauseItem> QueryPipeline<T, I> {
     ///
     /// This method will return a [`PipelineResponse`] that describes the next action to take.
     #[tracing::instrument(level = "debug", skip(self))]
-    pub fn next_batch(&mut self) -> crate::Result<Option<PipelineResponse<T>>> {
+    pub fn run(&mut self) -> crate::Result<PipelineResponse<T>> {
         if self.terminated {
-            return Ok(None);
+            return Ok(PipelineResponse::TERMINATED);
         }
 
         let mut slice = PipelineSlice::new(&mut self.pipeline, &mut self.producer);
 
         let mut items = Vec::new();
-        loop {
-            match slice.next_item()? {
-                PipelineNodeResult::Result(item) => items.push(item.into_payload()),
-                PipelineNodeResult::EarlyTermination => {
-                    self.terminated = true;
+        while !self.terminated {
+            let result = slice.run()?;
+            if result.terminated {
+                self.terminated = true;
+            }
 
-                    // We still need to emit any items in this batch.
-                    break;
-                }
-                PipelineNodeResult::NoResult => break,
+            if let Some(item) = result.value {
+                items.push(item.into_payload());
+            } else {
+                // The pipeline has finished for now, but we're not terminated yet.
+                break;
             }
         }
 
         let requests = self.producer.data_requests();
 
-        if items.is_empty() && requests.is_empty() {
-            // We're done!
-            Ok(None)
-        } else {
-            Ok(Some(PipelineResponse { items, requests }))
+        // Once there are no more requests, there's no more data to be provided.
+        if requests.is_empty() {
+            self.terminated = true;
         }
+
+        Ok(PipelineResponse {
+            items,
+            requests,
+            terminated: self.terminated,
+        })
     }
 
     #[allow(dead_code)] // Used in some features.

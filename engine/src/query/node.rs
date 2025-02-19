@@ -3,17 +3,38 @@ use std::fmt::Debug;
 use super::{producer::ItemProducer, QueryClauseItem, QueryResult};
 
 #[derive(Debug)]
-pub enum PipelineNodeResult<T: Debug, I: QueryClauseItem> {
-    /// Indicates that a query result was produced.
-    Result(QueryResult<T, I>),
-
-    /// Indicates that no result was produced, but the pipeline may still produce results if additional data is provided.
-    NoResult,
-
-    /// Indicates that a node in the pipeline terminated the entire pipeline early.
+pub struct PipelineNodeResult<T: Debug, I: QueryClauseItem> {
+    /// The produced result, if any.
     ///
-    /// As an example, the [`LimitPipelineNode`] will return this result when it has reached its limit, as it is impossible to continue executing the pipeline once the limit is reached.
-    EarlyTermination,
+    /// If the node returns no result, it does NOT guarantee that the pipeline has terminated.
+    /// It only means that more data has to be provided to the pipeline before a result can be produced.
+    pub value: Option<QueryResult<T, I>>,
+
+    /// A boolean indicating if the pipeline should terminate after this result.
+    ///
+    /// If set, the pipeline should be terminated after yielding the item in [`PipelineNodeResult::value`], if any.
+    pub terminated: bool,
+}
+
+impl<T: Debug, I: QueryClauseItem> PipelineNodeResult<T, I> {
+    /// Indicates that the pipeline should terminate after yielding the item in [`PipelineNodeResult::value`], if any.
+    pub const EARLY_TERMINATE: Self = Self {
+        value: None,
+        terminated: true,
+    };
+
+    /// Indicates that the pipeline has no result, but is not terminated. The pipeline requires more data to produce a result.
+    pub const NO_RESULT: Self = Self {
+        value: None,
+        terminated: false,
+    };
+
+    pub fn result(value: QueryResult<T, I>, terminated: bool) -> Self {
+        Self {
+            value: Some(value),
+            terminated,
+        }
+    }
 }
 
 /// Represents a slice of the query pipeline.
@@ -37,7 +58,7 @@ impl<'a, T: Debug, I: QueryClauseItem> PipelineSlice<'a, T, I> {
     }
 
     /// Retrieves the next item from the first node in the span, passing the rest of the span as the "next" parameter.
-    pub fn next_item(&mut self) -> crate::Result<PipelineNodeResult<T, I>> {
+    pub fn run(&mut self) -> crate::Result<PipelineNodeResult<T, I>> {
         match self.nodes.split_first_mut() {
             Some((node, rest)) => {
                 let result = node.next_item(PipelineSlice {
@@ -49,10 +70,11 @@ impl<'a, T: Debug, I: QueryClauseItem> PipelineSlice<'a, T, I> {
             }
             None => {
                 tracing::debug!("retrieving item from producer");
-                match self.producer.produce_item()? {
-                    Some(item) => Ok(PipelineNodeResult::Result(item)),
-                    None => Ok(PipelineNodeResult::NoResult),
-                }
+                let value = self.producer.produce_item()?;
+                Ok(PipelineNodeResult {
+                    value,
+                    terminated: false,
+                })
             }
         }
     }
@@ -95,14 +117,20 @@ impl<T: Debug, I: QueryClauseItem> PipelineNode<T, I> for LimitPipelineNode {
     ) -> crate::Result<PipelineNodeResult<T, I>> {
         if self.remaining == 0 {
             tracing::debug!("limit reached, terminating pipeline");
-            return Ok(PipelineNodeResult::EarlyTermination);
+            return Ok(PipelineNodeResult::EARLY_TERMINATE);
         }
 
-        match rest.next_item()? {
-            PipelineNodeResult::Result(item) => {
+        match rest.run()? {
+            PipelineNodeResult {
+                value: Some(item),
+                terminated,
+            } => {
                 tracing::debug!("limit not yet reached, returning item");
                 self.remaining -= 1;
-                Ok(PipelineNodeResult::Result(item))
+                Ok(PipelineNodeResult::result(
+                    item,
+                    terminated || self.remaining == 0,
+                ))
             }
 
             // Pass through other results
@@ -131,8 +159,8 @@ impl<T: Debug, I: QueryClauseItem> PipelineNode<T, I> for OffsetPipelineNode {
         mut rest: PipelineSlice<T, I>,
     ) -> crate::Result<PipelineNodeResult<T, I>> {
         while self.remaining > 0 {
-            match rest.next_item()? {
-                PipelineNodeResult::Result(_) => {
+            match rest.run()? {
+                PipelineNodeResult { value: Some(_), .. } => {
                     tracing::debug!("offset not reached, skipping item");
                     self.remaining -= 1
                 }
@@ -144,6 +172,6 @@ impl<T: Debug, I: QueryClauseItem> PipelineNode<T, I> for OffsetPipelineNode {
 
         // Now, we're no longer skipping items, so we can pass through the rest of the pipeline.
         tracing::debug!("offset reached, returning item");
-        rest.next_item()
+        rest.run()
     }
 }

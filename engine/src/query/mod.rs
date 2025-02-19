@@ -91,6 +91,35 @@ impl DataRequest {
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "python", derive(pyo3::IntoPyObject))]
 pub struct PipelineResponse<T> {
+    /// The items returned by the pipeline.
     pub items: Vec<T>,
+
+    /// Requests for additional data from the pipeline.
+    ///
+    /// If [`PipelineResponse::terminated`] is `true`, this will be empty and can be ignored.
     pub requests: Vec<DataRequest>,
+
+    /// Indicates if the pipeline has terminated.
+    ///
+    /// If this is true, no further items will be produced, even if more data is provided.
+    pub terminated: bool,
+}
+
+impl<T> PipelineResponse<T> {
+    pub const TERMINATED: Self = Self {
+        items: Vec::new(),
+        requests: Vec::new(),
+        terminated: true,
+    };
+
+    pub fn map_items<U, F>(self, f: F) -> PipelineResponse<U>
+    where
+        F: Fn(T) -> U,
+    {
+        PipelineResponse {
+            items: self.items.into_iter().map(f).collect(),
+            requests: self.requests,
+            terminated: self.terminated,
+        }
+    }
 }

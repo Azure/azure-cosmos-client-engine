@@ -121,44 +121,35 @@ pub extern "C" fn cosmoscx_v0_query_pipeline_next_batch<'a>(
 ) -> FfiResult<PipelineResult> {
     fn inner<'a>(pipeline: *mut Pipeline) -> crate::Result<Box<PipelineResult>> {
         let pipeline = unsafe { Pipeline::unwrap_ptr(pipeline) }?;
-        let batch = pipeline.next_batch()?;
+        let result = pipeline.run()?;
 
-        let result = if let Some(batch) = batch {
-            // Box up each of the JSON values in the batch.
-            let items = batch
-                .items
-                .into_iter()
-                .map(|r| Box::<str>::from(r).into_boxed_bytes().into())
-                .collect::<Vec<_>>()
-                .into();
+        // Box up each of the JSON values in the batch.
+        let items = result
+            .items
+            .into_iter()
+            .map(|r| Box::<str>::from(r).into_boxed_bytes().into())
+            .collect::<Vec<_>>()
+            .into();
 
-            // And box up the requests.
-            let requests = batch
-                .requests
-                .into_iter()
-                .map(|r| DataRequest {
-                    pkrangeid: r.pkrange_id.into_owned().into(),
-                    continuation: match r.continuation {
-                        None => OwnedSlice::EMPTY,
-                        Some(s) => s.into(),
-                    },
-                })
-                .collect::<Vec<_>>()
-                .into();
-            Box::new(PipelineResult {
-                completed: false,
-                items,
-                requests,
+        // And box up the requests.
+        let requests = result
+            .requests
+            .into_iter()
+            .map(|r| DataRequest {
+                pkrangeid: r.pkrange_id.into_owned().into(),
+                continuation: match r.continuation {
+                    None => OwnedSlice::EMPTY,
+                    Some(s) => s.into(),
+                },
             })
-        } else {
-            Box::new(PipelineResult {
-                completed: true,
-                items: OwnedSlice::EMPTY,
-                requests: OwnedSlice::EMPTY,
-            })
-        };
+            .collect::<Vec<_>>()
+            .into();
 
-        Ok(result)
+        Ok(Box::new(PipelineResult {
+            completed: result.terminated,
+            items,
+            requests,
+        }))
     }
 
     inner(pipeline).into()

@@ -109,7 +109,7 @@ engine_python: _check-venv #/ Builds the python extension module for the engine
 	cd "$(root_dir)/python" && maturin develop --profile $(cargo_profile) $(maturin_args)
 
 .PHONY: test
-test: test_go test_python #/ Runs all language binding tests
+test: test_rust test_go test_python #/ Runs all language binding tests
 
 .PHONY: test_rust
 test_rust:

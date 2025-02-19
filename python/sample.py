@@ -60,15 +60,15 @@ def run_query():
     pager = items.by_page(None)
     for page in pager:
         for item in page:
-            pass
+            print(item)
 
 
 # Run once, unmeasured, to warm up
 run_query()
 
-count = 10
-time = timeit.timeit(stmt=run_query, number=count)
-print(f"Ran {count} times in {time * 1000}ms, {(time / count) * 1000}ms per run")
+# count = 10
+# time = timeit.timeit(stmt=run_query, number=count)
+# print(f"Ran {count} times in {time * 1000}ms, {(time / count) * 1000}ms per run")
 
 print()
 print()

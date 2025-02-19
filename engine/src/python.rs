@@ -82,11 +82,8 @@ mod native {
 
         fn next_batch<'py>(&self, py: Python<'py>) -> PyResult<Option<PyPipelineResult>> {
             let mut pipeline = self.pipeline()?;
-            let batch = match pipeline.next_batch()? {
-                Some(batch) => batch,
-                None => return Ok(None),
-            };
-            Ok(Some(PyPipelineResult::new(py, batch)?))
+            let result = pipeline.run()?;
+            Ok(Some(PyPipelineResult::new(py, result)?))
         }
 
         fn provide_data<'py>(
@@ -121,6 +118,8 @@ mod native {
         items: Py<PyList>,
         #[pyo3(get)]
         requests: Py<PyList>,
+        #[pyo3(get)]
+        terminated: bool,
     }
 
     impl PyPipelineResult {
@@ -132,7 +131,11 @@ mod native {
             });
             let items = PyList::new(py, items)?.unbind();
             let requests = PyList::new(py, requests)?.unbind();
-            Ok(Self { items, requests })
+            Ok(Self {
+                items,
+                requests,
+                terminated: result.terminated,
+            })
         }
     }
 

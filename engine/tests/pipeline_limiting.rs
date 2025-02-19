@@ -96,14 +96,7 @@ pub fn top() -> Result<(), Box<dyn std::error::Error>> {
     let results = engine.execute()?;
     let titles = results
         .into_iter()
-        .map(|response| PipelineResponse {
-            items: response
-                .items
-                .into_iter()
-                .map(|item| item.title.clone())
-                .collect::<Vec<_>>(),
-            requests: response.requests,
-        })
+        .map(|response| response.map_items(|item| item.title))
         .collect::<Vec<_>>();
     assert_eq!(
         vec![
@@ -112,7 +105,8 @@ pub fn top() -> Result<(), Box<dyn std::error::Error>> {
                 requests: vec![
                     DataRequest::new("partition0", None),
                     DataRequest::new("partition1", None),
-                ]
+                ],
+                terminated: false,
             },
             PipelineResponse {
                 items: vec![
@@ -123,10 +117,12 @@ pub fn top() -> Result<(), Box<dyn std::error::Error>> {
                     "partition1/item2".to_string(),
                 ],
                 requests: vec![DataRequest::new("partition1", Some("3".into())),],
+                terminated: false,
             },
             PipelineResponse {
                 items: vec!["partition0/item2".to_string(),],
                 requests: vec![],
+                terminated: true
             },
         ],
         titles
@@ -179,14 +175,7 @@ pub fn offset_limit() -> Result<(), Box<dyn std::error::Error>> {
     let results = engine.execute()?;
     let titles = results
         .into_iter()
-        .map(|response| PipelineResponse {
-            items: response
-                .items
-                .into_iter()
-                .map(|item| item.title.clone())
-                .collect::<Vec<_>>(),
-            requests: response.requests,
-        })
+        .map(|response| response.map_items(|item| item.title))
         .collect::<Vec<_>>();
     assert_eq!(
         vec![
@@ -195,22 +184,25 @@ pub fn offset_limit() -> Result<(), Box<dyn std::error::Error>> {
                 requests: vec![
                     DataRequest::new("partition0", None),
                     DataRequest::new("partition1", None),
-                ]
+                ],
+                terminated: false
             },
             PipelineResponse {
                 items: vec![],
-                requests: vec![DataRequest::new("partition0", Some("2".into())),]
-            },
-            PipelineResponse {
-                items: vec!["partition1/item1".to_string(),],
-                requests: vec![DataRequest::new("partition1", Some("2".into())),]
+                requests: vec![
+                    DataRequest::new("partition0", Some("2".into())),
+                    DataRequest::new("partition1", Some("2".into()))
+                ],
+                terminated: false
             },
             PipelineResponse {
                 items: vec![
+                    "partition1/item1".to_string(),
                     "partition1/item2".to_string(),
                     "partition0/item2".to_string(),
                 ],
-                requests: vec![]
+                requests: vec![DataRequest::new("partition1", Some("4".into())),],
+                terminated: true
             },
         ],
         titles

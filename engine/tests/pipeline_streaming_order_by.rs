@@ -97,14 +97,7 @@ pub fn streaming_order_by() -> Result<(), Box<dyn std::error::Error>> {
     let results = engine.execute()?;
     let titles = results
         .into_iter()
-        .map(|response| PipelineResponse {
-            items: response
-                .items
-                .into_iter()
-                .map(|item| item.title.clone())
-                .collect::<Vec<_>>(),
-            requests: response.requests,
-        })
+        .map(|response| response.map_items(|item| item.title))
         .collect::<Vec<_>>();
     assert_eq!(
         vec![
@@ -113,7 +106,8 @@ pub fn streaming_order_by() -> Result<(), Box<dyn std::error::Error>> {
                 requests: vec![
                     DataRequest::new("partition0", None),
                     DataRequest::new("partition1", None),
-                ]
+                ],
+                terminated: false
             },
             PipelineResponse {
                 items: vec![
@@ -124,6 +118,7 @@ pub fn streaming_order_by() -> Result<(), Box<dyn std::error::Error>> {
                     "partition1/item2".to_string(),
                 ],
                 requests: vec![DataRequest::new("partition1", Some("3".into())),],
+                terminated: false
             },
             PipelineResponse {
                 items: vec![
@@ -133,6 +128,7 @@ pub fn streaming_order_by() -> Result<(), Box<dyn std::error::Error>> {
                     "partition1/item5".to_string(),
                 ],
                 requests: vec![],
+                terminated: true
             },
         ],
         titles
