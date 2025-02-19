@@ -100,9 +100,11 @@ func TestPipelineWithDataReturnsData(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEmpty(t, requests)
 
-	assert.Equal(t, 1, len(requests))
+	assert.Equal(t, 2, len(requests))
 	assert.Equal(t, "partition0", requests[0].PartitionKeyRangeID().BorrowString())
 	assert.Equal(t, "p0c1", requests[0].Continuation().BorrowString())
+	assert.Equal(t, "partition1", requests[1].PartitionKeyRangeID().BorrowString())
+	assert.Equal(t, "p1c1", requests[1].Continuation().BorrowString())
 
 	// Provide empty data for the remaining partitions
 	err = pipeline.ProvideData("partition0", `{"Documents":[]}`, "")
