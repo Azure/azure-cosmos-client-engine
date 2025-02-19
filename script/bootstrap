@@ -12,15 +12,10 @@ if [ "$OS" = "Windows_NT" ]; then
     venv_bindir="$repo_root/.venv/Scripts"
 fi
 
-use_pipx=false
 while [[ "$#" -gt 0 ]]; do
     key="$1"
     shift
-    case "$key" in
-        --use-pipx)
-            use_pipx=true
-            ;;
-        -h|--help) 
+    case "$key" in -h|--help) 
             grep '^#/' <"$0" | cut -c4-
             exit 0
             ;;
@@ -34,10 +29,6 @@ done
 echo "Checking dependencies we don't auto-install..."
 script/check-deps
 
-echo "Creating virtualenv and installing modules..."
-python3 -m venv ./.venv
-$venv_bindir/pip install -r ./python/dev-requirements.txt
-
 echo "Installing Maturin..."
 pipx install maturin
 
@@ -46,3 +37,9 @@ pipx install poetry
 
 echo "Installing cbindgen..."
 cargo install --locked cbindgen
+
+echo "Activating virtualenv..."
+eval "$(poetry -C ./python env activate)"
+
+echo "Installing Python dependencies..."
+poetry -C ./python install

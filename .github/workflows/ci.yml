@@ -22,7 +22,7 @@ jobs:
       - name: Bootstrap Repository
         shell: bash
         run: |
-          script/bootstrap --use-pipx
+          script/bootstrap
 
       - name: Check Headers
         shell: bash
@@ -86,42 +86,13 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-          cache: "pip"
+          cache: "poetry"
 
-      - name: Bootstrap Repository and activate venv
+      - name: Bootstrap Repository
         shell: bash
         working-directory: "azure-cosmos-client-engine"
         run: |
-          script/bootstrap --use-pipx
-
-          echo "Activating Virtual Env..."
-          if [ "$OS" = "Windows_NT" ]; then
-            source "./.venv/Scripts/activate"
-          else
-            source "./.venv/bin/activate"
-          fi
-
-          # Export the virtualenv and path variables
-          VENV_BIN="$VIRTUAL_ENV/bin"
-          if [ "$OS" = "Windows_NT" ]; then
-            VIRTUAL_ENV=$(cygpath --windows $VIRTUAL_ENV)
-            VENV_BIN=$(cygpath --windows "$VIRTUAL_ENV/Scripts")
-          fi
-
-          echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> "$GITHUB_ENV"
-          echo "$VENV_BIN" >> "$GITHUB_PATH"
-
-      - name: Validate virtual environment
-        shell: bash
-        working-directory: "azure-cosmos-client-engine"
-        run: |
-          python_path=$(which python)
-          if ! [[ "$python_path" == $(pwd)/.venv/* ]]; then
-            echo "Not in Python venv: $python_path"
-            exit 1
-          else
-            echo "In Python venv: $python_path"
-          fi
+          script/bootstrap
 
       - name: Build Engine
         shell: bash

@@ -105,8 +105,8 @@ engine_c: #/ Builds the C API for the engine, producing the shared and static li
 	script/helpers/update-dylib-name $(artifacts_dir)/lib/$(shared_lib_filename)
 
 .PHONY: engine_python
-engine_python: _check-venv #/ Builds the python extension module for the engine
-	cd "$(root_dir)/python" && maturin develop --profile $(cargo_profile) $(maturin_args)
+engine_python: #/ Builds the python extension module for the engine
+	poetry -C ./python run maturin develop --profile $(cargo_profile) $(maturin_args)
 
 .PHONY: test
 test: test_rust test_go test_python #/ Runs all language binding tests
@@ -122,9 +122,9 @@ test_go: #/ Runs the Go language binding tests
 	go -C ./go/azcosmoscx test -v ./...
 
 .PHONY: test_python
-test_python: _check-venv #/ Runs the Python language binding tests
+test_python:
 	@echo "Running Python tests..."
-	python -m pytest ./python
+	poetry -C ./python run python -m pytest .
 
 .PHONY: superclean
 superclean: #/ Delete the entire `targets` and `artifacts` directories
@@ -142,10 +142,6 @@ clean_artifacts: #/ Cleans the artifacts directory, which contains the generated
 	rm -rf $(artifacts_dir)
 
 # "Private" helper targets
-
-.PHONY: _check-venv
-_check-venv:
-	@python -c "import sys; exit(1) if sys.prefix == sys.base_prefix else exit(0)" || (echo "Python virtual environment is not activated. Run 'source .venv/bin/activate' to activate it first" && exit 1)
 
 .PHONY: cgo-env
 cgo-env: #/ Prints the environment variables needed to build and run the Go language bindings against the engine. Eval the output of this command to set the environment variables.

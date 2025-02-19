@@ -15,7 +15,7 @@ dynamic = ["version"]
 [tool.maturin]
 # TODO: Move this in to the 'azure.cosmos' namespace. To do that, 'azure.cosmos' needed to be updated to support being a namespace package
 # See https://packaging.python.org/en/latest/guides/packaging-namespace-packages/#legacy-namespace-packages
-module-name = "azure_cosmoscx"
+module-name = "azure_cosmoscx._azure_cosmoscx"
 
 # The path to the crate to build
 manifest-path = "../engine/Cargo.toml"
