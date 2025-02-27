@@ -23,6 +23,11 @@
 					"permissions": {
 						"contents": "write"
 					}
+				},
+				"Azure/azure-sdk-for-js": {
+					"permissions": {
+						"contents": "write"
+					}
 				}
 			}
 		}
