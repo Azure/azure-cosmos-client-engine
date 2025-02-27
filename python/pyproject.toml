@@ -22,3 +22,12 @@ manifest-path = "../engine/Cargo.toml"
 
 # Specifies the features to use when building the rust driver
 features = ["python"] 
+
+[tool.poetry]
+version = "0.1.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.4"
+
+[tool.poetry.dependencies]
+azure-cosmos = {path = "../../azure-sdk-for-python/sdk/cosmos/azure-cosmos", develop = true}

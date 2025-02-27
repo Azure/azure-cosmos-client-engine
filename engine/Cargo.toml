@@ -8,7 +8,8 @@ edition = "2021"
 crate-type = ["lib", "cdylib", "staticlib"]
 
 [dependencies]
-pyo3 = { version = "0.23.4", optional = true }
+# TODO: We depend on features in an unreleased version of PyO3, but the 0.24 release should be coming soon 🤞, see https://github.com/PyO3/pyo3/issues/4905
+pyo3 = { git = "https://github.com/PyO3/pyo3.git", branch = "main", optional = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["raw_value"] }
 tracing = "0.1.40"

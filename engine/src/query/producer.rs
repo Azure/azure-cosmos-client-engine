@@ -5,6 +5,8 @@ use crate::{
     ErrorKind,
 };
 
+use super::QueryClauseItem;
+
 /// Represents the current stage that a partition is in during the query.
 #[derive(Debug)]
 enum PartitionStage {
@@ -24,13 +26,13 @@ pub enum MergeStrategy {
     Unordered,
 }
 
-struct PartitionState<T: Debug> {
+struct PartitionState<T: Debug, I: QueryClauseItem> {
     pkrange: PartitionKeyRange,
-    queue: VecDeque<QueryResult<T>>,
+    queue: VecDeque<QueryResult<T, I>>,
     stage: PartitionStage,
 }
 
-impl<T: Debug> PartitionState<T> {
+impl<T: Debug, I: QueryClauseItem> PartitionState<T, I> {
     pub fn new(pkrange: PartitionKeyRange) -> Self {
         Self {
             pkrange,
@@ -47,7 +49,7 @@ impl<T: Debug> PartitionState<T> {
     #[tracing::instrument(level = "trace", skip_all, fields(pkrange_id = %self.pkrange.id))]
     pub fn extend(
         &mut self,
-        item: impl IntoIterator<Item = QueryResult<T>>,
+        item: impl IntoIterator<Item = QueryResult<T, I>>,
         continuation: Option<String>,
     ) {
         self.queue.extend(item);
@@ -55,17 +57,11 @@ impl<T: Debug> PartitionState<T> {
             || PartitionStage::Done,
             |token| PartitionStage::Continuing(token),
         );
-        tracing::trace!(queue_len = self.queue.len(), stage = ?self.stage, "updated partition state");
+        tracing::debug!(queue_len = self.queue.len(), stage = ?self.stage, "received new data");
     }
 
     #[tracing::instrument(level = "trace", skip_all, fields(pkrange_id = %self.pkrange.id))]
     pub fn next_data_request(&self) -> Option<DataRequest> {
-        // If the queue is not empty, we don't need to request more data.
-        if !self.queue.is_empty() {
-            tracing::trace!("skipping data request for non-empty queue");
-            return None;
-        }
-
         match &self.stage {
             PartitionStage::Initial => {
                 tracing::trace!("starting partition");
@@ -93,12 +89,12 @@ impl<T: Debug> PartitionState<T> {
     }
 }
 
-pub struct ItemProducer<T: Debug> {
-    partitions: Vec<PartitionState<T>>,
+pub struct ItemProducer<T: Debug, I: QueryClauseItem> {
+    partitions: Vec<PartitionState<T, I>>,
     strategy: MergeStrategy,
 }
 
-impl<T: Debug> ItemProducer<T> {
+impl<T: Debug, I: QueryClauseItem> ItemProducer<T, I> {
     pub fn new(
         pkranges: impl IntoIterator<Item = PartitionKeyRange>,
         strategy: MergeStrategy,
@@ -124,11 +120,10 @@ impl<T: Debug> ItemProducer<T> {
             .collect()
     }
 
-    #[tracing::instrument(level = "trace", skip(self), fields(pkrange_id = %pkrange_id))]
     pub fn provide_data(
         &mut self,
         pkrange_id: &str,
-        data: Vec<QueryResult<T>>,
+        data: Vec<QueryResult<T, I>>,
         continuation: Option<String>,
     ) -> crate::Result<()> {
         // We currently store partitions as a Vec, so we need to search to find the partition to update.
@@ -148,7 +143,7 @@ impl<T: Debug> ItemProducer<T> {
     }
 
     #[tracing::instrument(level = "trace", skip(self))]
-    pub fn produce_item(&mut self) -> crate::Result<Option<QueryResult<T>>> {
+    pub fn produce_item(&mut self) -> crate::Result<Option<QueryResult<T, I>>> {
         let mut next_partition = None;
         for partition in &mut self.partitions {
             let _ = tracing::trace_span!("produce_item::check_partition", pkrange_id = %partition.pkrange.id)
@@ -185,10 +180,10 @@ impl<T: Debug> ItemProducer<T> {
 }
 
 #[tracing::instrument(level = "trace", skip(left, right), fields(left_pkrange_id = %left.pkrange.id, right_pkrange_id = %right.pkrange.id))]
-fn compare_partitions<T: Debug>(
+fn compare_partitions<T: Debug, I: QueryClauseItem>(
     strategy: &MergeStrategy,
-    left: &PartitionState<T>,
-    right: &PartitionState<T>,
+    left: &PartitionState<T, I>,
+    right: &PartitionState<T, I>,
 ) -> crate::Result<Ordering> {
     match strategy {
         MergeStrategy::Unordered => {
@@ -220,7 +215,7 @@ mod tests {
     use serde::{Deserialize, Serialize};
     use serde_json::json;
 
-    use crate::query::{PartitionKeyRange, QueryResult};
+    use crate::query::{query_result::JsonQueryClauseItem, PartitionKeyRange, QueryResult};
 
     use super::*;
 
@@ -245,7 +240,7 @@ mod tests {
         pkrange_id: &str,
         id: impl Into<String>,
         order_by_items: Vec<serde_json::Value>,
-    ) -> QueryResult<Item> {
+    ) -> QueryResult<Item, JsonQueryClauseItem> {
         let id = id.into();
         let item = Item::new(
             id.clone(),
@@ -259,7 +254,9 @@ mod tests {
         QueryResult::new(vec![], order_by_items, item)
     }
 
-    fn drain_producer<T: Debug>(producer: &mut ItemProducer<T>) -> crate::Result<Vec<T>> {
+    fn drain_producer<T: Debug, I: QueryClauseItem>(
+        producer: &mut ItemProducer<T, I>,
+    ) -> crate::Result<Vec<T>> {
         let mut items = Vec::new();
         while let Some(item) = producer.produce_item()? {
             let item = item.into_payload();
@@ -272,7 +269,7 @@ mod tests {
     pub fn unordered_strategy_orders_by_partition_key_minimum(
     ) -> Result<(), Box<dyn std::error::Error>> {
         fn fill_partition(
-            producer: &mut ItemProducer<Item>,
+            producer: &mut ItemProducer<Item, JsonQueryClauseItem>,
             pkrange_id: &str,
             start_id: usize,
             count: usize,

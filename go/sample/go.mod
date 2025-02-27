@@ -9,7 +9,7 @@ replace (
 
 require (
 	github.com/Azure/azure-cosmos-client-engine/go/azcosmoscx v0.0.0
-	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.2.0
+	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.2.1
 )
 
 require (

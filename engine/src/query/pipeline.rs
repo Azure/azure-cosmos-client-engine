@@ -5,10 +5,10 @@ use serde::{de::DeserializeOwned, Deserialize};
 use crate::ErrorKind;
 
 use super::{
-    node::{LimitPipelineNode, OffsetPipelineNode, PipelineNode, PipelineResult, PipelineSlice},
+    node::{LimitPipelineNode, OffsetPipelineNode, PipelineNode, PipelineSlice},
     plan::DistinctType,
     producer::{ItemProducer, MergeStrategy},
-    PartitionKeyRange, PipelineResponse, QueryFeature, QueryPlan, QueryResult,
+    PartitionKeyRange, PipelineResponse, QueryClauseItem, QueryFeature, QueryPlan, QueryResult,
 };
 
 macro_rules! supported_features {
@@ -22,17 +22,17 @@ macro_rules! supported_features {
 
 supported_features!(OffsetAndLimit, OrderBy, MultipleOrderBy, Top);
 
-pub struct QueryPipeline<T: Debug> {
+pub struct QueryPipeline<T: Debug, I: QueryClauseItem> {
     query: String,
-    pipeline: Vec<Box<dyn PipelineNode<T>>>,
-    producer: ItemProducer<T>,
+    pipeline: Vec<Box<dyn PipelineNode<T, I>>>,
+    producer: ItemProducer<T, I>,
     results_are_bare_payloads: bool,
 
     // Indicates if the pipeline has been terminated early.
     terminated: bool,
 }
 
-impl<T: Debug> QueryPipeline<T> {
+impl<T: Debug, I: QueryClauseItem> QueryPipeline<T, I> {
     /// Creates a new query pipeline.
     ///
     /// # Parameters
@@ -65,7 +65,7 @@ impl<T: Debug> QueryPipeline<T> {
         // We are building the pipeline outside-in.
         // That means the first node we push will be the first node executed.
         // This is relevant for nodes like OFFSET and LIMIT, which need to be ordered carefully.
-        let mut pipeline: Vec<Box<dyn PipelineNode<T>>> = Vec::new();
+        let mut pipeline: Vec<Box<dyn PipelineNode<T, I>>> = Vec::new();
 
         // We have to do limiting at right at the outside of the pipeline, so that OFFSET can skip items without affecting the LIMIT counter.
         if let Some(limit) = plan.query_info.limit {
@@ -111,7 +111,13 @@ impl<T: Debug> QueryPipeline<T> {
         let query = if plan.query_info.rewritten_query.is_empty() {
             query.to_string()
         } else {
-            rewrite_query(&plan.query_info.rewritten_query)
+            let rewritten = rewrite_query(&plan.query_info.rewritten_query);
+            tracing::debug!(
+                original = ?query,
+                ?rewritten,
+                "rewrote query, per gateway query plan"
+            );
+            rewritten
         };
 
         Ok(Self {
@@ -129,11 +135,11 @@ impl<T: Debug> QueryPipeline<T> {
     }
 
     /// Provides more data for the specified partition key range.
-    #[tracing::instrument(level = "debug", skip(self), fields(pkrange_id = pkrange_id))]
+    #[tracing::instrument(level = "debug", skip_all, fields(pkrange_id = pkrange_id, data_len = data.len(), continuation = continuation.as_deref()))]
     pub fn provide_data(
         &mut self,
         pkrange_id: &str,
-        data: Vec<QueryResult<T>>,
+        data: Vec<QueryResult<T, I>>,
         continuation: Option<String>,
     ) -> crate::Result<()> {
         self.producer.provide_data(pkrange_id, data, continuation)
@@ -143,43 +149,55 @@ impl<T: Debug> QueryPipeline<T> {
     ///
     /// This method will return a [`PipelineResponse`] that describes the next action to take.
     #[tracing::instrument(level = "debug", skip(self))]
-    pub fn next_batch(&mut self) -> crate::Result<Option<PipelineResponse<T>>> {
+    pub fn run(&mut self) -> crate::Result<PipelineResponse<T>> {
         if self.terminated {
-            return Ok(None);
+            return Ok(PipelineResponse::TERMINATED);
         }
 
         let mut slice = PipelineSlice::new(&mut self.pipeline, &mut self.producer);
 
-        let mut batch = Vec::new();
-        loop {
-            match slice.next_item()? {
-                PipelineResult::Result(item) => batch.push(item.into_payload()),
-                PipelineResult::EarlyTermination => {
-                    self.terminated = true;
+        let mut items = Vec::new();
+        while !self.terminated {
+            let result = slice.run()?;
+            if result.terminated {
+                self.terminated = true;
+            }
 
-                    // We still need to emit any items in this batch.
-                    break;
-                }
-                PipelineResult::NoResult => break,
+            if let Some(item) = result.value {
+                items.push(item.into_payload());
+            } else {
+                // The pipeline has finished for now, but we're not terminated yet.
+                break;
             }
         }
 
         let requests = self.producer.data_requests();
 
-        if batch.is_empty() && requests.is_empty() {
-            // We're done!
-            Ok(None)
-        } else {
-            Ok(Some(PipelineResponse { batch, requests }))
+        // Once there are no more requests, there's no more data to be provided.
+        if requests.is_empty() {
+            self.terminated = true;
         }
+
+        Ok(PipelineResponse {
+            items,
+            requests,
+            terminated: self.terminated,
+        })
+    }
+
+    #[allow(dead_code)] // Used in some features.
+    pub(crate) fn results_are_bare_payloads(&self) -> bool {
+        self.results_are_bare_payloads
     }
 }
 
-impl<T: Debug + DeserializeOwned> QueryPipeline<T> {
+impl<T: Debug + DeserializeOwned, I: QueryClauseItem + DeserializeOwned + Default>
+    QueryPipeline<T, I>
+{
     /// Deserializes the payload of a query result, according to the expectations of the query plan.
     ///
     /// The query plan can affect the format of the returned data, so this method will deserialize the payload accordingly.
-    pub fn deserialize_payload(&self, input: &str) -> crate::Result<Vec<QueryResult<T>>> {
+    pub fn deserialize_payload(&self, input: &str) -> crate::Result<Vec<QueryResult<T, I>>> {
         #[derive(Deserialize)]
         struct DocumentResult<T> {
             #[serde(rename = "Documents")]
@@ -204,11 +222,6 @@ impl<T: Debug + DeserializeOwned> QueryPipeline<T> {
 
 fn rewrite_query(original: &str) -> String {
     let rewritten = original.replace("{documentdb-formattableorderbyquery-filter}", "true");
-    tracing::debug!(
-        ?original,
-        ?rewritten,
-        "rewrote query, per gateway query plan"
-    );
     rewritten
 }
 

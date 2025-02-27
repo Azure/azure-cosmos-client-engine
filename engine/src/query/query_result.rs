@@ -10,24 +10,23 @@ use super::SortOrder;
 /// When we generate a query plan, the gateway rewrites the query so that it can be properly executed against each partition.
 /// For example, order by items are collected into a well-known property with a well-known format so that the pipeline can easily access them.
 #[derive(Clone, Debug, Deserialize)]
+#[cfg_attr(feature = "python", derive(pyo3::FromPyObject), pyo3(from_item_all))]
 #[serde(rename_all = "camelCase")]
-pub struct QueryResult<T: Debug> {
+pub struct QueryResult<T: Debug, I: QueryClauseItem> {
     #[allow(dead_code)]
     #[serde(default)]
-    group_by_items: Vec<QueryClauseItem>,
+    #[cfg_attr(feature = "python", pyo3(item("groupByItems"), default))]
+    group_by_items: Vec<I>,
 
     #[serde(default)]
-    order_by_items: Vec<QueryClauseItem>,
+    #[cfg_attr(feature = "python", pyo3(item("orderByItems"), default))]
+    order_by_items: Vec<I>,
 
     payload: T,
 }
 
-impl<T: Debug> QueryResult<T> {
-    pub fn new(
-        group_by_items: Vec<QueryClauseItem>,
-        order_by_items: Vec<QueryClauseItem>,
-        payload: T,
-    ) -> Self {
+impl<T: Debug, I: QueryClauseItem> QueryResult<T, I> {
+    pub fn new(group_by_items: Vec<I>, order_by_items: Vec<I>, payload: T) -> Self {
         Self {
             group_by_items,
             order_by_items,
@@ -54,7 +53,7 @@ impl<T: Debug> QueryResult<T> {
     /// We can't just implement [`PartialOrd`] here, because we need to accept a sort order and return an error.
     pub fn compare(
         &self,
-        other: &QueryResult<T>,
+        other: &QueryResult<T, I>,
         orderings: &[SortOrder],
     ) -> crate::Result<std::cmp::Ordering> {
         if self.order_by_items.len() != other.order_by_items.len() {
@@ -98,8 +97,12 @@ impl<T: Debug> QueryResult<T> {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
-pub struct QueryClauseItem {
+pub trait QueryClauseItem: Debug {
+    fn compare(&self, other: &Self) -> crate::Result<std::cmp::Ordering>;
+}
+
+#[derive(Clone, Debug, Deserialize, Default, PartialEq, Eq)]
+pub struct JsonQueryClauseItem {
     #[serde(default, deserialize_with = "deserialize_item")]
     pub item: Option<serde_json::Value>,
 }
@@ -114,11 +117,11 @@ where
     Deserialize::deserialize(deserializer).map(Some)
 }
 
-impl QueryClauseItem {
+impl QueryClauseItem for JsonQueryClauseItem {
     /// Compares two [`QueryClauseItem`]s based on the ordering rules defined for Cosmos DB.
     ///
     /// We can't just implement [`PartialOrd`] here, because we need to be able to return an error.
-    pub fn compare(&self, other: &Self) -> crate::Result<std::cmp::Ordering> {
+    fn compare(&self, other: &Self) -> crate::Result<std::cmp::Ordering> {
         let left_ordinal = self.type_ordinal()?;
         let right_ordinal = other.type_ordinal()?;
 
@@ -161,7 +164,7 @@ impl QueryClauseItem {
     }
 }
 
-impl QueryClauseItem {
+impl JsonQueryClauseItem {
     /// Gets the "Type Ordinal" for a given item.
     ///
     /// The Type Ordinal is used to order items of differing types.
@@ -191,12 +194,12 @@ mod tests {
     #[test]
     pub fn query_result_deserializes_order_by_items_only() {
         const JSON: &str = r#"{"orderByItems":[{"item":1}], "payload": {"a":1}}"#;
-        let result: QueryResult<Box<serde_json::value::RawValue>> =
+        let result: QueryResult<Box<serde_json::value::RawValue>, JsonQueryClauseItem> =
             serde_json::from_str(JSON).unwrap();
         assert_eq!(result.group_by_items, vec![]);
         assert_eq!(
             result.order_by_items,
-            vec![QueryClauseItem {
+            vec![JsonQueryClauseItem {
                 item: Some(serde_json::json!(1))
             }]
         );
@@ -206,11 +209,11 @@ mod tests {
     #[test]
     pub fn query_result_deserializes_group_by_items_only() {
         const JSON: &str = r#"{"groupByItems":[{"item":"yoot"}], "payload": {"a":1}}"#;
-        let result: QueryResult<Box<serde_json::value::RawValue>> =
+        let result: QueryResult<Box<serde_json::value::RawValue>, JsonQueryClauseItem> =
             serde_json::from_str(JSON).unwrap();
         assert_eq!(
             result.group_by_items,
-            vec![QueryClauseItem {
+            vec![JsonQueryClauseItem {
                 item: Some(serde_json::json!("yoot"))
             }]
         );
@@ -221,17 +224,17 @@ mod tests {
     #[test]
     pub fn query_result_deserializes_full_content() {
         const JSON: &str = r#"{"orderByItems":[{"item":1}], "groupByItems":[{"item":"yoot"}], "payload": {"a":1}}"#;
-        let result: QueryResult<Box<serde_json::value::RawValue>> =
+        let result: QueryResult<Box<serde_json::value::RawValue>, JsonQueryClauseItem> =
             serde_json::from_str(JSON).unwrap();
         assert_eq!(
             result.group_by_items,
-            vec![QueryClauseItem {
+            vec![JsonQueryClauseItem {
                 item: Some(serde_json::json!("yoot"))
             }]
         );
         assert_eq!(
             result.order_by_items,
-            vec![QueryClauseItem {
+            vec![JsonQueryClauseItem {
                 item: Some(serde_json::json!(1))
             }]
         );
@@ -241,7 +244,7 @@ mod tests {
     #[test]
     pub fn query_result_can_be_created_from_raw_payload() {
         const JSON: &str = r#"{"a":1}"#;
-        let result = QueryResult::from_payload(
+        let result = QueryResult::<_, JsonQueryClauseItem>::from_payload(
             serde_json::value::RawValue::from_string(JSON.to_string()).unwrap(),
         );
         assert_eq!(result.group_by_items, vec![]);
@@ -263,8 +266,8 @@ mod tests {
                     $(
                         let left = serde_json::json!($left);
                         let right = serde_json::json!($right);
-                        let left: QueryClauseItem = serde_json::from_value(left).unwrap();
-                        let right: QueryClauseItem  = serde_json::from_value(right).unwrap();
+                        let left: JsonQueryClauseItem = serde_json::from_value(left).unwrap();
+                        let right: JsonQueryClauseItem  = serde_json::from_value(right).unwrap();
                         let result = left.compare(&right);
                         assert!(matches!(result, $expected), "comparing {:?} and {:?}, expected: {}, but got {:?}", left, right, stringify!($expected), result);
                     )*
@@ -323,10 +326,10 @@ mod tests {
     pub fn compare_query_results_different() {
         let left = QueryResult {
             order_by_items: vec![
-                QueryClauseItem {
+                JsonQueryClauseItem {
                     item: Some(serde_json::json!(1)),
                 },
-                QueryClauseItem {
+                JsonQueryClauseItem {
                     item: Some(serde_json::json!("zzzz")),
                 },
             ],
@@ -335,10 +338,10 @@ mod tests {
         };
         let right = QueryResult {
             order_by_items: vec![
-                QueryClauseItem {
+                JsonQueryClauseItem {
                     item: Some(serde_json::json!(1)),
                 },
-                QueryClauseItem {
+                JsonQueryClauseItem {
                     item: Some(serde_json::json!("yyyy")),
                 },
             ],
@@ -356,10 +359,10 @@ mod tests {
     pub fn compare_query_results_identical() {
         let left = QueryResult {
             order_by_items: vec![
-                QueryClauseItem {
+                JsonQueryClauseItem {
                     item: Some(serde_json::json!(1)),
                 },
-                QueryClauseItem {
+                JsonQueryClauseItem {
                     item: Some(serde_json::json!("zzzz")),
                 },
             ],
@@ -368,10 +371,10 @@ mod tests {
         };
         let right = QueryResult {
             order_by_items: vec![
-                QueryClauseItem {
+                JsonQueryClauseItem {
                     item: Some(serde_json::json!(1)),
                 },
-                QueryClauseItem {
+                JsonQueryClauseItem {
                     item: Some(serde_json::json!("zzzz")),
                 },
             ],
@@ -388,7 +391,7 @@ mod tests {
     #[test]
     pub fn compare_query_results_inconsistent() {
         let left = QueryResult {
-            order_by_items: vec![QueryClauseItem {
+            order_by_items: vec![JsonQueryClauseItem {
                 item: Some(serde_json::json!(1)),
             }],
             group_by_items: vec![],
@@ -396,10 +399,10 @@ mod tests {
         };
         let right = QueryResult {
             order_by_items: vec![
-                QueryClauseItem {
+                JsonQueryClauseItem {
                     item: Some(serde_json::json!(1)),
                 },
-                QueryClauseItem {
+                JsonQueryClauseItem {
                     item: Some(serde_json::json!("zzzz")),
                 },
             ],

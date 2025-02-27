@@ -30,6 +30,11 @@ impl From<crate::ErrorKind> for ResultCode {
             crate::ErrorKind::UnsupportedQueryPlan => ResultCode::UnsupportedQueryPlan,
             crate::ErrorKind::InvalidUtf8String => ResultCode::InvalidUtf8String,
             crate::ErrorKind::ArgumentNull => ResultCode::ArgumentNull,
+
+            // This shouldn't happen, since we don't use ResultCode in the python module
+            // The only reason this isn't cfg'd out is to allow us to do a simple --all-features build.
+            #[cfg(feature = "python")]
+            crate::ErrorKind::PythonError => ResultCode::InternalError,
         }
     }
 }

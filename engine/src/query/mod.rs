@@ -9,8 +9,8 @@ mod producer;
 mod query_result;
 
 pub use pipeline::{QueryPipeline, SUPPORTED_FEATURES, SUPPORTED_FEATURES_STRING};
-pub use plan::{QueryInfo, QueryPlan, QueryRange, SortOrder};
-pub use query_result::{QueryClauseItem, QueryResult};
+pub use plan::{DistinctType, QueryInfo, QueryPlan, QueryRange, SortOrder};
+pub use query_result::{JsonQueryClauseItem, QueryClauseItem, QueryResult};
 
 /// Features that may be required by the Query Engine.
 ///
@@ -43,11 +43,14 @@ pub struct Query {
 }
 
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "python", derive(pyo3::FromPyObject), pyo3(from_item_all))]
 #[serde(rename_all = "camelCase")]
 pub struct PartitionKeyRange {
     id: String,
+    #[cfg_attr(feature = "python", pyo3(item("minInclusive")))]
     min_inclusive: String,
     #[allow(dead_code)]
+    #[cfg_attr(feature = "python", pyo3(item("maxExclusive")))]
     max_exclusive: String,
 }
 
@@ -70,6 +73,7 @@ impl PartitionKeyRange {
 /// This value is returned when the pipeline needs more data to continue processing.
 /// It contains the information necessary for the caller to make an HTTP request to the Cosmos APIs to fetch the next batch of data.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "python", derive(pyo3::IntoPyObject))]
 pub struct DataRequest {
     pub pkrange_id: Cow<'static, str>,
     pub continuation: Option<String>,
@@ -85,7 +89,37 @@ impl DataRequest {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "python", derive(pyo3::IntoPyObject))]
 pub struct PipelineResponse<T> {
-    pub batch: Vec<T>,
+    /// The items returned by the pipeline.
+    pub items: Vec<T>,
+
+    /// Requests for additional data from the pipeline.
+    ///
+    /// If [`PipelineResponse::terminated`] is `true`, this will be empty and can be ignored.
     pub requests: Vec<DataRequest>,
+
+    /// Indicates if the pipeline has terminated.
+    ///
+    /// If this is true, no further items will be produced, even if more data is provided.
+    pub terminated: bool,
+}
+
+impl<T> PipelineResponse<T> {
+    pub const TERMINATED: Self = Self {
+        items: Vec::new(),
+        requests: Vec::new(),
+        terminated: true,
+    };
+
+    pub fn map_items<U, F>(self, f: F) -> PipelineResponse<U>
+    where
+        F: Fn(T) -> U,
+    {
+        PipelineResponse {
+            items: self.items.into_iter().map(f).collect(),
+            requests: self.requests,
+            terminated: self.terminated,
+        }
+    }
 }

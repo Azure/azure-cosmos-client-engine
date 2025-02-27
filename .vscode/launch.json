@@ -5,13 +5,29 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "type": "lldb",
+            "request": "attach",
+            "name": "Attach",
+            "pid": "${command:pickMyProcess}" // use ${command:pickProcess} to pick other users' processes
+        },
+        {
+            "name": "Launch Python Sample",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/python/sample.py",
+            "console": "integratedTerminal",
+            "args": [
+                "SELECT c.categoryId, c.name FROM c ORDER BY c.name OFFSET 5 LIMIT 5"
+            ]
+        },
+        {
             "name": "Launch Go Sample",
             "type": "go",
             "request": "launch",
             "mode": "auto",
             "program": "${workspaceFolder}/go/sample",
             "args": [
-                "SELECT * FROM c OFFSET 0 LIMIT 10"
+                "SELECT c.categoryId, c.name FROM c ORDER BY c.name OFFSET 5 LIMIT 5"
             ],
             "linux": {
                 "env": {

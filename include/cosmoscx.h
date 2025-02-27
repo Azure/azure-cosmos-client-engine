@@ -46,7 +46,7 @@ typedef struct CosmosCxFfiResult_Pipeline {
  * Represents a contiguous sequence of objects OWNED BY THE CALLING CODE.
  *
  * The language binding owns this memory. It must keep the memory valid for the duration of any function call that receives it.
- * For example, the [`Slice`]s passed to [`cosmoscx_v0_query_pipeline_create`] must remain valid until that function returns.
+ * For example, the [`Slice`]s passed to [`cosmoscx_v0_query_pipeline_create`](super::pipeline::cosmoscx_v0_query_pipeline_create) must remain valid until that function returns.
  * After the function returns, the language binding may free the memory.
  */
 typedef struct CosmosCxSlice_u8 {
@@ -68,7 +68,7 @@ typedef struct CosmosCxFfiResult_Str {
  * Represents a contiguous sequence of objects OWNED BY THE ENGINE.
  *
  * The language binding MUST free the memory associated with this sequence by calling the appropriate 'free' function.
- * For example, all [`OwnedSlice`]s within a [`PipelineResult`] are freed by calling [`cosmoscx_v0_query_pipeline_free_result`].
+ * For example, all [`OwnedSlice`]s within a [`PipelineResponse`](crate::query::PipelineResponse) are freed by calling [`cosmoscx_v0_query_pipeline_free_result`](super::pipeline::cosmoscx_v0_query_pipeline_free_result).
  */
 typedef struct CosmosCxOwnedSlice_u8 {
   uint8_t *data;
@@ -81,7 +81,7 @@ typedef struct CosmosCxOwnedSlice_u8 CosmosCxOwnedString;
  * Represents a contiguous sequence of objects OWNED BY THE ENGINE.
  *
  * The language binding MUST free the memory associated with this sequence by calling the appropriate 'free' function.
- * For example, all [`OwnedSlice`]s within a [`PipelineResult`] are freed by calling [`cosmoscx_v0_query_pipeline_free_result`].
+ * For example, all [`OwnedSlice`]s within a [`PipelineResponse`](crate::query::PipelineResponse) are freed by calling [`cosmoscx_v0_query_pipeline_free_result`](super::pipeline::cosmoscx_v0_query_pipeline_free_result).
  */
 typedef struct CosmosCxOwnedSlice_OwnedString {
   CosmosCxOwnedString *data;
@@ -103,7 +103,7 @@ typedef struct CosmosCxDataRequest {
  * Represents a contiguous sequence of objects OWNED BY THE ENGINE.
  *
  * The language binding MUST free the memory associated with this sequence by calling the appropriate 'free' function.
- * For example, all [`OwnedSlice`]s within a [`PipelineResult`] are freed by calling [`cosmoscx_v0_query_pipeline_free_result`].
+ * For example, all [`OwnedSlice`]s within a [`PipelineResponse`](crate::query::PipelineResponse) are freed by calling [`cosmoscx_v0_query_pipeline_free_result`](super::pipeline::cosmoscx_v0_query_pipeline_free_result).
  */
 typedef struct CosmosCxOwnedSlice_DataRequest {
   struct CosmosCxDataRequest *data;
@@ -132,6 +132,10 @@ typedef struct CosmosCxFfiResult_PipelineResult {
   CosmosCxResultCode code;
   const struct CosmosCxPipelineResult *value;
 } CosmosCxFfiResult_PipelineResult;
+
+
+
+
 
 /**
  * Returns the version of the Cosmos Client Engine in use.
