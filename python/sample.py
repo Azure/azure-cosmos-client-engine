@@ -38,7 +38,7 @@ while i < len(sys.argv):
 
 if query is None:
     print(
-        "Usage: main.py [--endpoint ENDPOINT] [--key KEY] [--database DATABASE] [--container CONTAINER] [--use-cosmoscx] QUERY")
+        "Usage: sample.py [--endpoint ENDPOINT] [--key KEY] [--database DATABASE] [--container CONTAINER] [--use-cosmoscx] QUERY")
     sys.exit(1)
 
 query_engine = None
@@ -63,12 +63,7 @@ def run_query():
             print(item)
 
 
-# Run once, unmeasured, to warm up
 run_query()
-
-# count = 10
-# time = timeit.timeit(stmt=run_query, number=count)
-# print(f"Ran {count} times in {time * 1000}ms, {(time / count) * 1000}ms per run")
 
 print()
 print()
