@@ -11,6 +11,10 @@
 		{
 			"name": "azure-sdk-for-python",
 			"path": "../azure-sdk-for-python"
+		},
+		{
+			"name": "azure-sdk-for-js",
+			"path": "../azure-sdk-for-js"
 		}
 	],
 	"settings": {

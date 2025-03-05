@@ -90,7 +90,7 @@ help: #/ Show this help
 	@egrep -h '\s#/\s' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?#/ *"}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
 .PHONY: engine
-engine: engine_c engine_python #/ Builds all versions of the engine
+engine: engine_c engine_python engine_nodejs #/ Builds all versions of the engine
 
 .PHONY: headers
 headers: #/ Builds the C header file for the engine, used by cgo and other bindgen-like tools
@@ -108,8 +108,12 @@ engine_c: #/ Builds the C API for the engine, producing the shared and static li
 engine_python: #/ Builds the python extension module for the engine
 	poetry -C ./python run maturin develop --profile $(cargo_profile) $(maturin_args)
 
+.PHONY: engine_nodejs
+engine_nodejs: #/ Builds the nodejs native module for the engine
+	cd ./nodejs && npm run build:$(CONFIGURATION) -- --target $(CARGO_BUILD_TARGET)
+
 .PHONY: test
-test: test_rust test_go test_python #/ Runs all language binding tests
+test: test_rust test_go test_python test_nodejs #/ Runs all language binding tests
 
 .PHONY: test_rust
 test_rust:
@@ -125,6 +129,11 @@ test_go: #/ Runs the Go language binding tests
 test_python:
 	@echo "Running Python tests..."
 	poetry -C ./python run python -m pytest .
+
+.PHONY: test_nodejs
+test_nodejs:
+	@echo "Running Nodejs tests..."
+	cd ./nodejs && npm test
 
 .PHONY: superclean
 superclean: #/ Delete the entire `targets` and `artifacts` directories

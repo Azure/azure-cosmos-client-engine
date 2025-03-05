@@ -1,5 +1,16 @@
 [workspace]
 resolver = "2"
-members = ["engine"]
+members = [
+    "engine",
+    "nodejs",
+]
 
 [workspace.dependencies]
+azure_cosmoscx = { path = "engine" }
+cbindgen = "0.27.0"
+# TODO: We depend on features in an unreleased version of PyO3, but the 0.24 release should be coming soon 🤞, see https://github.com/PyO3/pyo3/issues/4905
+pyo3 = { git = "https://github.com/PyO3/pyo3.git", branch = "main" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", features = ["raw_value"] }
+tracing = "0.1.40"
+tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }

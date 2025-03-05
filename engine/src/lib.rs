@@ -15,4 +15,8 @@ pub use error::{Error, ErrorKind};
 pub mod query;
 
 #[allow(dead_code)]
-const VERSION: &[u8] = env!("CARGO_PKG_VERSION").as_bytes();
+const VERSION: &[u8] = version().as_bytes();
+
+pub const fn version() -> &'static str {
+    env!("CARGO_PKG_VERSION")
+}

@@ -9,14 +9,14 @@ crate-type = ["lib", "cdylib", "staticlib"]
 
 [dependencies]
 # TODO: We depend on features in an unreleased version of PyO3, but the 0.24 release should be coming soon 🤞, see https://github.com/PyO3/pyo3/issues/4905
-pyo3 = { git = "https://github.com/PyO3/pyo3.git", branch = "main", optional = true }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = { version = "1.0", features = ["raw_value"] }
-tracing = "0.1.40"
-tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+pyo3 = { workspace = true, optional = true }
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
 
 [build-dependencies]
-cbindgen = { version = "0.27.0", optional = true }
+cbindgen = { workspace = true, optional = true }
 
 [features]
 # Builds the C API
