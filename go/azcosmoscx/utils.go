@@ -1,8 +1,8 @@
-package native
+package azcosmoscx
 
 import "unsafe"
 
-// #cgo CFLAGS: -I${SRCDIR}/../../../../include
+// #cgo CFLAGS: -I${SRCDIR}/../../include
 // #include <cosmoscx.h>
 import "C"
 

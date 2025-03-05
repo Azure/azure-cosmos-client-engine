@@ -1,6 +1,6 @@
-package native
+package azcosmoscx
 
-// #cgo CFLAGS: -I${SRCDIR}/../../../../include
+// #cgo CFLAGS: -I${SRCDIR}/../../include
 // #include <cosmoscx.h>
 import "C"
 
@@ -8,16 +8,20 @@ func mapErr(code C.CosmosCxResultCode) error {
 	if code == C.COSMOS_CX_RESULT_CODE_SUCCESS {
 		return nil
 	} else {
-		return &Error{Code: code}
+		return &Error{code}
 	}
 }
 
 type Error struct {
-	Code C.CosmosCxResultCode
+	code C.CosmosCxResultCode
+}
+
+func (e *Error) Code() uint {
+	return uint(e.code)
 }
 
 func (e *Error) Error() string {
-	switch e.Code {
+	switch e.code {
 	case C.COSMOS_CX_RESULT_CODE_SUCCESS:
 		return "action was successful" // Shouldn't call this, but might as well return something descriptive.
 	case C.COSMOS_CX_RESULT_CODE_INVALID_GATEWAY_RESPONSE:

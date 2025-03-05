@@ -1,6 +1,6 @@
-package native
+package azcosmoscx
 
-// #cgo CFLAGS: -I${SRCDIR}/../../../../include
+// #cgo CFLAGS: -I${SRCDIR}/../../include
 // #include <cosmoscx.h>
 import "C"
 import (
@@ -13,11 +13,7 @@ type Pipeline struct {
 	ptr *C.CosmosCxPipeline
 }
 
-func SupportedFeatures() string {
-	return C.GoString(C.cosmoscx_v0_query_supported_features())
-}
-
-func NewPipeline(query string, queryPlan string, partitionKeyRanges string) (*Pipeline, error) {
+func newPipeline(query string, queryPlan string, partitionKeyRanges string) (*Pipeline, error) {
 	queryC := makeStr(query)
 	queryPlanC := makeStr(queryPlan)
 	pkRangesC := makeStr(partitionKeyRanges)
@@ -92,7 +88,7 @@ func (r *PipelineResult) IsCompleted() bool {
 
 func (r *PipelineResult) Items() ([]EngineString, error) {
 	if r.ptr == nil {
-		return nil, &Error{Code: C.COSMOS_CX_RESULT_CODE_ARGUMENT_NULL}
+		return nil, &Error{C.COSMOS_CX_RESULT_CODE_ARGUMENT_NULL}
 	}
 	ptr := (*EngineString)(r.ptr.items.data)
 	return unsafe.Slice(ptr, r.ptr.items.len), nil
@@ -113,7 +109,7 @@ func (r *PipelineResult) ItemsCloned() ([][]byte, error) {
 
 func (r *PipelineResult) Requests() ([]DataRequest, error) {
 	if r.ptr == nil {
-		return nil, &Error{Code: C.COSMOS_CX_RESULT_CODE_ARGUMENT_NULL}
+		return nil, &Error{C.COSMOS_CX_RESULT_CODE_ARGUMENT_NULL}
 	}
 	ptr := (*DataRequest)(r.ptr.requests.data)
 	return unsafe.Slice(ptr, r.ptr.requests.len), nil
