@@ -13,7 +13,7 @@ artifacts_root ?= $(root_dir)/artifacts
 
 # NOTE: It's safe to have a trailing or single ',' in the '-tags' parameter we pass to go tags.
 ifneq ($(VENDORED),true)
-	GOTAGS ?= local
+	GOTAGS ?= azcosmoscx_local
 endif
 
 # If CARGO_BUILD_TARGET is not set, we'll use the host target.

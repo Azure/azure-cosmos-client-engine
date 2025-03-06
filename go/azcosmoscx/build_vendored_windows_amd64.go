@@ -1,4 +1,4 @@
-//go:build !local && !dynamic && windows && amd64
+//go:build !azcosmoscx_local && !dynamic && windows && amd64
 
 package azcosmoscx
 
