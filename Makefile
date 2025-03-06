@@ -148,3 +148,7 @@ clean_artifacts: #/ Cleans the artifacts directory, which contains the generated
 show_pkg_config: #/ Shows the pkg-config settings for the library under the current settings
 	@echo "cflags: $$(pkg-config --cflags cosmoscx)"
 	@echo "libs: $$(pkg-config --libs cosmoscx)"
+
+vendor: engine_c #/ Updates the vendored copy of the library
+	mkdir -p $(root_dir)/go/azcosmoscx/libcosmoscx-vendor/$(CARGO_BUILD_TARGET)
+	cp $(artifacts_dir)/lib/$(static_lib_filename) $(root_dir)/go/azcosmoscx/libcosmoscx-vendor/$(CARGO_BUILD_TARGET)/$(static_lib_filename)
