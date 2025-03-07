@@ -1,3 +1,5 @@
+use azure_data_cosmos_engine::ErrorKind;
+
 /// A result code for FFI functions, which indicates the success or failure of the operation.
 /// cbindgen:prefix-with-name
 /// cbindgen:rename-all=SCREAMING_SNAKE_CASE
@@ -14,33 +16,29 @@ pub enum ResultCode {
     ArgumentNull = -8,
 }
 
-impl From<crate::Error> for ResultCode {
-    fn from(value: crate::Error) -> Self {
+impl From<azure_data_cosmos_engine::Error> for ResultCode {
+    fn from(value: azure_data_cosmos_engine::Error) -> Self {
         value.kind().into()
     }
 }
 
-impl From<crate::ErrorKind> for ResultCode {
-    fn from(value: crate::ErrorKind) -> Self {
+impl From<ErrorKind> for ResultCode {
+    fn from(value: ErrorKind) -> Self {
         match value {
-            crate::ErrorKind::InvalidGatewayResponse => ResultCode::InvalidGatewayResponse,
-            crate::ErrorKind::DeserializationError => ResultCode::DeserializationError,
-            crate::ErrorKind::UnknownPartitionKeyRange => ResultCode::UnknownPartitionKeyRange,
-            crate::ErrorKind::InternalError => ResultCode::InternalError,
-            crate::ErrorKind::UnsupportedQueryPlan => ResultCode::UnsupportedQueryPlan,
-            crate::ErrorKind::InvalidUtf8String => ResultCode::InvalidUtf8String,
-            crate::ErrorKind::ArgumentNull => ResultCode::ArgumentNull,
-
-            // This shouldn't happen, since we don't use ResultCode in the python module
-            // The only reason this isn't cfg'd out is to allow us to do a simple --all-features build.
-            #[cfg(feature = "python_conversions")]
-            crate::ErrorKind::PythonError => ResultCode::InternalError,
+            ErrorKind::InvalidGatewayResponse => ResultCode::InvalidGatewayResponse,
+            ErrorKind::DeserializationError => ResultCode::DeserializationError,
+            ErrorKind::UnknownPartitionKeyRange => ResultCode::UnknownPartitionKeyRange,
+            ErrorKind::InternalError => ResultCode::InternalError,
+            ErrorKind::UnsupportedQueryPlan => ResultCode::UnsupportedQueryPlan,
+            ErrorKind::InvalidUtf8String => ResultCode::InvalidUtf8String,
+            ErrorKind::ArgumentNull => ResultCode::ArgumentNull,
+            ErrorKind::PythonError => ResultCode::InternalError,
         }
     }
 }
 
-impl From<Result<(), crate::Error>> for ResultCode {
-    fn from(value: Result<(), crate::Error>) -> Self {
+impl From<Result<(), azure_data_cosmos_engine::Error>> for ResultCode {
+    fn from(value: Result<(), azure_data_cosmos_engine::Error>) -> Self {
         match value {
             Ok(_) => ResultCode::Success,
             Err(e) => {
@@ -60,8 +58,8 @@ pub struct FfiResult<T> {
     value: *const T,
 }
 
-impl<T, U> From<Result<Box<T>, crate::Error>> for FfiResult<U> {
-    fn from(value: Result<Box<T>, crate::Error>) -> Self {
+impl<T, U> From<Result<Box<T>, azure_data_cosmos_engine::Error>> for FfiResult<U> {
+    fn from(value: Result<Box<T>, azure_data_cosmos_engine::Error>) -> Self {
         match value {
             Ok(value) => {
                 let ptr = Box::into_raw(value) as *const U;
@@ -86,16 +84,16 @@ impl<T, U> From<Result<Box<T>, crate::Error>> for FfiResult<U> {
 
 pub trait ResultExt {
     type Output;
-    fn not_null(self) -> Result<Self::Output, crate::Error>;
+    fn not_null(self) -> Result<Self::Output, azure_data_cosmos_engine::Error>;
 }
 
-impl<T> ResultExt for Result<Option<T>, crate::Error> {
+impl<T> ResultExt for Result<Option<T>, azure_data_cosmos_engine::Error> {
     type Output = T;
-    fn not_null(self) -> Result<Self::Output, crate::Error> {
+    fn not_null(self) -> Result<Self::Output, azure_data_cosmos_engine::Error> {
         match self {
             Ok(Some(t)) => Ok(t),
             Err(e) => Err(e),
-            Ok(None) => Err(crate::ErrorKind::ArgumentNull.into()),
+            Ok(None) => Err(ErrorKind::ArgumentNull.into()),
         }
     }
 }

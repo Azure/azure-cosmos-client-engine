@@ -1,6 +1,6 @@
 use std::vec;
 
-use azure_cosmoscx::query::{
+use azure_data_cosmos_engine::query::{
     DataRequest, JsonQueryClauseItem, PipelineResponse, QueryInfo, QueryPlan, QueryResult,
     SortOrder,
 };

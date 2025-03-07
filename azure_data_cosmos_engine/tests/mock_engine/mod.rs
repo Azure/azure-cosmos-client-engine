@@ -7,7 +7,7 @@
 
 use std::{collections::BTreeMap, fmt::Debug};
 
-use azure_cosmoscx::query::{
+use azure_data_cosmos_engine::query::{
     JsonQueryClauseItem, PartitionKeyRange, PipelineResponse, QueryPipeline, QueryPlan, QueryResult,
 };
 
@@ -39,7 +39,7 @@ impl<T: Clone + Debug> Engine<T> {
         query: &str,
         plan: QueryPlan,
         request_page_size: usize,
-    ) -> Result<Self, azure_cosmoscx::Error> {
+    ) -> Result<Self, azure_data_cosmos_engine::Error> {
         let partitions = container
             .partitions
             .keys()
@@ -63,7 +63,7 @@ impl<T: Clone + Debug> Engine<T> {
     ///
     /// Each separate `Vec<T>` represents a single [`PipelineResponse`] recieved from the query pipeline.
     /// After each batch, the engine automatically fulfills any requests for additional data from the pipeline and moves to the next batch.
-    pub fn execute(mut self) -> Result<Vec<PipelineResponse<T>>, azure_cosmoscx::Error> {
+    pub fn execute(mut self) -> Result<Vec<PipelineResponse<T>>, azure_data_cosmos_engine::Error> {
         let mut responses = Vec::new();
         loop {
             let result = self.pipeline.run()?;

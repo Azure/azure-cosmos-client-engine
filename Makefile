@@ -17,7 +17,6 @@ export CARGO_BUILD_TARGET ?= $(shell rustc -vV | grep 'host: ' | cut -d ' ' -f 2
 target_dir := $(target_root)/$(CARGO_BUILD_TARGET)/$(CONFIGURATION)
 artifacts_dir := $(artifacts_root)/$(CARGO_BUILD_TARGET)/$(CONFIGURATION)
 
-crate_name := azure_cosmoscx
 shared_lib_name := cosmoscx
 
 cosmoscx_header_name := $(shared_lib_name).h
@@ -37,18 +36,12 @@ endif
 
 ifeq ($(platform),windows)
 	PATH := $(artifacts_dir)/lib:$(PATH)
-	compiled_shared_lib_filename := $(crate_name).dll
-	compiled_static_lib_filename := $(crate_name).lib
 	shared_lib_filename := $(shared_lib_name).dll
 	static_lib_filename := $(shared_lib_name).lib
 else ifeq ($(platform),macos)
-	compiled_shared_lib_filename := lib$(crate_name).dylib
-	compiled_static_lib_filename := lib$(crate_name).a
 	shared_lib_filename := lib$(shared_lib_name).dylib
 	static_lib_filename := lib$(shared_lib_name).a
 else
-	compiled_shared_lib_filename := lib$(crate_name).so
-	compiled_static_lib_filename := lib$(crate_name).a
 	shared_lib_filename := lib$(shared_lib_name).so
 	static_lib_filename := lib$(shared_lib_name).a
 endif
@@ -90,18 +83,22 @@ help: #/ Show this help
 	@egrep -h '\s#/\s' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?#/ *"}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
 .PHONY: engine
-engine: engine_c engine_python #/ Builds all versions of the engine
+engine: engine_rust engine_c engine_python #/ Builds all versions of the engine
 
 .PHONY: headers
 headers: #/ Builds the C header file for the engine, used by cgo and other bindgen-like tools
 	cbindgen --quiet --config cbindgen.toml --crate $(crate_name) --output $(COSMOSCX_HEADER_PATH)
 
+.PHONY: engine_rust
+engine_rust: #/ Builds the Core Rust Engine.
+	cargo build --package "azure_data_cosmos_engine" --profile $(cargo_profile)
+
 .PHONY: engine_c
 engine_c: #/ Builds the C API for the engine, producing the shared and static libraries
-	cargo build --package $(crate_name) --features c_api --profile $(cargo_profile)
+	cargo build --package "cosmoscx" --profile $(cargo_profile)
 	mkdir -p $(artifacts_dir)/lib
-	cp $(target_dir)/$(compiled_shared_lib_filename) $(artifacts_dir)/lib/$(shared_lib_filename)
-	cp $(target_dir)/$(compiled_static_lib_filename) $(artifacts_dir)/lib/$(static_lib_filename)
+	cp $(target_dir)/$(shared_lib_filename) $(artifacts_dir)/lib/$(shared_lib_filename)
+	cp $(target_dir)/$(static_lib_filename) $(artifacts_dir)/lib/$(static_lib_filename)
 	script/helpers/update-dylib-name $(artifacts_dir)/lib/$(shared_lib_filename)
 
 .PHONY: engine_python
@@ -127,11 +124,15 @@ test_python:
 	poetry -C ./python run python -m pytest .
 
 .PHONY: superclean
-superclean: #/ Delete the entire `targets` and `artifacts` directories
-	rm -Rf $(target_root) $(artifacts_root)
+superclean: clean #/ Delete the entire `targets` and `artifacts` directories
+	rm -rf $(target_root) $(artifacts_root)
 
 .PHONY: clean
-clean: clean_rust clean_artifacts #/ Cleans all build artifacts
+clean: clean_go clean_rust clean_artifacts #/ Cleans all build artifacts
+
+.PHONY: clean_go
+clean_go: #/ Cleans all Go build artifacts
+	go -C ./go/azcosmoscx clean -cache
 
 .PHONY: clean_rust
 clean_rust: #/ Cleans all Rust build artifacts

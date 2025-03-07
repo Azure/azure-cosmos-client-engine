@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::{ffi::CStr, fmt::Debug};
 
 use serde::{de::DeserializeOwned, Deserialize};
 
@@ -11,12 +11,33 @@ use super::{
     PartitionKeyRange, PipelineResponse, QueryClauseItem, QueryFeature, QueryPlan, QueryResult,
 };
 
+pub struct SupportedFeatures {
+    #[allow(dead_code)]
+    supported_features: &'static [QueryFeature],
+    supported_features_cstr: &'static CStr,
+}
+
+impl SupportedFeatures {
+    pub const fn as_str(&self) -> &'static str {
+        match self.supported_features_cstr.to_str() {
+            Ok(s) => s,
+            Err(_) => panic!("supported_features_cstr is not valid UTF-8"),
+        }
+    }
+
+    pub const fn as_cstr(&self) -> &'static CStr {
+        self.supported_features_cstr
+    }
+}
+
 macro_rules! supported_features {
     ($($feature:ident),*) => {
-        pub const SUPPORTED_FEATURES: &'static [QueryFeature] = &[$(QueryFeature::$feature),*];
-        pub const SUPPORTED_FEATURES_STRING: &'static str = concat!($(
-            stringify!($feature), ","
-        ),*);
+        pub const SUPPORTED_FEATURES: SupportedFeatures = SupportedFeatures {
+            supported_features: &[$(QueryFeature::$feature),*],
+            supported_features_cstr: make_cstr!(concat!($(
+                stringify!($feature), ","
+            ),*)),
+        };
     };
 }
 

@@ -9,4 +9,6 @@ name = "azure_cosmoscx"
 crate-type = ["cdylib"]
 
 [dependencies]
-pyo3 = "0.23.3"
+pyo3.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true

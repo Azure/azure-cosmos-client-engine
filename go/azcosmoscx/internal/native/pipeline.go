@@ -119,7 +119,7 @@ func (r *PipelineResult) Requests() ([]DataRequest, error) {
 	return unsafe.Slice(ptr, r.ptr.requests.len), nil
 }
 
-type EngineString = C.CosmosCxOwnedString
+type EngineString C.CosmosCxOwnedString
 
 // BorrowString returns a "borrowed" copy of the string, as a Go String.
 // The string returned here will become invalid when the PipelineResult that owned this is freed.
@@ -145,7 +145,7 @@ func (e EngineString) CloneBytes() []byte {
 	return bytes.Clone(e.BorrowBytes())
 }
 
-type DataRequest = C.CosmosCxDataRequest
+type DataRequest C.CosmosCxDataRequest
 
 func (r *DataRequest) PartitionKeyRangeID() EngineString {
 	return EngineString(r.pkrangeid)

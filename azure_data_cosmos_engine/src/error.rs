@@ -41,7 +41,6 @@ pub enum ErrorKind {
     ArgumentNull,
 
     /// Indicates that a Python error occurred. The source of the error will be the original Python error.
-    #[cfg(feature = "python_conversions")]
     PythonError,
 }
 
@@ -55,8 +54,6 @@ impl Display for ErrorKind {
             ErrorKind::UnsupportedQueryPlan => write!(f, "unsupported query plan"),
             ErrorKind::InvalidUtf8String => write!(f, "invalid UTF-8 string"),
             ErrorKind::ArgumentNull => write!(f, "provided argument was null"),
-
-            #[cfg(feature = "python_conversions")]
             ErrorKind::PythonError => write!(f, "python error"),
         }
     }
@@ -121,5 +118,31 @@ impl Display for Error {
 impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         self.source.as_deref()
+    }
+}
+
+#[cfg(feature = "python_conversions")]
+impl From<pyo3::PyErr> for Error {
+    fn from(err: pyo3::PyErr) -> Self {
+        ErrorKind::PythonError.with_source(err)
+    }
+}
+
+#[cfg(feature = "python_conversions")]
+impl From<Error> for pyo3::PyErr {
+    fn from(err: Error) -> Self {
+        use std::error::Error;
+        if err.kind() == ErrorKind::PythonError {
+            if err.source().is_none() {
+                return pyo3::PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string());
+            }
+            let err = err.into_source().expect("we just checked that it was Some");
+            let err = err
+                .downcast::<pyo3::PyErr>()
+                .expect("PythonError's source must be a PyErr");
+            *err
+        } else {
+            pyo3::PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string())
+        }
     }
 }

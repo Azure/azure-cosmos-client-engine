@@ -1,8 +1,9 @@
 [workspace]
 resolver = "2"
-members = ["azure_data_cosmos_engine", "cosmoscx"]
+members = ["azure_data_cosmos_engine", "cosmoscx", "python"]
 
 [workspace.dependencies]
+azure_data_cosmos_engine = { path = "azure_data_cosmos_engine" }
 # TODO: We depend on features in an unreleased version of PyO3, but the 0.24 release should be coming soon 🤞, see https://github.com/PyO3/pyo3/issues/4905
 pyo3 = { git = "https://github.com/PyO3/pyo3.git", branch = "main" }
 serde = { version = "1.0", features = ["derive"] }

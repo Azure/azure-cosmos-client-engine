@@ -1,10 +1,10 @@
-use serde::Deserialize;
-
-use crate::{
-    c_api::{result::ResultExt, slice::OwnedSlice},
+use azure_data_cosmos_engine::{
     query::{JsonQueryClauseItem, PartitionKeyRange, QueryPipeline, QueryPlan},
     ErrorKind,
 };
+use serde::Deserialize;
+
+use crate::{result::ResultExt, slice::OwnedSlice};
 
 use super::{
     result::{FfiResult, ResultCode},
@@ -21,7 +21,9 @@ pub struct Pipeline;
 impl Pipeline {
     // We can't make this into a "method" without the arbitrary_self_types feature
     // (https://github.com/rust-lang/rust/issues/44874)
-    pub unsafe fn unwrap_ptr(pipeline: *mut Self) -> crate::Result<&'static mut RawQueryPipeline> {
+    pub unsafe fn unwrap_ptr(
+        pipeline: *mut Self,
+    ) -> Result<&'static mut RawQueryPipeline, azure_data_cosmos_engine::Error> {
         (pipeline as *mut RawQueryPipeline)
             .as_mut()
             .ok_or_else(|| ErrorKind::ArgumentNull.with_message("pipeline was null"))
@@ -49,15 +51,15 @@ pub extern "C" fn cosmoscx_v0_query_pipeline_create<'a>(
         query: Str<'a>,
         query_plan_json: Str<'a>,
         pkranges: Str<'a>,
-    ) -> crate::Result<Box<RawQueryPipeline>> {
+    ) -> Result<Box<RawQueryPipeline>, azure_data_cosmos_engine::Error> {
         let query = unsafe { query.as_str().not_null() }?;
         let query_plan_json = unsafe { query_plan_json.as_str().not_null() }?;
         let pkranges_json = unsafe { pkranges.as_str().not_null() }?;
 
         let query_plan: QueryPlan = serde_json::from_str(query_plan_json)
-            .map_err(|e| crate::ErrorKind::InvalidGatewayResponse.with_source(e))?;
+            .map_err(|e| ErrorKind::InvalidGatewayResponse.with_source(e))?;
         let pkranges: PartitionKeyRangeResult = serde_json::from_str(pkranges_json)
-            .map_err(|e| crate::ErrorKind::InvalidGatewayResponse.with_source(e))?;
+            .map_err(|e| ErrorKind::InvalidGatewayResponse.with_source(e))?;
 
         // SAFETY: We should no longer need either of the parameter slices, we copied them into owned data.
 
@@ -72,7 +74,7 @@ pub extern "C" fn cosmoscx_v0_query_pipeline_create<'a>(
 /// Frees the memory associated with a pipeline.
 #[no_mangle]
 pub extern "C" fn cosmoscx_v0_query_pipeline_free(pipeline: *mut Pipeline) {
-    unsafe { crate::c_api::free(pipeline) }
+    unsafe { crate::free(pipeline) }
 }
 
 /// Gets the, possibly rewritten, query that this pipeline is executing.
@@ -83,7 +85,9 @@ pub extern "C" fn cosmoscx_v0_query_pipeline_free(pipeline: *mut Pipeline) {
 pub extern "C" fn cosmoscx_v0_query_pipeline_query(
     pipeline: *mut Pipeline,
 ) -> FfiResult<Str<'static>> {
-    fn inner(pipeline: *mut Pipeline) -> crate::Result<Box<Str<'static>>> {
+    fn inner(
+        pipeline: *mut Pipeline,
+    ) -> Result<Box<Str<'static>>, azure_data_cosmos_engine::Error> {
         let pipeline = unsafe { Pipeline::unwrap_ptr(pipeline) }?;
         Ok(Box::new(pipeline.query().into()))
     }
@@ -119,7 +123,9 @@ pub struct PipelineResult {
 pub extern "C" fn cosmoscx_v0_query_pipeline_next_batch<'a>(
     pipeline: *mut Pipeline,
 ) -> FfiResult<PipelineResult> {
-    fn inner<'a>(pipeline: *mut Pipeline) -> crate::Result<Box<PipelineResult>> {
+    fn inner<'a>(
+        pipeline: *mut Pipeline,
+    ) -> Result<Box<PipelineResult>, azure_data_cosmos_engine::Error> {
         let pipeline = unsafe { Pipeline::unwrap_ptr(pipeline) }?;
         let result = pipeline.run()?;
 
@@ -160,7 +166,7 @@ pub extern "C" fn cosmoscx_v0_query_pipeline_next_batch<'a>(
 /// Calling this function will release all the strings and buffers provided within the [`PipelineResult`], so ensure you have copied it all out before calling this.
 #[no_mangle]
 pub extern "C" fn cosmoscx_v0_query_pipeline_free_result<'a>(result: *mut PipelineResult) {
-    unsafe { crate::c_api::free(result) }
+    unsafe { crate::free(result) }
 }
 
 /// Inserts additional raw data, in response to a [`DataRequest`] from the pipeline.
@@ -176,7 +182,7 @@ pub extern "C" fn cosmoscx_v0_query_pipeline_provide_data<'a>(
         pkrange_id: Str<'a>,
         data: Str<'a>,
         continuation: Str<'a>,
-    ) -> crate::Result<()> {
+    ) -> Result<(), azure_data_cosmos_engine::Error> {
         let pipeline = unsafe { Pipeline::unwrap_ptr(pipeline) }?;
 
         // Parse the data
