@@ -10,16 +10,20 @@ use super::SortOrder;
 /// When we generate a query plan, the gateway rewrites the query so that it can be properly executed against each partition.
 /// For example, order by items are collected into a well-known property with a well-known format so that the pipeline can easily access them.
 #[derive(Clone, Debug, Deserialize)]
-#[cfg_attr(feature = "python", derive(pyo3::FromPyObject), pyo3(from_item_all))]
+#[cfg_attr(
+    feature = "python_conversions",
+    derive(pyo3::FromPyObject),
+    pyo3(from_item_all)
+)]
 #[serde(rename_all = "camelCase")]
 pub struct QueryResult<T: Debug, I: QueryClauseItem> {
     #[allow(dead_code)]
     #[serde(default)]
-    #[cfg_attr(feature = "python", pyo3(item("groupByItems"), default))]
+    #[cfg_attr(feature = "python_conversions", pyo3(item("groupByItems"), default))]
     group_by_items: Vec<I>,
 
     #[serde(default)]
-    #[cfg_attr(feature = "python", pyo3(item("orderByItems"), default))]
+    #[cfg_attr(feature = "python_conversions", pyo3(item("orderByItems"), default))]
     order_by_items: Vec<I>,
 
     payload: T,

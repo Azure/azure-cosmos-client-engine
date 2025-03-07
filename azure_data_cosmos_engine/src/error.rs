@@ -27,7 +27,7 @@ pub enum ErrorKind {
     /// Indicates that the query plan requires features that are not supported by the query engine.
     ///
     /// This error is not recoverable, and should be very rare (or even impossible).
-    /// The [`SUPPORTED_FEATURES_STRING`](crate::query::SUPPORTED_FEATURES_STRING) constant reports the features supported by the engine, and the language binding must provide that information to the gateway when generating a query plan.
+    /// The [`SUPPORTED_FEATURES`](crate::query::SUPPORTED_FEATURES) constant reports the features supported by the engine, and the language binding must provide that information to the gateway when generating a query plan.
     /// The gateway will return an error if the query requires features not listed in the supported features.
     /// We provide this error to cover cases where the language binding is incorrectly reporting the supported features, or edge cases where the engine is not correctly reporting the features it supports.
     UnsupportedQueryPlan,
@@ -41,7 +41,6 @@ pub enum ErrorKind {
     ArgumentNull,
 
     /// Indicates that a Python error occurred. The source of the error will be the original Python error.
-    #[cfg(feature = "python")]
     PythonError,
 }
 
@@ -55,8 +54,6 @@ impl Display for ErrorKind {
             ErrorKind::UnsupportedQueryPlan => write!(f, "unsupported query plan"),
             ErrorKind::InvalidUtf8String => write!(f, "invalid UTF-8 string"),
             ErrorKind::ArgumentNull => write!(f, "provided argument was null"),
-
-            #[cfg(feature = "python")]
             ErrorKind::PythonError => write!(f, "python error"),
         }
     }
@@ -121,5 +118,31 @@ impl Display for Error {
 impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         self.source.as_deref()
+    }
+}
+
+#[cfg(feature = "python_conversions")]
+impl From<pyo3::PyErr> for Error {
+    fn from(err: pyo3::PyErr) -> Self {
+        ErrorKind::PythonError.with_source(err)
+    }
+}
+
+#[cfg(feature = "python_conversions")]
+impl From<Error> for pyo3::PyErr {
+    fn from(err: Error) -> Self {
+        use std::error::Error;
+        if err.kind() == ErrorKind::PythonError {
+            if err.source().is_none() {
+                return pyo3::PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string());
+            }
+            let err = err.into_source().expect("we just checked that it was Some");
+            let err = err
+                .downcast::<pyo3::PyErr>()
+                .expect("PythonError's source must be a PyErr");
+            *err
+        } else {
+            pyo3::PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string())
+        }
     }
 }

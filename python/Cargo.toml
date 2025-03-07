@@ -1,0 +1,15 @@
+[package]
+name = "azure_cosmoscx_python"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+name = "azure_cosmoscx"
+crate-type = ["cdylib"]
+
+[dependencies]
+azure_data_cosmos_engine = { workspace = true, features = ["python_conversions"] }
+pyo3.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true

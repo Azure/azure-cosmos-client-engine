@@ -1,6 +1,6 @@
 use std::{marker::PhantomData, mem};
 
-use crate::ErrorKind;
+use azure_data_cosmos_engine::ErrorKind;
 
 /// Represents a contiguous sequence of objects OWNED BY THE CALLING CODE.
 ///
@@ -43,15 +43,15 @@ impl<'a, T> From<&'a [T]> for Slice<'a, T> {
 pub type Str<'a> = Slice<'a, u8>;
 
 impl<'a> Str<'a> {
-    pub unsafe fn as_str(&self) -> crate::Result<Option<&'a str>> {
+    pub unsafe fn as_str(&self) -> Result<Option<&'a str>, azure_data_cosmos_engine::Error> {
         let Some(slice) = self.as_slice() else {
             return Ok(None);
         };
-        Some(std::str::from_utf8(slice).map_err(|_| crate::ErrorKind::InvalidUtf8String.into()))
+        Some(std::str::from_utf8(slice).map_err(|_| ErrorKind::InvalidUtf8String.into()))
             .transpose()
     }
 
-    pub unsafe fn into_string(&self) -> crate::Result<Option<String>> {
+    pub unsafe fn into_string(&self) -> Result<Option<String>, azure_data_cosmos_engine::Error> {
         self.as_str().map(|o| o.map(|s| s.to_string()))
     }
 }
@@ -136,7 +136,7 @@ pub type OwnedString = OwnedSlice<u8>;
 
 impl OwnedString {
     /// Converts the Owned String back into a String, using the same pointer
-    pub unsafe fn into_string(self) -> crate::Result<Option<String>> {
+    pub unsafe fn into_string(self) -> Result<Option<String>, azure_data_cosmos_engine::Error> {
         let original_addr = self.data as *const u8;
 
         let Some(slice) = self.into_boxed_slice() else {

@@ -1,7 +1,4 @@
 [toolchain]
-# We fix our MSRV at 1.80.0, so that the Rust SDK can use us without forcing users to upgrade their version of Rust.
-# The Rust version we compile with doesn't matter to non-Rust callers (via the C API), it only affects Rust callers.
-channel = "1.80.0" 
 components = [
     "rustc",
     "rustfmt",
