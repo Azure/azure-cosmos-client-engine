@@ -69,9 +69,11 @@ endif
 ifeq ($(LIBRARY_MODE),shared)
 	GOTAGS := dynamic,$(GOTAGS)
 	LD_LIBRARY_PATH := $(artifacts_dir)/lib:$(LD_LIBRARY_PATH)
+	DYLD_LIBRARY_PATH := $(artifacts_dir)/lib:$(DYLD_LIBRARY_PATH)
 endif
 
 export LD_LIBRARY_PATH
+export DYLD_LIBRARY_PATH
 
 # Default target, don't put any targets above this one.
 .PHONY: all
