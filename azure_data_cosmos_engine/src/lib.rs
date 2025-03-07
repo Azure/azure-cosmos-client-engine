@@ -1,8 +1,11 @@
 // Warnings are errors when building on CI.
 #![cfg_attr(not(debug_assertions), deny(warnings))]
 
-#[cfg(feature = "python")]
-mod python;
+macro_rules! make_cstr {
+    ($s: expr) => {
+        unsafe { std::ffi::CStr::from_bytes_with_nul_unchecked(concat!($s, "\0").as_bytes()) }
+    };
+}
 
 mod error;
 
@@ -11,5 +14,5 @@ pub use error::{Error, ErrorKind};
 
 pub mod query;
 
-#[allow(dead_code)]
-const VERSION: &[u8] = env!("CARGO_PKG_VERSION").as_bytes();
+/// The version of the Cosmos Client Engine, exposed as a [`CStr`](std::ffi::CStr) so that it can easily be exposed by C-based FFI as well consumed by Rust (via [`CStr::to_str`](std::ffi::CStr::to_str).
+pub static VERSION: &'static std::ffi::CStr = make_cstr!(env!("CARGO_PKG_VERSION"));

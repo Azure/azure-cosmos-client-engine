@@ -43,14 +43,18 @@ pub struct Query {
 }
 
 #[derive(Debug, Deserialize)]
-#[cfg_attr(feature = "python", derive(pyo3::FromPyObject), pyo3(from_item_all))]
+#[cfg_attr(
+    feature = "python_conversions",
+    derive(pyo3::FromPyObject),
+    pyo3(from_item_all)
+)]
 #[serde(rename_all = "camelCase")]
 pub struct PartitionKeyRange {
     id: String,
-    #[cfg_attr(feature = "python", pyo3(item("minInclusive")))]
+    #[cfg_attr(feature = "python_conversions", pyo3(item("minInclusive")))]
     min_inclusive: String,
     #[allow(dead_code)]
-    #[cfg_attr(feature = "python", pyo3(item("maxExclusive")))]
+    #[cfg_attr(feature = "python_conversions", pyo3(item("maxExclusive")))]
     max_exclusive: String,
 }
 
@@ -73,7 +77,7 @@ impl PartitionKeyRange {
 /// This value is returned when the pipeline needs more data to continue processing.
 /// It contains the information necessary for the caller to make an HTTP request to the Cosmos APIs to fetch the next batch of data.
 #[derive(Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "python", derive(pyo3::IntoPyObject))]
+#[cfg_attr(feature = "python_conversions", derive(pyo3::IntoPyObject))]
 pub struct DataRequest {
     pub pkrange_id: Cow<'static, str>,
     pub continuation: Option<String>,
@@ -89,7 +93,7 @@ impl DataRequest {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "python", derive(pyo3::IntoPyObject))]
+#[cfg_attr(feature = "python_conversions", derive(pyo3::IntoPyObject))]
 pub struct PipelineResponse<T> {
     /// The items returned by the pipeline.
     pub items: Vec<T>,

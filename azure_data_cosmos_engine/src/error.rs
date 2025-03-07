@@ -41,7 +41,7 @@ pub enum ErrorKind {
     ArgumentNull,
 
     /// Indicates that a Python error occurred. The source of the error will be the original Python error.
-    #[cfg(feature = "python")]
+    #[cfg(feature = "python_conversions")]
     PythonError,
 }
 
@@ -56,7 +56,7 @@ impl Display for ErrorKind {
             ErrorKind::InvalidUtf8String => write!(f, "invalid UTF-8 string"),
             ErrorKind::ArgumentNull => write!(f, "provided argument was null"),
 
-            #[cfg(feature = "python")]
+            #[cfg(feature = "python_conversions")]
             ErrorKind::PythonError => write!(f, "python error"),
         }
     }

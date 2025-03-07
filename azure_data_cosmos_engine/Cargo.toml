@@ -12,7 +12,9 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 
 [features]
-python = ["dep:pyo3", "pyo3/extension-module"]
+# We want to keep pyo3 code separate and in the Python module, but if we do that, we can't derive conversion traits like FromPyObject/IntoPyObject in this crate.
+# So, we do use pyo3 here, but only for those conversion traits, and it's behind this feature (which is enabled by the python module).
+python_conversions = ["dep:pyo3"]
 
 [dev-dependencies]
 pretty_assertions = "1.4.1"
