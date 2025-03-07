@@ -33,14 +33,6 @@ struct PartitionState<T: Debug, I: QueryClauseItem> {
 }
 
 impl<T: Debug, I: QueryClauseItem> PartitionState<T, I> {
-    pub fn new(pkrange: PartitionKeyRange) -> Self {
-        Self {
-            pkrange,
-            queue: VecDeque::new(),
-            stage: PartitionStage::Initial,
-        }
-    }
-
     /// Returns a boolean indicating if the partition is exhausted (i.e. the queue is empty and the stage is `PartitionStage::Done`, so requesting more data will not produce any new data).
     pub fn exhausted(&self) -> bool {
         self.queue.is_empty() && matches!(self.stage, PartitionStage::Done)

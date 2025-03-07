@@ -5,8 +5,11 @@ The primary feature it provides is the Query Engine, which handles fanning out c
 
 This repo contains two main components:
 
-* The Client Engine itself, which is a Rust project that produces both a standard Rust crate for use in the Azure SDK for Rust, as well as C-compatible shared and static libraries for use in other languages.
-* Client Engine Wrappers for multiple languages. These wrappers handle the packaging and language-specific bindings for the Client Engine and export an API that the Azure Cosmos DB SDK can optionally consume to perform more complicated cross-partition queries.
+* `azure_data_cosmos_engine` - A Rust library that implements the core functionality of the engine and exports a pure Rust API.
+* `cosmoscx` - A Rust `cdylib`/`staticlib` that exposes a C API, `libcosmoscx`, for the engine, which can be used by other languages.
+* `python` - A Python module, using [PyO3](https://pyo3.rs) and built with [Maturin](https://maturin.rs), that wraps the Rust engine and provides a Pythonic interface to the engine.
+* `go/azcosmoscx` - A Go module that wraps `libcosmoscx` and provides a Go interface to the engine.
+* `include` - A C header file, `cosmoscx.h`, that defines the C API for the engine. This is generated from the Rust code using [cbindgen](https://github.com/mozilla/cbindgen)
 
 ## Setting up your development environment
 

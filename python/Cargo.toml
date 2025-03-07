@@ -1,5 +1,5 @@
 [package]
-name = "azure_cosmoscx"
+name = "azure_cosmoscx_python"
 version = "0.1.0"
 edition = "2021"
 
