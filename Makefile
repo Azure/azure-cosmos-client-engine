@@ -87,7 +87,7 @@ engine: engine_rust engine_c engine_python #/ Builds all versions of the engine
 
 .PHONY: headers
 headers: #/ Builds the C header file for the engine, used by cgo and other bindgen-like tools
-	cbindgen --quiet --config cbindgen.toml --crate $(crate_name) --output $(COSMOSCX_HEADER_PATH)
+	cbindgen --quiet --config cbindgen.toml --crate "cosmoscx" --output $(COSMOSCX_HEADER_PATH)
 
 .PHONY: engine_rust
 engine_rust: #/ Builds the Core Rust Engine.
