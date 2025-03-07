@@ -116,6 +116,8 @@ jobs:
           make test_python
 
       - name: Run Go Tests against shared library
+        # We don't support a shared library on Windows right now
+        if: ${{ runner.os != 'windows' }}
         shell: bash
         working-directory: "azure-cosmos-client-engine"
         run: |
