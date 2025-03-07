@@ -116,7 +116,6 @@ jobs:
           make test_python
 
       - name: Run Go Tests against shared library
-        if: ${{ runner.os != 'windows' }}
         shell: bash
         working-directory: "azure-cosmos-client-engine"
         run: |
@@ -124,7 +123,6 @@ jobs:
           make test_go LIBRARY_MODE=shared
 
       - name: Run Go Tests against vendored static library
-        if: ${{ runner.os != 'windows' }}
         shell: bash
         working-directory: "azure-cosmos-client-engine"
         run: |
