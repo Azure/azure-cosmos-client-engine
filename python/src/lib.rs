@@ -5,8 +5,11 @@
 /// Python
 #[pyo3::pymodule(name = "_azure_cosmoscx")]
 mod native {
-    use std::{error::Error, ops::DerefMut, sync::Mutex};
+    use std::{ops::DerefMut, sync::Mutex};
 
+    use azure_data_cosmos_engine::query::{
+        PartitionKeyRange, PipelineResponse, QueryClauseItem, QueryPipeline, QueryResult,
+    };
     use pyo3::{
         sync::GILOnceCell,
         types::{
@@ -15,11 +18,6 @@ mod native {
         Bound, FromPyObject, Py, PyAny, PyErr, PyResult, Python,
     };
     use tracing_subscriber::EnvFilter;
-
-    use crate::{
-        query::{PartitionKeyRange, PipelineResponse, QueryClauseItem, QueryPipeline, QueryResult},
-        ErrorKind,
-    };
 
     /// Lazy-initialized static that holds the "numbers.Number" Python type, which we'll need when comparing values.
     static NUMBERS_DOT_NUMBER: GILOnceCell<Py<PyType>> = GILOnceCell::new();
@@ -152,7 +150,10 @@ mod native {
     struct PyQueryClauseItem(Py<PyDict>);
 
     impl QueryClauseItem for PyQueryClauseItem {
-        fn compare(&self, other: &Self) -> crate::Result<std::cmp::Ordering> {
+        fn compare(
+            &self,
+            other: &Self,
+        ) -> Result<std::cmp::Ordering, azure_data_cosmos_engine::Error> {
             Python::with_gil(|py| {
                 let left = self.0.bind(py);
                 let right = other.0.bind(py);
@@ -178,7 +179,7 @@ mod native {
     fn type_ordinal_for_any<'py>(
         py: Python<'py>,
         value: &Bound<'py, PyAny>,
-    ) -> crate::Result<(usize, Option<Bound<'py, PyAny>>)> {
+    ) -> Result<(usize, Option<Bound<'py, PyAny>>), azure_data_cosmos_engine::Error> {
         // Based on sdk/cosmos/azure-cosmos/azure/cosmos/_execution_context/document_producer.py
         // From the Python SDK
 
@@ -213,28 +214,5 @@ mod native {
             PyErr::new::<pyo3::exceptions::PyTypeError, _>(format!("unknown type: {}", val.str()?))
                 .into(),
         )
-    }
-
-    impl From<PyErr> for crate::Error {
-        fn from(err: PyErr) -> Self {
-            ErrorKind::PythonError.with_source(err)
-        }
-    }
-
-    impl From<crate::Error> for PyErr {
-        fn from(err: crate::Error) -> Self {
-            if err.kind() == ErrorKind::PythonError {
-                if err.source().is_none() {
-                    return PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string());
-                }
-                let err = err.into_source().expect("we just checked that it was Some");
-                let err = err
-                    .downcast::<PyErr>()
-                    .expect("PythonError's source must be a PyErr");
-                *err
-            } else {
-                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string())
-            }
-        }
     }
 }

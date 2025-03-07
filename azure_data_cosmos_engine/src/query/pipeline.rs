@@ -207,7 +207,7 @@ impl<T: Debug, I: QueryClauseItem> QueryPipeline<T, I> {
     }
 
     #[allow(dead_code)] // Used in some features.
-    pub(crate) fn results_are_bare_payloads(&self) -> bool {
+    pub fn results_are_bare_payloads(&self) -> bool {
         self.results_are_bare_payloads
     }
 }

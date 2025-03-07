@@ -17,6 +17,9 @@ dynamic = ["version"]
 # See https://packaging.python.org/en/latest/guides/packaging-namespace-packages/#legacy-namespace-packages
 module-name = "azure_cosmoscx._azure_cosmoscx"
 
+# Leaves the Python symbols unresolved, so this module can also be used with statically linked interpreters.
+features = [ "pyo3/extension-module" ]
+
 [tool.poetry]
 version = "0.1.0"
 
