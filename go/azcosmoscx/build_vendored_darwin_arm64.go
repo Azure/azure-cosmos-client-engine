@@ -2,6 +2,6 @@
 
 package azcosmoscx
 
-// #cgo LDFLAGS: ${SRCDIR}/libcosmoscx-vendor/aarch64-apple-darwin/libcosmoscx.a -ldl
+// #cgo LDFLAGS: ${SRCDIR}/libcosmoscx-vendor/aarch64-apple-darwin/libcosmoscx.a -lSystem -lc -lm
 // #include <cosmoscx.h>
 import "C"

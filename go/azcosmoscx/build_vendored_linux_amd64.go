@@ -2,6 +2,6 @@
 
 package azcosmoscx
 
-// #cgo LDFLAGS: ${SRCDIR}/libcosmoscx-vendor/x86_64-unknown-linux-gnu/libcosmoscx.a -ldl
+// #cgo LDFLAGS: ${SRCDIR}/libcosmoscx-vendor/x86_64-unknown-linux-gnu/libcosmoscx.a -lgcc_s -lutil -lrt -lpthread -lm -ldl -lc
 // #include <cosmoscx.h>
 import "C"
