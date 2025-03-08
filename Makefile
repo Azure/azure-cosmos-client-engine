@@ -105,6 +105,7 @@ engine_rust: #/ Builds the Core Rust Engine.
 .PHONY: engine_c
 engine_c: #/ Builds the C API for the engine, producing the shared and static libraries
 	cargo build --package "cosmoscx" --profile $(cargo_profile)
+	cargo rustc --package "cosmoscx" -- --print native-static-libs
 	mkdir -p $(artifacts_dir)/lib
 	ls -l $(target_dir)
 	cp $(target_dir)/$(shared_lib_filename) $(artifacts_dir)/lib/$(shared_lib_filename)
