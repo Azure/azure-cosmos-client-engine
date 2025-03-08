@@ -11,6 +11,17 @@ This repo contains two main components:
 * `go/azcosmoscx` - A Go module that wraps `libcosmoscx` and provides a Go interface to the engine.
 * `include` - A C header file, `cosmoscx.h`, that defines the C API for the engine. This is generated from the Rust code using [cbindgen](https://github.com/mozilla/cbindgen)
 
+## Supported Platforms
+
+The engine itself is intended to be largely cross-platform and work on any platform that Rust supports.
+However, we only test and produce builds for the following platforms:
+
+* `x86_64-unknown-linux-gnu` - Linux (GNU libc) x86_64
+* `aarch64-apple-darwin` - macOS ARM64
+* `x86_64-pc-windows-msvc` - Windows (MSVC ABI) x86_64.
+    * **NOTE**: We do not currently support the Go bindings on this platform
+* `x86_64-pc-windows-gnu` - Windows (GNU ABI and libc) x86_64.
+
 ## Setting up your development environment
 
 The preferred development environment for this repository is a Linux environment, which includes Windows Subsystem for Linux (WSL) version 2.
