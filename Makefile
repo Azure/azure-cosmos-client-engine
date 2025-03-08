@@ -43,8 +43,13 @@ endif
 
 ifeq ($(platform),windows)
 	PATH := $(artifacts_dir)/lib:$(PATH)
-	shared_lib_filename := $(shared_lib_name).dll
-	static_lib_filename := $(shared_lib_name).lib
+	ifeq ($(CARGO_BUILD_TARGET), x86_64-pc-windows-gnu)
+		shared_lib_filename := $(shared_lib_name).dll
+		static_lib_filename := lib$(shared_lib_name).a
+	else
+		shared_lib_filename := $(shared_lib_name).dll
+		static_lib_filename := $(shared_lib_name).lib
+	endif
 else ifeq ($(platform),macos)
 	shared_lib_filename := lib$(shared_lib_name).dylib
 	static_lib_filename := lib$(shared_lib_name).a
@@ -101,6 +106,7 @@ engine_rust: #/ Builds the Core Rust Engine.
 engine_c: #/ Builds the C API for the engine, producing the shared and static libraries
 	cargo build --package "cosmoscx" --profile $(cargo_profile)
 	mkdir -p $(artifacts_dir)/lib
+	ls -l $(target_dir)
 	cp $(target_dir)/$(shared_lib_filename) $(artifacts_dir)/lib/$(shared_lib_filename)
 	cp $(target_dir)/$(static_lib_filename) $(artifacts_dir)/lib/$(static_lib_filename)
 	script/helpers/update-dylib-name $(artifacts_dir)/lib/$(shared_lib_filename)
