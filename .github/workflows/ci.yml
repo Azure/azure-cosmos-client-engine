@@ -129,7 +129,7 @@ jobs:
       - name: Run Go Tests against vendored static library
         # cgo uses the GNU toolchain on Windows (msys), so we can only test during the GNU build
         shell: bash
-        if: ${{ runner.os != 'windows' || matrix.target.triple == "x86_64-pc-windows-gnu" }}
+        if: ${{ runner.os != 'windows' || matrix.target.triple == 'x86_64-pc-windows-gnu' }}
         working-directory: "azure-cosmos-client-engine"
         run: |
           make vendor
