@@ -3,7 +3,7 @@
 The Azure Cosmos DB Client Engine is a native library, written in Rust, which provides support functionality for Azure Cosmos DB SDKs.
 The primary feature it provides is the Query Engine, which handles fanning out cross-partition queries across individual partitions and aggregating the results.
 
-This repo contains two main components:
+This repo contains several components:
 
 * `azure_data_cosmos_engine` - A Rust library that implements the core functionality of the engine and exports a pure Rust API.
 * `cosmoscx` - A Rust `cdylib`/`staticlib` that exposes a C API, `libcosmoscx`, for the engine, which can be used by other languages.
