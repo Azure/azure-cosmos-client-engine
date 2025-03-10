@@ -1,11 +1,10 @@
-package native_test
+package azcosmoscx_test
 
 import (
 	"fmt"
 	"testing"
 
 	"github.com/Azure/azure-cosmos-client-engine/go/azcosmoscx"
-	"github.com/Azure/azure-cosmos-client-engine/go/azcosmoscx/internal/native"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -18,23 +17,22 @@ func init() {
 func TestAllocAndFree(t *testing.T) {
 	plan := `{"partitionedQueryExecutionInfoVersion": 1, "queryInfo":{}, "queryRanges": []}`
 	pkranges := `{"PartitionKeyRanges":[{"id":"partition0","minInclusive":"00","maxExclusive":"FF"}]}`
-	pipeline, err := native.NewPipeline("SELECT * FROM c", plan, pkranges)
+	pipeline, err := azcosmoscx.NewQueryEngine().CreateQueryPipeline("SELECT * FROM c", plan, pkranges)
 	require.NoError(t, err)
-	defer pipeline.Free()
+	defer pipeline.Close()
 
-	pipelineQuery, err := pipeline.Query()
-	assert.NoError(t, err)
+	pipelineQuery := pipeline.Query()
 	assert.Equal(t, "SELECT * FROM c", pipelineQuery)
 }
 
 func TestRewrittenQuery(t *testing.T) {
 	plan := `{"partitionedQueryExecutionInfoVersion": 1, "queryInfo":{"rewrittenQuery": "WE REWRITTEN"}, "queryRanges": []}`
 	pkranges := `{"PartitionKeyRanges":[{"id":"partition0","minInclusive":"00","maxExclusive":"FF"}]}`
-	pipeline, err := native.NewPipeline("SELECT * FROM c", plan, pkranges)
+	pipeline, err := azcosmoscx.NewQueryEngine().CreateQueryPipeline("SELECT * FROM c", plan, pkranges)
 	require.NoError(t, err)
-	defer pipeline.Free()
+	defer pipeline.Close()
 
-	pipelineQuery, err := pipeline.Query()
+	pipelineQuery := pipeline.Query()
 	assert.NoError(t, err)
 	assert.Equal(t, "WE REWRITTEN", pipelineQuery)
 }
@@ -42,37 +40,31 @@ func TestRewrittenQuery(t *testing.T) {
 func TestEmptyPipelineReturnsRequests(t *testing.T) {
 	plan := `{"partitionedQueryExecutionInfoVersion": 1, "queryInfo":{}, "queryRanges": []}`
 	pkranges := `{"PartitionKeyRanges":[{"id":"partition0","minInclusive":"00","maxExclusive":"99"},{"id":"partition1","minInclusive":"99","maxExclusive":"FF"}]}`
-	pipeline, err := native.NewPipeline("SELECT * FROM c", plan, pkranges)
+	pipeline, err := azcosmoscx.NewQueryEngine().CreateQueryPipeline("SELECT * FROM c", plan, pkranges)
 	require.NoError(t, err)
-	defer pipeline.Free()
+	defer pipeline.Close()
 
-	result, err := pipeline.NextBatch()
+	items, requests, err := pipeline.NextBatch(1000)
 	require.NoError(t, err)
-	defer result.Free()
+	require.NotNil(t, items)
+	require.NotNil(t, requests)
 
-	assert.False(t, result.IsCompleted())
-
-	items, err := result.Items()
-	require.NoError(t, err)
 	assert.Empty(t, items)
-
-	requests, err := result.Requests()
-	require.NoError(t, err)
 	assert.NotEmpty(t, requests)
 
 	for i, request := range requests {
 		expectedId := fmt.Sprintf("partition%d", i)
-		assert.Equal(t, expectedId, request.PartitionKeyRangeID().BorrowString())
-		assert.Empty(t, request.Continuation().BorrowString())
+		assert.Equal(t, expectedId, request.PartitionKeyRangeID)
+		assert.Empty(t, request.Continuation)
 	}
 }
 
 func TestPipelineWithDataReturnsData(t *testing.T) {
 	plan := "{\"partitionedQueryExecutionInfoVersion\": 1, \"queryInfo\":{}, \"queryRanges\": []}"
 	pkranges := `{"PartitionKeyRanges":[{"id":"partition0","minInclusive":"00","maxExclusive":"99"},{"id":"partition1","minInclusive":"99","maxExclusive":"FF"}]}`
-	pipeline, err := native.NewPipeline("SELECT * FROM c", plan, pkranges)
+	pipeline, err := azcosmoscx.NewQueryEngine().CreateQueryPipeline("SELECT * FROM c", plan, pkranges)
 	require.NoError(t, err)
-	defer pipeline.Free()
+	defer pipeline.Close()
 
 	err = pipeline.ProvideData("partition0", `{
 		"Documents": [1, 2]
@@ -83,28 +75,24 @@ func TestPipelineWithDataReturnsData(t *testing.T) {
 	}`, "p1c1")
 	require.NoError(t, err)
 
-	result, err := pipeline.NextBatch()
+	items, requests, err := pipeline.NextBatch(1000)
 	require.NoError(t, err)
-	defer result.Free()
 
-	assert.False(t, result.IsCompleted())
+	require.NotNil(t, items)
+	require.NotNil(t, requests)
 
-	items, err := result.ItemsCloned()
-	require.NoError(t, err)
 	assert.EqualValues(t, [][]byte{
 		[]byte("1"),
 		[]byte("2"),
 	}, items)
 
-	requests, err := result.Requests()
-	require.NoError(t, err)
 	assert.NotEmpty(t, requests)
 
 	assert.Equal(t, 2, len(requests))
-	assert.Equal(t, "partition0", requests[0].PartitionKeyRangeID().BorrowString())
-	assert.Equal(t, "p0c1", requests[0].Continuation().BorrowString())
-	assert.Equal(t, "partition1", requests[1].PartitionKeyRangeID().BorrowString())
-	assert.Equal(t, "p1c1", requests[1].Continuation().BorrowString())
+	assert.Equal(t, "partition0", requests[0].PartitionKeyRangeID)
+	assert.Equal(t, "p0c1", requests[0].Continuation)
+	assert.Equal(t, "partition1", requests[1].PartitionKeyRangeID)
+	assert.Equal(t, "p1c1", requests[1].Continuation)
 
 	// Provide empty data for the remaining partitions
 	err = pipeline.ProvideData("partition0", `{"Documents":[]}`, "")
@@ -113,11 +101,8 @@ func TestPipelineWithDataReturnsData(t *testing.T) {
 	require.NoError(t, err)
 
 	// And we should get the rest
-	result, err = pipeline.NextBatch()
-	require.NoError(t, err)
-	defer result.Free()
+	items, requests, err = pipeline.NextBatch(1000)
 
-	items, err = result.ItemsCloned()
 	require.NoError(t, err)
 	assert.EqualValues(t, [][]byte{
 		[]byte("3"),

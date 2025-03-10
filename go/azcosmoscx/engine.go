@@ -7,11 +7,8 @@ package azcosmoscx
 import "C"
 
 import (
-	"github.com/Azure/azure-cosmos-client-engine/go/azcosmoscx/internal/native"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 )
-
-type Error = native.Error
 
 func Version() string {
 	return C.GoString(C.cosmoscx_version())
@@ -33,7 +30,7 @@ func NewQueryEngine() azcosmos.QueryEngine {
 
 // CreateQueryPipeline creates a new query pipeline from the provided plan and partition key ranges.
 func (e *nativeQueryEngine) CreateQueryPipeline(query string, plan string, pkranges string) (azcosmos.QueryPipeline, error) {
-	pipeline, err := native.NewPipeline(query, plan, pkranges)
+	pipeline, err := newPipeline(query, plan, pkranges)
 	if err != nil {
 		return nil, err
 	}
@@ -48,11 +45,11 @@ func (e *nativeQueryEngine) CreateQueryPipeline(query string, plan string, pkran
 }
 
 func (e *nativeQueryEngine) SupportedFeatures() string {
-	return native.SupportedFeatures()
+	return C.GoString(C.cosmoscx_v0_query_supported_features())
 }
 
 type clientEngineQueryPipeline struct {
-	pipeline  *native.Pipeline
+	pipeline  *Pipeline
 	query     string
 	completed bool
 }

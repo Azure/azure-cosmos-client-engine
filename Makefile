@@ -11,6 +11,11 @@ CONFIGURATION ?= debug
 target_root ?= $(root_dir)/target
 artifacts_root ?= $(root_dir)/artifacts
 
+# NOTE: It's safe to have a trailing or single ',' in the '-tags' parameter we pass to go tags.
+ifneq ($(VENDORED),true)
+	GOTAGS ?= azcosmoscx_local
+endif
+
 # If CARGO_BUILD_TARGET is not set, we'll use the host target.
 export CARGO_BUILD_TARGET ?= $(shell rustc -vV | grep 'host: ' | cut -d ' ' -f 2)
 
@@ -22,6 +27,8 @@ shared_lib_name := cosmoscx
 cosmoscx_header_name := $(shared_lib_name).h
 
 COSMOSCX_HEADER_PATH ?= $(root_dir)/include/$(shared_lib_name).h
+
+LIBRARY_MODE ?= static
 
 ifeq ($(OS),Windows_NT)
 	platform := windows
@@ -36,8 +43,13 @@ endif
 
 ifeq ($(platform),windows)
 	PATH := $(artifacts_dir)/lib:$(PATH)
-	shared_lib_filename := $(shared_lib_name).dll
-	static_lib_filename := $(shared_lib_name).lib
+	ifeq ($(CARGO_BUILD_TARGET), x86_64-pc-windows-gnu)
+		shared_lib_filename := $(shared_lib_name).dll
+		static_lib_filename := lib$(shared_lib_name).a
+	else
+		shared_lib_filename := $(shared_lib_name).dll
+		static_lib_filename := $(shared_lib_name).lib
+	endif
 else ifeq ($(platform),macos)
 	shared_lib_filename := lib$(shared_lib_name).dylib
 	static_lib_filename := lib$(shared_lib_name).a
@@ -46,30 +58,27 @@ else
 	static_lib_filename := lib$(shared_lib_name).a
 endif
 
-# Set linker flags for building and testing
-ifeq ($(LIBRARY_MODE),static)
-	CGO_LDFLAGS := $(artifacts_dir)/lib/$(static_lib_filename)
-else
-	CGO_LDFLAGS := -L$(artifacts_dir)/lib -l$(shared_lib_name) -Wl,-rpath,$(artifacts_dir)/lib
-	LD_LIBRARY_PATH := $(artifacts_dir)/lib:$(LD_LIBRARY_PATH)
-endif
+PKG_CONFIG_PATH := $(artifacts_dir):$(PKG_CONFIG_PATH)
 
-ifeq ($(platform),macos)
-	# These flags are required when building the Python feature on macOS.
-	# Maturin does this for us, but when we build the tests we need to set them.
-	TEST_RUSTFLAGS := "-C link-arg=-undefined -C link-arg=dynamic_lookup"
-endif
-
-export CGO_LDFLAGS
-export LD_LIBRARY_PATH
 export PATH
+export PKG_CONFIG_PATH
 
 # Cargo calls the 'debug' configuration 'dev', yet it still builds to a 'debug' directory in the target directory.
 ifeq ($(CONFIGURATION),debug)
 	cargo_profile = dev
+	GOTAGS := debug,$(GOTAGS)
 else
 	cargo_profile = $(CONFIGURATION)
 endif
+
+ifeq ($(LIBRARY_MODE),shared)
+	GOTAGS := dynamic,$(GOTAGS)
+	LD_LIBRARY_PATH := $(artifacts_dir)/lib:$(LD_LIBRARY_PATH)
+	DYLD_LIBRARY_PATH := $(artifacts_dir)/lib:$(DYLD_LIBRARY_PATH)
+endif
+
+export LD_LIBRARY_PATH
+export DYLD_LIBRARY_PATH
 
 # Default target, don't put any targets above this one.
 .PHONY: all
@@ -96,10 +105,13 @@ engine_rust: #/ Builds the Core Rust Engine.
 .PHONY: engine_c
 engine_c: #/ Builds the C API for the engine, producing the shared and static libraries
 	cargo build --package "cosmoscx" --profile $(cargo_profile)
+	cargo rustc --package "cosmoscx" -- --print native-static-libs
 	mkdir -p $(artifacts_dir)/lib
+	ls -l $(target_dir)
 	cp $(target_dir)/$(shared_lib_filename) $(artifacts_dir)/lib/$(shared_lib_filename)
 	cp $(target_dir)/$(static_lib_filename) $(artifacts_dir)/lib/$(static_lib_filename)
 	script/helpers/update-dylib-name $(artifacts_dir)/lib/$(shared_lib_filename)
+	script/helpers/write-pkg-config.sh $(artifacts_dir) $(root_dir)/include
 
 .PHONY: engine_python
 engine_python: #/ Builds the python extension module for the engine
@@ -116,7 +128,7 @@ test_rust:
 .PHONY: test_go
 test_go: #/ Runs the Go language binding tests
 	@echo "Running Go tests..."
-	go -C ./go/azcosmoscx test -v ./...
+	go -C ./go/azcosmoscx test -tags "$(GOTAGS)" -v ./...
 
 .PHONY: test_python
 test_python:
@@ -142,9 +154,10 @@ clean_rust: #/ Cleans all Rust build artifacts
 clean_artifacts: #/ Cleans the artifacts directory, which contains the generated C headers and libraries
 	rm -rf $(artifacts_dir)
 
-# "Private" helper targets
+show_pkg_config: #/ Shows the pkg-config settings for the library under the current settings
+	@echo "cflags: $$(pkg-config --cflags cosmoscx)"
+	@echo "libs: $$(pkg-config --libs cosmoscx)"
 
-.PHONY: cgo-env
-cgo-env: #/ Prints the environment variables needed to build and run the Go language bindings against the engine. Eval the output of this command to set the environment variables.
-	@echo "export CGO_LDFLAGS=\"$(CGO_LDFLAGS)\""
-	@echo "export LD_LIBRARY_PATH=\"$(LD_LIBRARY_PATH)\"" 
+vendor: engine_c #/ Updates the vendored copy of the library
+	mkdir -p $(root_dir)/go/azcosmoscx/libcosmoscx-vendor/$(CARGO_BUILD_TARGET)
+	cp $(artifacts_dir)/lib/$(static_lib_filename) $(root_dir)/go/azcosmoscx/libcosmoscx-vendor/$(CARGO_BUILD_TARGET)/$(static_lib_filename)

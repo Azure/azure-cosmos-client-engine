@@ -38,6 +38,8 @@ jobs:
             triple: aarch64-apple-darwin
           - host: windows-latest
             triple: x86_64-pc-windows-msvc
+          - host: windows-latest
+            triple: x86_64-pc-windows-gnu
     name: "build: ${{ matrix.target.triple }}"
     runs-on: ${{ matrix.target.host }}
     env:
@@ -116,6 +118,7 @@ jobs:
           make test_python
 
       - name: Run Go Tests against shared library
+        # We don't support a shared library on Windows right now
         if: ${{ runner.os != 'windows' }}
         shell: bash
         working-directory: "azure-cosmos-client-engine"
@@ -123,10 +126,16 @@ jobs:
           go clean -cache
           make test_go LIBRARY_MODE=shared
 
-      - name: Run Go Tests against static library
-        if: ${{ runner.os != 'windows' }}
+      - name: Run Go Tests against vendored static library
+        # cgo uses the GNU toolchain on Windows (msys), so we can only test during the GNU build
         shell: bash
+        if: ${{ runner.os != 'windows' || matrix.target.triple == 'x86_64-pc-windows-gnu' }}
         working-directory: "azure-cosmos-client-engine"
         run: |
-          go clean -cache
-          make test_go LIBRARY_MODE=static
+          make vendor
+
+          # We should now be able to clean the build artifacts and the tests should use the vendored copy
+          make superclean
+
+          # We can now run tests with no build tags, which should run them against the vendored copy.
+          go -C ./go/azcosmoscx test -v ./...
