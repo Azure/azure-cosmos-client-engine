@@ -133,7 +133,7 @@ test_go: #/ Runs the Go language binding tests
 .PHONY: test_python
 test_python:
 	@echo "Running Python tests..."
-	poetry -C ./python run python -m pytest .
+	poetry -C ./python run python -m pytest -rP .
 
 .PHONY: superclean
 superclean: clean #/ Delete the entire `targets` and `artifacts` directories

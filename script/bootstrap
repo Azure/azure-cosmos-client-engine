@@ -34,6 +34,7 @@ pipx install maturin
 
 echo "Installing Poetry..."
 pipx install poetry
+poetry config virtualenvs.in-project true
 
 echo "Installing cbindgen..."
 cargo install --locked cbindgen
