@@ -54,13 +54,13 @@ client = azure.cosmos.CosmosClient(
     endpoint, key, connection_verify=False)
 
 # Warn the user that we're creating a DB with a min of 4000 RUs, which could be costly unless you're using the emulator
-print(f"Creating database {databaseName} with 4000-40000 RUs (autoscaled), in order to force multiple physical partitions. This may incur significant costs unless you're using the emulator.")
-if endpoint == "https://localhost:8081":
-    print("NOTE: You appear to be using the emulator, which will not incur any costs.")
-confirm = input(
-    f"Are you sure you want to create this database? (y/n): ")
-if confirm.lower() != "y":
-    print("Aborting.")
+if endpoint != "https://localhost:8081":
+    print(f"Creating database {databaseName} with 4000-40000 RUs (autoscaled), in order to force multiple physical partitions. This may incur significant costs unless you're using the emulator.")
+    confirm = input(
+        f"Are you sure you want to create this database? (y/n): ")
+    if confirm.lower() != "y":
+        print("Aborting.")
+        exit(1)
 
 throughput = azure.cosmos.ThroughputProperties(auto_scale_max_throughput=40000)
 db = client.create_database_if_not_exists(
