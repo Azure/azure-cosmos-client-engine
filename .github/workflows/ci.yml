@@ -46,7 +46,7 @@ jobs:
           path: "azure-sdk-for-python"
 
       - name: Install rust
-        run: rustup target add "${{ matrix.target.triple }}"
+        run: rustup target add "x86-64-unknown-linux-gnu"
 
       # We need to install poetry before installing Python (and bootstrapping)
       # because setup-python uses poetry for package caching.
