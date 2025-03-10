@@ -13,7 +13,7 @@ fi
 docker compose up -d
 
 count=0
-while ! curl --insecure --silent --fail --output /dev/null https://localhost:8081/_explorer/index.html; do
+while ! docker compose logs cosmos-emulator --no-log-prefix --no-color | grep "^Started\s*$"; do
     if [ $count -gt 10 ]; then
         echo "Emulator failed to start after 10 attempts."
         exit 1
