@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+script_dir=$(dirname "$(readlink -f "$0")")
+cd "$script_dir/.."
+repo_root="$PWD"
+
+docker compose up -d
+
+while ! curl --insecure --silent --fail --output /dev/null https://localhost:8081/_explorer/index.html; do
+    echo "Waiting for emulator to start..."
+    sleep 5
+done
+
+echo "Emulator started successfully!"
