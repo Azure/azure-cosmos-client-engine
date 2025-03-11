@@ -28,7 +28,9 @@ fn version() -> &'static str {
 #[pyfunction]
 fn enable_tracing() {
     // TODO: We could probably wrap Python's OpenTracing API here.
-    tracing_subscriber::fmt()
+
+    // Ignore failure to init, it just means tracing is already enabled.
+    _ = tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_env("COSMOSCX_LOG"))
-        .init();
+        .try_init();
 }

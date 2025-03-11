@@ -28,3 +28,9 @@ pytest = "^8.3.4"
 
 [tool.poetry.dependencies]
 azure-cosmos = {path = "../../azure-sdk-for-python/sdk/cosmos/azure-cosmos", develop = true}
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    "error",
+    "ignore::urllib3.exceptions.InsecureRequestWarning"
+]

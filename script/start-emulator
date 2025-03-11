@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+script_dir=$(dirname "$(readlink -f "$0")")
+cd "$script_dir/.."
+repo_root="$PWD"
+
+set -euo pipefail
+
+if [ ! -d "$repo_root/.local/cosmos-emulator-data" ]; then
+    echo "Creating local cosmos emulator data directory..."
+    mkdir -p "$repo_root/.local/cosmos-emulator-data"
+fi
+
+docker compose up -d
+
+count=0
+while ! docker compose logs cosmos-emulator --no-log-prefix --no-color | grep "^Started\s*$"; do
+    if [ $count -gt 10 ]; then
+        echo "Emulator failed to start after 10 attempts."
+        exit 1
+    fi
+    count=$((count + 1))
+    echo "Waiting for emulator to start..."
+    sleep 5
+done
+
+echo "Emulator started successfully!"

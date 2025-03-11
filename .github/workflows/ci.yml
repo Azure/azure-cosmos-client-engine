@@ -27,6 +27,68 @@ jobs:
         run: |
           script/check-headers
 
+  query_engine_baseline:
+    name: "baseline query engine tests"
+    runs-on: ubuntu-latest
+    env:
+      CONFIGURATION: release
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          path: "azure-cosmos-client-engine"
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          repository: Azure/azure-sdk-for-python
+          ref: feature/cosmos/query-engine
+          path: "azure-sdk-for-python"
+
+      - name: Install rust
+        run: rustup target add "x86_64-unknown-linux-gnu"
+
+      # We need to install poetry before installing Python (and bootstrapping)
+      # because setup-python uses poetry for package caching.
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: "poetry"
+
+      - name: Bootstrap Repository
+        shell: bash
+        working-directory: "azure-cosmos-client-engine"
+        run: |
+          script/bootstrap
+
+      - name: Build Engine
+        shell: bash
+        working-directory: "azure-cosmos-client-engine"
+        run: |
+          make engine
+
+      - name: Start Emulator
+        shell: bash
+        working-directory: "azure-cosmos-client-engine"
+        run: |
+          script/start-emulator
+
+      - name: Load Sample Data
+        shell: bash
+        working-directory: "azure-cosmos-client-engine"
+        run: |
+          script/load-sample-data testdata/sqlSampleData.json
+
+      - name: Run Python Baseline Tests
+        shell: bash
+        working-directory: "azure-cosmos-client-engine"
+        run: |
+          COSMOSCX_LOG=debug COSMOSCX_BASELINE_TEST=true make test_python
+
   build:
     strategy:
       fail-fast: false # Don't cancel other jobs when one job fails
