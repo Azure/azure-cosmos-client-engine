@@ -31,7 +31,7 @@ class BaselineTestFixture:
             containerName)
 
         self.cx_client = azure.cosmos.CosmosClient(
-            endpoint, key, connection_verify=False)
+            endpoint, key, connection_verify=False, query_engine=azure_cosmoscx.QueryEngine())
         self.cx_db = self.cx_client.get_database_client(databaseName)
         self.cx_container = self.cx_db.get_container_client(containerName)
 

@@ -1,16 +1,19 @@
-import azure.cosmos
+import os
 import sys
 import warnings
 import urllib3
 import json
 
+import azure.cosmos
+
 warnings.filterwarnings(
     "ignore", category=urllib3.exceptions.InsecureRequestWarning)
 
-endpoint = "https://localhost:8081"
-key = "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw=="
-databaseName = "TestDB"
-containerName = "TestContainer"
+endpoint = os.getenv("COSMOSCX_ENDPOINT", "https://localhost:8081")
+key = os.getenv(
+    "COSMOSCX_KEY", "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==")
+databaseName = os.getenv("COSMOSCX_DATABASE", "TestDB")
+containerName = os.getenv("COSMOSCX_CONTAINER", "TestContainer")
 use_cosmoscx = False
 sample_path = None
 

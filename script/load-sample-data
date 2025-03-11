@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 script_dir=$(dirname "$(readlink -f "$0")")
 cd "$script_dir/.."
-repo_root="$PWD"
 
 pypath="$(poetry -C ./python run which python)"
 $pypath ./script/helpers/load-sample-data.py "$@"
