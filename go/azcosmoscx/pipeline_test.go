@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-cosmos-client-engine/go/azcosmoscx"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos/unstable/queryengine"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -44,7 +45,7 @@ func TestEmptyPipelineReturnsRequests(t *testing.T) {
 	require.NoError(t, err)
 	defer pipeline.Close()
 
-	items, requests, err := pipeline.NextBatch(1000)
+	items, requests, err := pipeline.NextBatch()
 	require.NoError(t, err)
 	require.NotNil(t, items)
 	require.NotNil(t, requests)
@@ -66,16 +67,16 @@ func TestPipelineWithDataReturnsData(t *testing.T) {
 	require.NoError(t, err)
 	defer pipeline.Close()
 
-	err = pipeline.ProvideData("partition0", `{
+	err = pipeline.ProvideData(queryengine.NewQueryResultString("partition0", `{
 		"Documents": [1, 2]
-	}`, "p0c1")
+	}`, "p0c1"))
 	require.NoError(t, err)
-	err = pipeline.ProvideData("partition1", `{
+	err = pipeline.ProvideData(queryengine.NewQueryResultString("partition1", `{
 		"Documents": [3, 4]
-	}`, "p1c1")
+	}`, "p1c1"))
 	require.NoError(t, err)
 
-	items, requests, err := pipeline.NextBatch(1000)
+	items, requests, err := pipeline.NextBatch()
 	require.NoError(t, err)
 
 	require.NotNil(t, items)
@@ -95,15 +96,16 @@ func TestPipelineWithDataReturnsData(t *testing.T) {
 	assert.Equal(t, "p1c1", requests[1].Continuation)
 
 	// Provide empty data for the remaining partitions
-	err = pipeline.ProvideData("partition0", `{"Documents":[]}`, "")
+	err = pipeline.ProvideData(queryengine.NewQueryResultString("partition0", `{"Documents":[]}`, ""))
 	require.NoError(t, err)
-	err = pipeline.ProvideData("partition1", `{"Documents":[]}`, "")
+	err = pipeline.ProvideData(queryengine.NewQueryResultString("partition1", `{"Documents":[]}`, ""))
 	require.NoError(t, err)
 
 	// And we should get the rest
-	items, requests, err = pipeline.NextBatch(1000)
+	items, requests, err = pipeline.NextBatch()
 
 	require.NoError(t, err)
+	assert.Empty(t, requests)
 	assert.EqualValues(t, [][]byte{
 		[]byte("3"),
 		[]byte("4"),

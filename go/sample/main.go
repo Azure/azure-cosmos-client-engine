@@ -7,6 +7,7 @@ import (
 
 	"github.com/Azure/azure-cosmos-client-engine/go/azcosmoscx"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos/unstable/queryengine"
 )
 
 func getenvOrDefault(key, def string) string {
@@ -16,10 +17,12 @@ func getenvOrDefault(key, def string) string {
 	return def
 }
 
-func executeQuery(container *azcosmos.ContainerClient, query string) {
+func executeQuery(container *azcosmos.ContainerClient, query string, queryEngine queryengine.QueryEngine) {
 	// Query for all items
-	pager := container.NewQueryItemsPager(query, azcosmos.NewPartitionKey(), nil)
-	defer pager.Close()
+	options := &azcosmos.QueryOptions{
+		UnstablePreviewQueryEngine: queryEngine,
+	}
+	pager := container.NewQueryItemsPager(query, azcosmos.NewPartitionKey(), options)
 
 	for pager.More() {
 		page, err := pager.NextPage(context.TODO())
@@ -35,9 +38,13 @@ func executeQuery(container *azcosmos.ContainerClient, query string) {
 
 func main() {
 	endpoint := "https://localhost:8081"
+
+	// Emulator key; not a secret!
 	key := "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw=="
+
 	databaseName := "SampleDB"
 	containerName := "SampleContainer"
+	useCosmosCX := false
 
 	var query string
 
@@ -56,6 +63,8 @@ func main() {
 		case "--container":
 			containerName = os.Args[i+1]
 			i++
+		case "--use-cosmoscx":
+			useCosmosCX = true
 		default:
 			query = arg
 		}
@@ -71,11 +80,13 @@ func main() {
 		panic(err)
 	}
 
-	azcosmoscx.EnableTracing()
+	var queryEngine queryengine.QueryEngine
+	if useCosmosCX {
+		azcosmoscx.EnableTracing()
+		queryEngine = azcosmoscx.NewQueryEngine()
+	}
 
-	client, err := azcosmos.NewClientWithKey(endpoint, cred, &azcosmos.ClientOptions{
-		QueryEngine: azcosmoscx.NewQueryEngine(),
-	})
+	client, err := azcosmos.NewClientWithKey(endpoint, cred, &azcosmos.ClientOptions{})
 	if err != nil {
 		panic(err)
 	}
@@ -85,12 +96,8 @@ func main() {
 		panic(err)
 	}
 
-	executeQuery(container, query)
+	executeQuery(container, query, queryEngine)
 
 	// Run leak checker
 	doLeakCheck()
-
-	fmt.Println()
-	fmt.Println()
-	fmt.Println()
 }
