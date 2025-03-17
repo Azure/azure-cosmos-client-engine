@@ -1,0 +1,6 @@
+{
+    "name": "streaming_order_by_1",
+    "testData": "../testdata/sqlSampleData.json",
+    "result": "../results/order_by.streaming_order_by_1.json",
+    "query": "SELECT * FROM c ORDER BY c.name"
+}
