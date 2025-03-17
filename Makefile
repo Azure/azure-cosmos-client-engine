@@ -135,6 +135,10 @@ test_python:
 	@echo "Running Python tests..."
 	poetry -C ./python run python -m pytest -rP .
 
+integration_test_go: #/ Runs the Go language binding integration tests
+	@echo "Running Go integration tests..."
+	go -C ./go/integration-tests test -tags "$(GOTAGS)" -v ./...
+
 .PHONY: superclean
 superclean: clean #/ Delete the entire `targets` and `artifacts` directories
 	rm -rf $(target_root) $(artifacts_root)

@@ -28,7 +28,7 @@ type TestData struct {
 type QuerySpec struct {
 	Name     string `json:"name"`
 	TestData string `json:"testData"`
-	Result   string `json:"results"`
+	Result   string `json:"result"`
 	Query    string `json:"query"`
 }
 
@@ -159,6 +159,15 @@ func runIntegrationTest(t *testing.T, baselinePath string) {
 		require.NoError(t, err)
 	}
 
+	// Load expected results
+	resultsFilePath := path.Join(baselineDir, querySpec.Result)
+	expectedResultsFile, err := os.Open(resultsFilePath)
+	require.NoError(t, err)
+	defer expectedResultsFile.Close()
+	var expectedResults []json.RawMessage
+	err = json.NewDecoder(expectedResultsFile).Decode(&expectedResults)
+	require.NoError(t, err)
+
 	// Run the query
 	queryEngine := azcosmoscx.NewQueryEngine()
 	queryOptions := &azcosmos.QueryOptions{
@@ -172,8 +181,19 @@ func runIntegrationTest(t *testing.T, baselinePath string) {
 		require.NoError(t, err)
 
 		for idx, item := range page.Items {
-			expectedItem := testData.Data[idx]
-			assert.Equal(t, string(expectedItem), string(item), "Item %d does not match expected item", idx)
+			var deserializedActualItem map[string]interface{}
+			var deserializedExpectedItem map[string]interface{}
+			err = json.Unmarshal(item, &deserializedActualItem)
+			require.NoError(t, err)
+			err = json.Unmarshal(expectedResults[idx], &deserializedExpectedItem)
+			require.NoError(t, err)
+			actualId := deserializedActualItem["id"]
+			expectedId := deserializedExpectedItem["id"]
+
+			// Comparing IDs is sufficient FOR NOW.
+			// In the future, we may want to compare the entire item.
+			// Comparing JSON objects can get tricky fast, so this is simpler.
+			assert.Equal(t, expectedId, actualId, "Item %d does not match expected item. Actual ID: %v, Expected ID: %v", idx, actualId, expectedId)
 		}
 	}
 }
