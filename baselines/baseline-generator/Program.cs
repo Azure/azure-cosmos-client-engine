@@ -59,4 +59,19 @@ if (string.IsNullOrEmpty(baselineFile))
     return;
 }
 
-await BaselineGenerator.GenerateBaselineAsync(endpoint, key, baselineFile);
+if (File.Exists(baselineFile))
+{
+    // Single baseline file
+    Console.WriteLine($"Generating baseline: {baselineFile}");
+    await BaselineGenerator.GenerateBaselineAsync(endpoint, key, baselineFile);
+}
+else if (Directory.Exists(baselineFile))
+{
+    Console.WriteLine($"Generating all baselines in: {baselineFile}");
+    var subdirFiles = Directory.EnumerateFiles(baselineFile, "*.json");
+    foreach (var subdirFile in subdirFiles)
+    {
+        Console.WriteLine($"Generating baseline: {subdirFile}");
+        await BaselineGenerator.GenerateBaselineAsync(endpoint, key, subdirFile);
+    }
+}

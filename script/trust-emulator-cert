@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+script_dir=$(dirname "$(readlink -f "$0")")
+cd "$script_dir/.."
+repo_root="$PWD"
+
+echo "Trusting emulator certificate..."
+echo "(You may be prompted for sudo password)"
+
+tmpfile=$(mktemp)
+curl --insecure https://localhost:8081/_explorer/emulator.pem > $tmpfile
+sudo cp $tmpfile /usr/local/share/ca-certificates/cosmos-emulator.crt
+sudo update-ca-certificates

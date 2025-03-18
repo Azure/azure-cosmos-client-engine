@@ -2,11 +2,16 @@ using Microsoft.Azure.Cosmos;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
-public class BaselineDescription
+public class QuerySet
 {
     public required string Name { get; set; }
     public required string TestData { get; set; }
-    public required string Result { get; set; }
+    public required List<QuerySpec> Queries { get; set; }
+}
+
+public class QuerySpec
+{
+    public required string Name { get; set; }
     public required string Query { get; set; }
 }
 
@@ -29,15 +34,15 @@ public class BaselineGenerator
         }
 
         var file = await File.ReadAllTextAsync(baselineFile);
-        var description = JsonConvert.DeserializeObject<BaselineDescription>(file);
-        if (description == null)
+        var querySet = JsonConvert.DeserializeObject<QuerySet>(file);
+        if (querySet == null || querySet.Queries == null)
         {
-            Console.WriteLine("Error: Unable to parse the baseline file.");
+            Console.WriteLine($"Error: Unable to parse the baseline file: {baselineFile}");
             return;
         }
 
         // Load test data
-        var testDataPath = description.TestData;
+        var testDataPath = querySet.TestData;
         var fullTestDataPath = Path.Combine(containingDirectory, testDataPath);
         var testDataJson = await File.ReadAllTextAsync(fullTestDataPath);
         var testData = JsonConvert.DeserializeObject<TestData>(testDataJson);
@@ -49,52 +54,60 @@ public class BaselineGenerator
 
         // Connect to Cosmos DB
         var client = new CosmosClient(endpoint, key);
-        var uniqueName = $"BaselineGenerator_{Guid.NewGuid():N}";
+        var uniqueName = $"baseline_{querySet.Name}_{Guid.NewGuid():N}";
 
+        // Create a new database and container
         Console.WriteLine($"Creating database: {uniqueName}");
         var database = (await client.CreateDatabaseIfNotExistsAsync(uniqueName, throughput: 40_000)).Database;
         try
         {
-
             testData.ContainerProperties.Id = uniqueName;
 
             Console.WriteLine($"Creating container: {uniqueName}");
             var container = (await database.CreateContainerIfNotExistsAsync(testData.ContainerProperties, throughput: 40_000)).Container;
+
             // Insert test data
             Console.WriteLine($"Inserting test data into container: {uniqueName}");
             foreach (var item in testData.Data)
             {
-                try
-                {
-                    await container.CreateItemAsync(item);
-                }
-                catch (CosmosException ex)
-                {
-                    Console.WriteLine($"Error inserting item: {ex.StatusCode} - {ex.Message}");
-                }
+                await container.CreateItemAsync(item);
             }
 
-            // Execute the query
-            Console.WriteLine($"Executing query: {description.Query}");
-            var results = container.GetItemQueryIterator<JObject>(description.Query);
-            var resultList = new List<JObject>();
-            while (results.HasMoreResults)
+            foreach (var querySpec in querySet.Queries)
             {
-                var response = await results.ReadNextAsync();
-                resultList.AddRange(response);
+                await GenerateQueryBaselineAsync(container, querySet, querySpec, containingDirectory);
             }
-
-            // Save the results
-            var resultFilePath = Path.Combine(containingDirectory, description.Result);
-            Console.WriteLine($"Saving results to: {resultFilePath}");
-            var resultJson = JsonConvert.SerializeObject(resultList, Formatting.Indented);
-            await File.WriteAllTextAsync(resultFilePath, resultJson);
-            Console.WriteLine($"Baseline generation completed successfully. Results saved to: {resultFilePath}");
         }
         finally
         {
             Console.WriteLine($"Deleting database: {uniqueName}");
             await database.DeleteAsync();
         }
+    }
+
+    private static async Task GenerateQueryBaselineAsync(Container container, QuerySet querySet, QuerySpec querySpec, string containingDirectory)
+    {
+        var outputDir = Path.Combine(containingDirectory, querySet.Name);
+        if (!Directory.Exists(outputDir))
+        {
+            Directory.CreateDirectory(outputDir);
+        }
+        var resultFilePath = Path.Combine(outputDir, $"{querySpec.Name}.results.json");
+
+        // Execute the query
+        Console.WriteLine($"Executing query: {querySpec.Query}");
+        var results = container.GetItemQueryIterator<JToken>(querySpec.Query);
+        var resultList = new List<JToken>();
+        while (results.HasMoreResults)
+        {
+            var response = await results.ReadNextAsync();
+            resultList.AddRange(response);
+        }
+
+        // Save the results
+        Console.WriteLine($"Saving results to: {resultFilePath}");
+        var resultJson = JsonConvert.SerializeObject(resultList, Formatting.Indented);
+        await File.WriteAllTextAsync(resultFilePath, resultJson);
+        Console.WriteLine($"Baseline generation completed successfully. Results saved to: {resultFilePath}");
     }
 }
