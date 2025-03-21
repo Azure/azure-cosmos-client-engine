@@ -1,0 +1,14 @@
+[package]
+name = "azure_data_cosmos_transport"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.97"
+base64 = "0.22.1"
+openssl = "0.10.71"
+reqwest = "0.12.15"
+time = { version = "0.3.40", features = ["formatting", "macros", "parsing"] }
+tokio = { version = "1.44.1", features = ["macros", "rt-multi-thread"] }
+tracing.workspace = true
+url = "2.5.4"

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["azure_data_cosmos_engine", "cosmoscx", "python"]
+members = ["azure_data_cosmos_engine", "azure_data_cosmos_transport", "cosmoscx", "python"]
 
 [workspace.dependencies]
 azure_data_cosmos_engine = { path = "azure_data_cosmos_engine" }
