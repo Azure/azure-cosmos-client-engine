@@ -23,6 +23,11 @@
 					"permissions": {
 						"contents": "write"
 					}
+				},
+				"Azure/azure-sdk-for-rust": {
+					"permissions": {
+						"contents": "write"
+					}
 				}
 			}
 		}
