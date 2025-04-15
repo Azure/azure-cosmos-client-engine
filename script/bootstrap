@@ -44,3 +44,5 @@ eval "$(poetry -C ./python env activate)"
 
 echo "Installing Python dependencies..."
 poetry -C ./python install
+
+echo "Installing cargo tools..."

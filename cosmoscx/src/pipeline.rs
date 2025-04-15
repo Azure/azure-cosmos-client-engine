@@ -1,3 +1,5 @@
+//! Functions related to creating and executing query pipelines.
+
 use azure_data_cosmos_engine::{
     query::{JsonQueryClauseItem, PartitionKeyRange, QueryPipeline, QueryPlan},
     ErrorKind,
@@ -72,6 +74,8 @@ pub extern "C" fn cosmoscx_v0_query_pipeline_create<'a>(
 }
 
 /// Frees the memory associated with a pipeline.
+///
+/// After calling this function, the memory pointed to by the `pointer` parameter becomes invalid.
 #[no_mangle]
 pub extern "C" fn cosmoscx_v0_query_pipeline_free(pipeline: *mut Pipeline) {
     unsafe { crate::free(pipeline) }
@@ -95,32 +99,40 @@ pub extern "C" fn cosmoscx_v0_query_pipeline_query(
     inner(pipeline).into()
 }
 
+/// Represents a request for more data from the pipeline.
+///
+/// Each `DataRequest` represents a request FROM the query pipeline to the calling SDK to perform a query against a single Cosmos partition.
 #[repr(C)]
 pub struct DataRequest {
-    /// The Partition Key Range ID to request data from.
+    /// An [`OwnedString`] containing the Partition Key Range ID to request data from.
     pkrangeid: OwnedString,
 
-    /// The continuation token to provide, or an empty slice (len == 0) if no continuation should be provided.
+    /// An [`OwnedString`] containing the continuation token to provide, or an empty slice (len == 0) if no continuation should be provided.
     continuation: OwnedString,
 }
 
+/// Represents the result of a single execution of the query pipeline.
 #[repr(C)]
 pub struct PipelineResult {
     /// A boolean indicating if the pipeline has completed.
     completed: bool,
 
-    /// A [`Slice`] of [`Str`]s containing the JSON for each item in the output.
+    /// A [`Slice`] of [`OwnedString`]s containing the JSON for each item in the output.
     items: OwnedSlice<OwnedString>,
 
     /// A [`Slice`] of [`DataRequest`]s describing additional requests that must be made and provided to [`cosmoscx_v0_query_pipeline_provide_data`] before retrieving the next batch.
     requests: OwnedSlice<DataRequest>,
 }
 
-/// Fetches the next batch of query results.
+/// Executes a single turn of the query pipeline.
 ///
-/// The [`PipelineResult`] returned here MUST be freed using [`cosmoscx_v0_query_pipeline_free_result`].
+/// See [`QueryPipeline::run`](azure_data_cosmos_engine::query::QueryPipeline::run) for more information on "turns".
+///
+/// The [`PipelineResult`] returned by this function MUST be freed using [`cosmoscx_v0_query_pipeline_free_result`] to release the memory associated with the result.
+/// However, it does NOT need to be freed before the next time you call `cosmoscx_v0_query_pipeline_run`
+/// You may have multiple outstanding un-freed [`PipelineResult`]s at once.
 #[no_mangle]
-pub extern "C" fn cosmoscx_v0_query_pipeline_next_batch<'a>(
+pub extern "C" fn cosmoscx_v0_query_pipeline_run<'a>(
     pipeline: *mut Pipeline,
 ) -> FfiResult<PipelineResult> {
     fn inner<'a>(

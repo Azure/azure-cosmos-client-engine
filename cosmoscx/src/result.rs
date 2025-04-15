@@ -1,28 +1,48 @@
+//! FFI-safe types for communicating errors and the result of fallible functions.
+
 use azure_data_cosmos_engine::ErrorKind;
 
 /// A result code for FFI functions, which indicates the success or failure of the operation.
+///
+/// Values of `ResultCode` have the same representation as the C type `intptr_t`
 /// cbindgen:prefix-with-name
 /// cbindgen:rename-all=SCREAMING_SNAKE_CASE
 #[repr(isize)]
 pub enum ResultCode {
+    /// The operation was successful.
     Success = 0,
-    UnknownError = -1,
+
+    /// See [`ErrorKind::InvalidGatewayResponse`](azure_data_cosmos_engine::ErrorKind::InvalidGatewayResponse).
     InvalidGatewayResponse = -2,
+
+    /// See [`ErrorKind::DeserializationError`](azure_data_cosmos_engine::ErrorKind::DeserializationError).
     DeserializationError = -3,
+
+    /// See [`ErrorKind::UnknownPartitionKeyRange`](azure_data_cosmos_engine::ErrorKind::UnknownPartitionKeyRange).
     UnknownPartitionKeyRange = -4,
+
+    /// See [`ErrorKind::InternalError`](azure_data_cosmos_engine::ErrorKind::InternalError).
     InternalError = -5,
+
+    /// See [`ErrorKind::UnsupportedQueryPlan`](azure_data_cosmos_engine::ErrorKind::UnsupportedQueryPlan).
     UnsupportedQueryPlan = -6,
+
+    /// See [`ErrorKind::InvalidUtf8String`](azure_data_cosmos_engine::ErrorKind::InvalidUtf8String).
     InvalidUtf8String = -7,
+
+    /// See [`ErrorKind::ArgumentNull`](azure_data_cosmos_engine::ErrorKind::ArgumentNull).
     ArgumentNull = -8,
 }
 
 impl From<azure_data_cosmos_engine::Error> for ResultCode {
+    /// Converts an [`azure_data_cosmos_engine::Error`] into a [`ResultCode`] by converting it's [`ErrorKind`].
     fn from(value: azure_data_cosmos_engine::Error) -> Self {
         value.kind().into()
     }
 }
 
 impl From<ErrorKind> for ResultCode {
+    /// Converts an [`ErrorKind`] into a [`ResultCode`].
     fn from(value: ErrorKind) -> Self {
         match value {
             ErrorKind::InvalidGatewayResponse => ResultCode::InvalidGatewayResponse,
@@ -38,6 +58,10 @@ impl From<ErrorKind> for ResultCode {
 }
 
 impl From<Result<(), azure_data_cosmos_engine::Error>> for ResultCode {
+    /// Converts the result of a fallible operation that returns no value (i.e. `Result<(), Error>`) into a [`ResultCode`].
+    ///
+    /// If the value is `Ok(())`, this returns [`ResultCode::Success`],
+    /// otherwise it returns a [`ResultCode`] matching the [`ErrorKind`] of the [`Error`](azure_data_cosmos_engine::Error) that was raised.
     fn from(value: Result<(), azure_data_cosmos_engine::Error>) -> Self {
         match value {
             Ok(_) => ResultCode::Success,
@@ -52,6 +76,19 @@ impl From<Result<(), azure_data_cosmos_engine::Error>> for ResultCode {
 }
 
 /// A result type for FFI functions.
+///
+/// An `FfiResult` is returns from a function that both returns a value AND can fail.
+///
+/// The C representation of this struct is:
+///
+/// ```
+/// struct {
+///   intptr_t code; // The result code, which will be '0' if the operation succeeded
+///   const void *value; // A pointer to the returned value, which will be `nullptr`/`0` if the operation failed.
+/// };
+/// ```
+///
+/// The data pointed to by the `value` pointer is OWNED BY THE ENGINE and must be freed by calling the appropriate free function, depending on the data.
 #[repr(C)]
 pub struct FfiResult<T> {
     code: ResultCode,
@@ -59,6 +96,10 @@ pub struct FfiResult<T> {
 }
 
 impl<T, U> From<Result<Box<T>, azure_data_cosmos_engine::Error>> for FfiResult<U> {
+    /// Consumes the result of a fallible function that returns a boxed value (i.e. `Result<Box<T>, Error>`) and returns an [`FfiResult`].
+    ///
+    /// If the provided result is `Err`, the [`FfiResult`] returned will have a non-zero `code` value and a null `value` pointer.
+    /// If the provdied result is `Ok`, the [`FfiResult`] returned will have a zero `code` value and a `value` pointer pointing to the same memory as the `Box<T>` provided.
     fn from(value: Result<Box<T>, azure_data_cosmos_engine::Error>) -> Self {
         match value {
             Ok(value) => {
@@ -82,8 +123,15 @@ impl<T, U> From<Result<Box<T>, azure_data_cosmos_engine::Error>> for FfiResult<U
     }
 }
 
+/// Extension trait that adds the [`ResultExt::not_null`] method to `Result<Option<T>, Error>`.
 pub trait ResultExt {
+    /// The type of the `Ok` value of the result.
     type Output;
+
+    /// Converts a `Result<Option<T>, Error>` into a `Result<T, Error>` where `None` values
+    /// are replaced by `Err` values that yield the error [`ErrorKind::ArgumentNull`].
+    ///
+    /// This allows the caller to "assume" the provided value is non-null and produce an appropriate error if it is not.
     fn not_null(self) -> Result<Self::Output, azure_data_cosmos_engine::Error>;
 }
 

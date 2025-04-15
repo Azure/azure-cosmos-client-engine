@@ -8,7 +8,7 @@ mod plan;
 mod producer;
 mod query_result;
 
-pub use pipeline::{QueryPipeline, SUPPORTED_FEATURES};
+pub use pipeline::{QueryPipeline, SUPPORTED_FEATURES, SupportedFeatures};
 pub use plan::{DistinctType, QueryInfo, QueryPlan, QueryRange, SortOrder};
 pub use query_result::{JsonQueryClauseItem, QueryClauseItem, QueryResult};
 

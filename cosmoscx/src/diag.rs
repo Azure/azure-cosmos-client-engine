@@ -1,3 +1,5 @@
+//! Diagnostics-related functions, such as enabling and configuring tracing.
+
 use tracing_subscriber::EnvFilter;
 
 /// Enables built-in tracing for the Cosmos Client Engine.
@@ -7,7 +9,7 @@ use tracing_subscriber::EnvFilter;
 ///
 /// Once enabled in this way, tracing cannot be disabled.
 #[no_mangle]
-extern "C" fn cosmoscx_v0_tracing_enable() {
+pub extern "C" fn cosmoscx_v0_tracing_enable() {
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_env("COSMOSCX_LOG"))
         .init();
