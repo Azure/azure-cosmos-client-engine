@@ -38,6 +38,14 @@ If you are unable to use a Codespace or Dev Container, you will need to install 
 
 Once you have those dependencies, run `script/bootstrap` to check your dependencies, install additional dependencies (such as [Maturin](https://maturin.rs), for building Python modules), and set up the dev environment.
 
+## Reviewing API docs
+
+A lot of our documentation can be found within the Rust code itself, using doc comments (`///`).
+To view this documentation, you can either:
+
+1. (Recommended on all environments) Run the `script/docs-server` script to start a process that will watch the Rust code, regenerate docs whenever it changes, and serve them on `localhost:8000`. This is the recommended way to view the docs, as it will automatically update as you make changes to the code.
+2. (Only on local machines) Run `cargo doc` to generate docs locally and open them in your browser.
+
 ## Building
 
 While it's possible to build the engine and non-Python bindings without it, we still highly recommend entering the python virtual environment before working in the repo.

@@ -89,7 +89,7 @@ supported_features!(OffsetAndLimit, OrderBy, MultipleOrderBy, Top);
 /// ## Query Rewriting
 ///
 /// While the language binding has the original query provided by the user, the Gateway may rewrite it while generating a query plan.
-/// The [`QueryInfo::rewritten_query`] value, included in the query plan returned by the Gateway, includes that rewritten query.
+/// The [`QueryInfo::rewritten_query`](crate::query::QueryInfo::rewritten_query) value, included in the query plan returned by the Gateway, includes that rewritten query.
 /// Since most consumers of the pipeline don't actually parse the the query plan (instead, they pass the plan in as a string), the
 /// pipeline exposes the rewritten query through the [`QueryPipeline::query()`] method.
 /// If the query was *not* rewritten by the gateway, this method returns the unrewritten query,

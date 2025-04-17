@@ -5,7 +5,7 @@ use tracing_subscriber::EnvFilter;
 /// Enables built-in tracing for the Cosmos Client Engine.
 ///
 /// This is an early version of the tracing API and is subject to change.
-/// For now, it activates the default console tracing in [`tracing_subscriber::fmt`] and enables the [`EnvFilter`](`tracing_subscriber::EnvFilter`) using the `COSMOSCX_LOG` environment variable.
+/// For now, it activates the default console tracing in [`tracing_subscriber::fmt`](fn@tracing_subscriber::fmt) and enables the [`EnvFilter`](`tracing_subscriber::EnvFilter`) using the `COSMOSCX_LOG` environment variable.
 ///
 /// Once enabled in this way, tracing cannot be disabled.
 #[no_mangle]

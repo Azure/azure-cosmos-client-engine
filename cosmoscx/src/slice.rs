@@ -89,7 +89,7 @@ impl<'a> From<&'a str> for Str<'a> {
 /// Represents a contiguous sequence of objects OWNED BY THE ENGINE.
 ///
 /// The language binding MUST free the memory associated with this sequence by calling the appropriate 'free' function.
-/// For example, all [`OwnedSlice`]s within a [`PipelineResponse`](crate::query::PipelineResponse) are freed by calling [`cosmoscx_v0_query_pipeline_free_result`](super::pipeline::cosmoscx_v0_query_pipeline_free_result).
+/// For example, all [`OwnedSlice`]s within a [`PipelineResponse`](azure_data_cosmos_engine::query::PipelineResponse) are freed by calling [`cosmoscx_v0_query_pipeline_free_result`](super::pipeline::cosmoscx_v0_query_pipeline_free_result).
 ///
 /// The C representation of this struct is:
 ///
@@ -190,7 +190,7 @@ impl<T> Drop for OwnedSlice<T> {
 /// Represents a contiguous sequence of valid UTF-8 bytes OWNED BY THE ENGINE.
 ///
 /// The language binding MUST free the memory associated with this sequence by calling the appropriate 'free' function.
-/// For example, all [`OwnedSlice`]s within a [`PipelineResponse`](crate::query::PipelineResponse) are freed by calling [`cosmoscx_v0_query_pipeline_free_result`](super::pipeline::cosmoscx_v0_query_pipeline_free_result).
+/// For example, all [`OwnedSlice`]s within a [`PipelineResponse`](azure_data_cosmos_engine::query::PipelineResponse) are freed by calling [`cosmoscx_v0_query_pipeline_free_result`](super::pipeline::cosmoscx_v0_query_pipeline_free_result).
 pub type OwnedString = OwnedSlice<u8>;
 
 impl OwnedString {

@@ -12,25 +12,25 @@ pub enum ResultCode {
     /// The operation was successful.
     Success = 0,
 
-    /// See [`ErrorKind::InvalidGatewayResponse`](azure_data_cosmos_engine::ErrorKind::InvalidGatewayResponse).
+    /// See [`ErrorKind::InvalidGatewayResponse`].
     InvalidGatewayResponse = -2,
 
-    /// See [`ErrorKind::DeserializationError`](azure_data_cosmos_engine::ErrorKind::DeserializationError).
+    /// See [`ErrorKind::DeserializationError`].
     DeserializationError = -3,
 
-    /// See [`ErrorKind::UnknownPartitionKeyRange`](azure_data_cosmos_engine::ErrorKind::UnknownPartitionKeyRange).
+    /// See [`ErrorKind::UnknownPartitionKeyRange`].
     UnknownPartitionKeyRange = -4,
 
-    /// See [`ErrorKind::InternalError`](azure_data_cosmos_engine::ErrorKind::InternalError).
+    /// See [`ErrorKind::InternalError`].
     InternalError = -5,
 
-    /// See [`ErrorKind::UnsupportedQueryPlan`](azure_data_cosmos_engine::ErrorKind::UnsupportedQueryPlan).
+    /// See [`ErrorKind::UnsupportedQueryPlan`].
     UnsupportedQueryPlan = -6,
 
-    /// See [`ErrorKind::InvalidUtf8String`](azure_data_cosmos_engine::ErrorKind::InvalidUtf8String).
+    /// See [`ErrorKind::InvalidUtf8String`].
     InvalidUtf8String = -7,
 
-    /// See [`ErrorKind::ArgumentNull`](azure_data_cosmos_engine::ErrorKind::ArgumentNull).
+    /// See [`ErrorKind::ArgumentNull`].
     ArgumentNull = -8,
 }
 

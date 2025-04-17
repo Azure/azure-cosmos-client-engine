@@ -117,10 +117,10 @@ pub struct PipelineResult {
     /// A boolean indicating if the pipeline has completed.
     completed: bool,
 
-    /// A [`Slice`] of [`OwnedString`]s containing the JSON for each item in the output.
+    /// An [`OwnedSlice`] of [`OwnedString`]s containing the JSON for each item in the output.
     items: OwnedSlice<OwnedString>,
 
-    /// A [`Slice`] of [`DataRequest`]s describing additional requests that must be made and provided to [`cosmoscx_v0_query_pipeline_provide_data`] before retrieving the next batch.
+    /// A [`OwnedSlice`] of [`DataRequest`]s describing additional requests that must be made and provided to [`cosmoscx_v0_query_pipeline_provide_data`] before retrieving the next batch.
     requests: OwnedSlice<DataRequest>,
 }
 
