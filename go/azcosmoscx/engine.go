@@ -7,7 +7,7 @@ package azcosmoscx
 import "C"
 
 import (
-	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos/unstable/queryengine"
 )
 
 func Version() string {
@@ -24,12 +24,12 @@ type nativeQueryEngine struct {
 }
 
 // NewQueryEngine creates a new azcosmoscx query engine.
-func NewQueryEngine() azcosmos.QueryEngine {
+func NewQueryEngine() queryengine.QueryEngine {
 	return &nativeQueryEngine{}
 }
 
 // CreateQueryPipeline creates a new query pipeline from the provided plan and partition key ranges.
-func (e *nativeQueryEngine) CreateQueryPipeline(query string, plan string, pkranges string) (azcosmos.QueryPipeline, error) {
+func (e *nativeQueryEngine) CreateQueryPipeline(query string, plan string, pkranges string) (queryengine.QueryPipeline, error) {
 	pipeline, err := newPipeline(query, plan, pkranges)
 	if err != nil {
 		return nil, err
@@ -71,7 +71,7 @@ func (p *clientEngineQueryPipeline) IsComplete() bool {
 // NextBatch gets the next batch of items, which will be empty if there are no more items in the buffer.
 // The number of items retrieved will be capped by the provided maxPageSize if it is positive.
 // Any remaining items will be returned by the next call to NextBatch.
-func (p *clientEngineQueryPipeline) NextBatch(maxPageSize int32) ([][]byte, []azcosmos.DataRequest, error) {
+func (p *clientEngineQueryPipeline) NextBatch() ([][]byte, []queryengine.QueryRequest, error) {
 	result, err := p.pipeline.NextBatch()
 	defer result.Free()
 	if err != nil {
@@ -89,9 +89,9 @@ func (p *clientEngineQueryPipeline) NextBatch(maxPageSize int32) ([][]byte, []az
 	if err != nil {
 		return nil, nil, err
 	}
-	requests := make([]azcosmos.DataRequest, 0, len(sourceRequests))
+	requests := make([]queryengine.QueryRequest, 0, len(sourceRequests))
 	for _, request := range sourceRequests {
-		requests = append(requests, azcosmos.DataRequest{
+		requests = append(requests, queryengine.QueryRequest{
 			PartitionKeyRangeID: string(request.PartitionKeyRangeID().CloneString()),
 			Continuation:        string(request.Continuation().CloneString()),
 		})
@@ -100,6 +100,6 @@ func (p *clientEngineQueryPipeline) NextBatch(maxPageSize int32) ([][]byte, []az
 }
 
 // ProvideData provides more data for a given partition key range ID, using data retrieved from the server in response to making a DataRequest.
-func (p *clientEngineQueryPipeline) ProvideData(partitionKeyRangeId string, data string, continuation string) error {
-	return p.pipeline.ProvideData(partitionKeyRangeId, data, continuation)
+func (p *clientEngineQueryPipeline) ProvideData(result queryengine.QueryResult) error {
+	return p.pipeline.ProvideData(result.PartitionKeyRangeID, string(result.Data), result.NextContinuation)
 }

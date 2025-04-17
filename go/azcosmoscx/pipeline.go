@@ -53,7 +53,7 @@ func (p *Pipeline) Query() (string, error) {
 }
 
 func (p *Pipeline) NextBatch() (*PipelineResult, error) {
-	r := C.cosmoscx_v0_query_pipeline_next_batch(p.ptr)
+	r := C.cosmoscx_v0_query_pipeline_run(p.ptr)
 	if err := mapErr(r.code); err != nil {
 		return nil, err
 	}

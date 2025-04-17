@@ -13,7 +13,7 @@ pub mod result;
 pub mod slice;
 
 unsafe fn free<T>(ptr: *mut T) {
-    // SAFETY: We have to trust that the caller is giving us a valid pipeline result from calling "next_batch"
+    // SAFETY: We have to trust that the caller is giving us a valid pipeline result from calling "run"
     let owned = unsafe { Box::from_raw(ptr) };
     tracing::trace!(?ptr, typ = std::any::type_name_of_val(&owned), "freeing");
     drop(owned);
