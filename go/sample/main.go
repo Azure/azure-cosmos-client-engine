@@ -7,6 +7,7 @@ import (
 
 	"github.com/Azure/azure-cosmos-client-engine/go/azcosmoscx"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos/unstable/queryengine"
 )
 
 func getenvOrDefault(key, def string) string {
@@ -16,10 +17,11 @@ func getenvOrDefault(key, def string) string {
 	return def
 }
 
-func executeQuery(container *azcosmos.ContainerClient, query string) {
+func executeQuery(container *azcosmos.ContainerClient, query string, queryEngine queryengine.QueryEngine) {
 	// Query for all items
-	pager := container.NewQueryItemsPager(query, azcosmos.NewPartitionKey(), nil)
-	defer pager.Close()
+	pager := container.NewQueryItemsPager(query, azcosmos.NewPartitionKey(), &azcosmos.QueryOptions{
+		UnstablePreviewQueryEngine: queryEngine,
+	})
 
 	for pager.More() {
 		page, err := pager.NextPage(context.TODO())
@@ -73,9 +75,7 @@ func main() {
 
 	azcosmoscx.EnableTracing()
 
-	client, err := azcosmos.NewClientWithKey(endpoint, cred, &azcosmos.ClientOptions{
-		QueryEngine: azcosmoscx.NewQueryEngine(),
-	})
+	client, err := azcosmos.NewClientWithKey(endpoint, cred, nil)
 	if err != nil {
 		panic(err)
 	}
@@ -85,7 +85,7 @@ func main() {
 		panic(err)
 	}
 
-	executeQuery(container, query)
+	executeQuery(container, query, azcosmoscx.NewQueryEngine())
 
 	// Run leak checker
 	doLeakCheck()

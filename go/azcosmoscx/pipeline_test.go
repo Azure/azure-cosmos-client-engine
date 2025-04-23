@@ -45,15 +45,15 @@ func TestEmptyPipelineReturnsRequests(t *testing.T) {
 	require.NoError(t, err)
 	defer pipeline.Close()
 
-	items, requests, err := pipeline.NextBatch()
+	result, err := pipeline.Run()
 	require.NoError(t, err)
-	require.NotNil(t, items)
-	require.NotNil(t, requests)
+	require.NotNil(t, result.Items)
+	require.NotNil(t, result.Requests)
 
-	assert.Empty(t, items)
-	assert.NotEmpty(t, requests)
+	assert.Empty(t, result.Items)
+	assert.NotEmpty(t, result.Requests)
 
-	for i, request := range requests {
+	for i, request := range result.Requests {
 		expectedId := fmt.Sprintf("partition%d", i)
 		assert.Equal(t, expectedId, request.PartitionKeyRangeID)
 		assert.Empty(t, request.Continuation)
@@ -76,24 +76,24 @@ func TestPipelineWithDataReturnsData(t *testing.T) {
 	}`, "p1c1"))
 	require.NoError(t, err)
 
-	items, requests, err := pipeline.NextBatch()
+	result, err := pipeline.Run()
 	require.NoError(t, err)
 
-	require.NotNil(t, items)
-	require.NotNil(t, requests)
+	require.NotNil(t, result.Items)
+	require.NotNil(t, result.Requests)
 
 	assert.EqualValues(t, [][]byte{
 		[]byte("1"),
 		[]byte("2"),
-	}, items)
+	}, result.Items)
 
-	assert.NotEmpty(t, requests)
+	assert.NotEmpty(t, result.Requests)
 
-	assert.Equal(t, 2, len(requests))
-	assert.Equal(t, "partition0", requests[0].PartitionKeyRangeID)
-	assert.Equal(t, "p0c1", requests[0].Continuation)
-	assert.Equal(t, "partition1", requests[1].PartitionKeyRangeID)
-	assert.Equal(t, "p1c1", requests[1].Continuation)
+	assert.Equal(t, 2, len(result.Requests))
+	assert.Equal(t, "partition0", result.Requests[0].PartitionKeyRangeID)
+	assert.Equal(t, "p0c1", result.Requests[0].Continuation)
+	assert.Equal(t, "partition1", result.Requests[1].PartitionKeyRangeID)
+	assert.Equal(t, "p1c1", result.Requests[1].Continuation)
 
 	// Provide empty data for the remaining partitions
 	err = pipeline.ProvideData(queryengine.NewQueryResultString("partition0", `{"Documents":[]}`, ""))
@@ -102,11 +102,11 @@ func TestPipelineWithDataReturnsData(t *testing.T) {
 	require.NoError(t, err)
 
 	// And we should get the rest
-	items, requests, err = pipeline.NextBatch()
+	result, err = pipeline.Run()
 
 	require.NoError(t, err)
 	assert.EqualValues(t, [][]byte{
 		[]byte("3"),
 		[]byte("4"),
-	}, items)
+	}, result.Items)
 }

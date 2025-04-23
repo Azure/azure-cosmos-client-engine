@@ -71,23 +71,23 @@ func (p *clientEngineQueryPipeline) IsComplete() bool {
 // NextBatch gets the next batch of items, which will be empty if there are no more items in the buffer.
 // The number of items retrieved will be capped by the provided maxPageSize if it is positive.
 // Any remaining items will be returned by the next call to NextBatch.
-func (p *clientEngineQueryPipeline) NextBatch() ([][]byte, []queryengine.QueryRequest, error) {
+func (p *clientEngineQueryPipeline) Run() (*queryengine.PipelineResult, error) {
 	result, err := p.pipeline.NextBatch()
 	defer result.Free()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	p.completed = result.IsCompleted()
 
 	items, err := result.ItemsCloned()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	sourceRequests, err := result.Requests()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	requests := make([]queryengine.QueryRequest, 0, len(sourceRequests))
 	for _, request := range sourceRequests {
@@ -96,7 +96,11 @@ func (p *clientEngineQueryPipeline) NextBatch() ([][]byte, []queryengine.QueryRe
 			Continuation:        string(request.Continuation().CloneString()),
 		})
 	}
-	return items, requests, nil
+	return &queryengine.PipelineResult{
+		IsCompleted: p.completed,
+		Items:       items,
+		Requests:    requests,
+	}, nil
 }
 
 // ProvideData provides more data for a given partition key range ID, using data retrieved from the server in response to making a DataRequest.
