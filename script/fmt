@@ -30,9 +30,11 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 cargo_args=()
+addlicense_args=()
 if $check; then
     echo "Running formatters in check mode..."
     cargo_args=("--check")
+    addlicense_args=("-check")
 elif $fix; then
     echo "Running formatters in fix mode..."
 else
@@ -40,4 +42,14 @@ else
     exit 1
 fi
 
+echo "Running Rust formatter..."
 cargo fmt --all "${cargo_args[@]}"
+
+echo "Running addlicense..."
+addlicense "${addlicense_args[@]}" \
+    -f "./script/licenseheader.tpl" \
+    -ignore '*.yml' \
+    -ignore 'target/**' \
+    -ignore 'artifacts/**' \
+    -ignore 'python/.venv/**' \
+    .
