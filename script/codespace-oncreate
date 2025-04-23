@@ -21,3 +21,6 @@ if [ ! -d $rustsdk_path ]; then
     echo "Cloning Rust SDK to $rustsdk_path"
     git clone https://github.com/Azure/azure-sdk-for-rust $rustsdk_path
 fi
+
+# Install tools
+go install github.com/google/addlicense@latest

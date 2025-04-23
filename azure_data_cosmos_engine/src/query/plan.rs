@@ -117,12 +117,14 @@ pub struct QueryInfo {
 
     /// Describes the expressions used by the `GROUP BY` clauses in the query.
     pub group_by_expressions: Vec<String>,
+
     #[cfg_attr(feature = "python_conversions", pyo3(item("groupByAliases"), default))]
     pub group_by_aliases: Vec<String>,
 
     /// A list of the aggregates used in the `SELECT` portion of a `GROUP BY` query.
     #[cfg_attr(feature = "python_conversions", pyo3(default))]
     pub aggregates: Vec<String>,
+
     #[cfg_attr(
         feature = "python_conversions",
         pyo3(item("groupByAliasToAggregateType"), default)
