@@ -62,7 +62,7 @@ typedef struct CosmosCxPipeline CosmosCxPipeline;
 /**
  * A result type for FFI functions.
  *
- * An `FfiResult` is returns from a function that both returns a value AND can fail.
+ * An `FfiResult` is returned from a function that both returns a value AND can fail.
  *
  * The C representation of this struct is:
  *
@@ -111,7 +111,7 @@ typedef struct CosmosCxSlice_u8 CosmosCxStr;
 /**
  * A result type for FFI functions.
  *
- * An `FfiResult` is returns from a function that both returns a value AND can fail.
+ * An `FfiResult` is returned from a function that both returns a value AND can fail.
  *
  * The C representation of this struct is:
  *
@@ -238,7 +238,7 @@ typedef struct CosmosCxPipelineResult {
    */
   struct CosmosCxOwnedSlice_OwnedString items;
   /**
-   * A [`OwnedSlice`] of [`DataRequest`]s describing additional requests that must be made and provided to [`cosmoscx_v0_query_pipeline_provide_data`] before retrieving the next batch.
+   * An [`OwnedSlice`] of [`DataRequest`]s describing additional requests that must be made and provided to [`cosmoscx_v0_query_pipeline_provide_data`] before retrieving the next batch.
    */
   struct CosmosCxOwnedSlice_DataRequest requests;
 } CosmosCxPipelineResult;
@@ -246,7 +246,7 @@ typedef struct CosmosCxPipelineResult {
 /**
  * A result type for FFI functions.
  *
- * An `FfiResult` is returns from a function that both returns a value AND can fail.
+ * An `FfiResult` is returned from a function that both returns a value AND can fail.
  *
  * The C representation of this struct is:
  *
