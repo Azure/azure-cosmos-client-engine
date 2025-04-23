@@ -69,10 +69,8 @@ fn bar() -> FfiResult<i64> { ... }
 
 This will generate two separate versions of the `FfiResult` struct, one for `i32` and one for `i64`.
 The Rust compiler handles this automatically, and the generated code is optimized to be as efficient as possible.
-However, the two versions of `FfiResult` are not the same size, nor do they have the same layout.
-The `i64` version of the struct will be larger than the `i32` version, and the layout of the fields may be different.
-
-The same happens in the C API, but in order to properly communicate the size and layout of the expected struct to the C caller, the `cbindgen` tool that generates our C header file must "monomorphize" the struct manually and embed a monomorphic version of the struct in the header file.
+Because the value is behind a pointer, the two versions of `FfiResult` are the same size and layout.
+However, `cbindgen` (the tool we use to generate the C header file) still generates separate structs.
 
 So, this C-compatible function:
 
@@ -100,15 +98,15 @@ Building a C-compatible API in Rust has some major advantages.
 We can leverage the memory safety of Rust to ensure memory that stays within Rust is properly freed and managed.
 However, at the boundaries of the C API, those guarantees disappear and require additional management.
 
-Every object (i.e. piece of memory) we return through the C API should have one of three lifetimes:
+Every object (i.e. piece of memory) we return through the C API should have one of these lifetimes:
 
-## Static memory
+### Static memory
 
 The object is global and exists for the lifetime of the process.
 This corresponds to a `&'static` reference in Rust.
 For example, the `cosmoscx_version` function returns a static string that is valid for the lifetime of the process.
 
-## Owned memory
+### Owned memory
 
 The object is created within the engine, and thus owned by the engine.
 It must then be freed by the engine.
@@ -117,7 +115,7 @@ The `cosmoscx_v0_query_pipeline_create` function creates a pipeline object in _R
 The caller is then responsible for calling `cosmoscx_v0_query_pipeline_free` to free the memory when it is done with the object.
 That function accepts the raw pointer and calls `Box::from_raw` to convert it back to a Box, thus making it "reappear" from Rust's perspective. The Box will then be freed when it goes out of scope.
 
-## Borrowed memory
+### Borrowed memory
 
 The object was created by the caller and is passed to the engine.
 This means the Rust engine has no way of knowing the full lifetime of the object.
