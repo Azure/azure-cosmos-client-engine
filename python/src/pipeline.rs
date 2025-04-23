@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
 use std::{ops::DerefMut, sync::Mutex};
 
 use azure_data_cosmos_engine::query::{

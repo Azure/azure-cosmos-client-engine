@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
 //! This module contains a kind of simulated Cosmos DB backend that can be used to test the query engine.
 //!
 //! The backend here is VERY simple and depends on a few assumptions:

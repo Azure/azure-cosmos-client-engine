@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
 //! FFI-safe types for communicating errors and the result of fallible functions.
 
 use azure_data_cosmos_engine::ErrorKind;

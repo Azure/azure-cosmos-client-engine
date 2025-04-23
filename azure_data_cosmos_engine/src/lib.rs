@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
 // Warnings are errors when building on CI.
 #![cfg_attr(not(debug_assertions), deny(warnings))]
 

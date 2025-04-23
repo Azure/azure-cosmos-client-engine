@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
 //! FFI-safe types for providing slices of memory.
 
 use std::{marker::PhantomData, mem};

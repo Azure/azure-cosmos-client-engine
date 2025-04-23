@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
 use std::fmt::Debug;
 
 use super::{producer::ItemProducer, QueryClauseItem, QueryResult};

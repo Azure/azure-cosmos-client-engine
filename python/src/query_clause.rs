@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
 use azure_data_cosmos_engine::query::QueryClauseItem;
 use pyo3::{
     exceptions,

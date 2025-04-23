@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
 use std::{borrow::Cow, fmt::Display};
 
 pub type Result<T> = ::std::result::Result<T, Error>;

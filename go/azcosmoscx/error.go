@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
 package azcosmoscx
 
 // #cgo CFLAGS: -I${SRCDIR}/../../include

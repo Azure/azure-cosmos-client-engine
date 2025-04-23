@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
 package azcosmoscx
 
 // TODO: We need to evaluate how to distribute the native library itself and how best to link it (static/shared).

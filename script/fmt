@@ -48,8 +48,9 @@ cargo fmt --all "${cargo_args[@]}"
 echo "Running addlicense..."
 addlicense "${addlicense_args[@]}" \
     -f "./script/licenseheader.tpl" \
-    -ignore '*.yml' \
+    -ignore '**/*.yml' \
     -ignore 'target/**' \
+    -ignore 'script/**' \
     -ignore 'artifacts/**' \
     -ignore 'python/.venv/**' \
     .

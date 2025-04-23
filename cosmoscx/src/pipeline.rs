@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
 //! Functions related to creating and executing query pipelines.
 
 use azure_data_cosmos_engine::{

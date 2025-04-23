@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
 import azure.cosmos.query_engine
 
 from . import _azure_cosmoscx
