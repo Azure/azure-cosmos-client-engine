@@ -118,6 +118,9 @@ jobs:
     env:
       CARGO_BUILD_TARGET: "${{ matrix.target.triple }}"
       CONFIGURATION: release
+
+      # Warnings-as-errors during CI builds
+      RUSTFLAGS: "-D warnings"
     steps:
       - name: Prepare Windows Runner
         if: ${{ runner.os == 'windows' }}
@@ -160,6 +163,12 @@ jobs:
         working-directory: "azure-cosmos-client-engine"
         run: |
           script/bootstrap
+
+      - name: Check formatting
+        shell: bash
+        working-directory: "azure-cosmos-client-engine"
+        run: |
+          make check
 
       - name: Build Engine
         shell: bash
