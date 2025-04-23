@@ -6,7 +6,7 @@ There are a few important things to keep in mind when building the C API, so tha
 
 Every type passed in or out of C API functions must be FFI-safe.
 This means that every value must be represented in a way that is compatible with C.
-We break this down into three categories:
+We break this down into several categories:
 
 1. **Primitive types**: These are the basic types that are natively supported by C, such as `unsigned long`, `int`, `float`, etc.
    These types are directly compatible with C and can be passed in and out of C functions without any issues.

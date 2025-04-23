@@ -120,7 +120,7 @@ pub struct PipelineResult {
     /// An [`OwnedSlice`] of [`OwnedString`]s containing the JSON for each item in the output.
     items: OwnedSlice<OwnedString>,
 
-    /// A [`OwnedSlice`] of [`DataRequest`]s describing additional requests that must be made and provided to [`cosmoscx_v0_query_pipeline_provide_data`] before retrieving the next batch.
+    /// An [`OwnedSlice`] of [`DataRequest`]s describing additional requests that must be made and provided to [`cosmoscx_v0_query_pipeline_provide_data`] before retrieving the next batch.
     requests: OwnedSlice<DataRequest>,
 }
 

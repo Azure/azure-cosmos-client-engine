@@ -49,7 +49,7 @@ jobs:
       - name: Prepare Windows Runner
         if: ${{ runner.os == 'windows' }}
         run:
-          # This is necessary because the some repositories have VERY long paths.
+          # This is necessary because some repositories have VERY long paths.
           git config --global core.longpaths true
 
       - name: Checkout Code

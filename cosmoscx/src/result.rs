@@ -77,7 +77,7 @@ impl From<Result<(), azure_data_cosmos_engine::Error>> for ResultCode {
 
 /// A result type for FFI functions.
 ///
-/// An `FfiResult` is returns from a function that both returns a value AND can fail.
+/// An `FfiResult` is returned from a function that both returns a value AND can fail.
 ///
 /// The C representation of this struct is:
 ///
