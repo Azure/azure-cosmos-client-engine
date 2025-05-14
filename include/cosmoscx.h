@@ -14,16 +14,41 @@
 
 /**
  * A result code for FFI functions, which indicates the success or failure of the operation.
+ *
+ * Values of `ResultCode` have the same representation as the C type `intptr_t`
  */
 enum CosmosCxResultCode {
+  /**
+   * The operation was successful.
+   */
   COSMOS_CX_RESULT_CODE_SUCCESS = 0,
-  COSMOS_CX_RESULT_CODE_UNKNOWN_ERROR = -1,
+  /**
+   * See [`ErrorKind::InvalidGatewayResponse`].
+   */
   COSMOS_CX_RESULT_CODE_INVALID_GATEWAY_RESPONSE = -2,
+  /**
+   * See [`ErrorKind::DeserializationError`].
+   */
   COSMOS_CX_RESULT_CODE_DESERIALIZATION_ERROR = -3,
+  /**
+   * See [`ErrorKind::UnknownPartitionKeyRange`].
+   */
   COSMOS_CX_RESULT_CODE_UNKNOWN_PARTITION_KEY_RANGE = -4,
+  /**
+   * See [`ErrorKind::InternalError`].
+   */
   COSMOS_CX_RESULT_CODE_INTERNAL_ERROR = -5,
+  /**
+   * See [`ErrorKind::UnsupportedQueryPlan`].
+   */
   COSMOS_CX_RESULT_CODE_UNSUPPORTED_QUERY_PLAN = -6,
+  /**
+   * See [`ErrorKind::InvalidUtf8String`].
+   */
   COSMOS_CX_RESULT_CODE_INVALID_UTF8_STRING = -7,
+  /**
+   * See [`ErrorKind::ArgumentNull`].
+   */
   COSMOS_CX_RESULT_CODE_ARGUMENT_NULL = -8,
 };
 typedef intptr_t CosmosCxResultCode;
@@ -36,6 +61,19 @@ typedef struct CosmosCxPipeline CosmosCxPipeline;
 
 /**
  * A result type for FFI functions.
+ *
+ * An `FfiResult` is returned from a function that both returns a value AND can fail.
+ *
+ * The C representation of this struct is:
+ *
+ * ```
+ * struct {
+ *   intptr_t code; // The result code, which will be '0' if the operation succeeded
+ *   const void *value; // A pointer to the returned value, which will be `nullptr`/`0` if the operation failed.
+ * };
+ * ```
+ *
+ * The data pointed to by the `value` pointer is OWNED BY THE ENGINE and must be freed by calling the appropriate free function, depending on the data.
  */
 typedef struct CosmosCxFfiResult_Pipeline {
   CosmosCxResultCode code;
@@ -48,16 +86,43 @@ typedef struct CosmosCxFfiResult_Pipeline {
  * The language binding owns this memory. It must keep the memory valid for the duration of any function call that receives it.
  * For example, the [`Slice`]s passed to [`cosmoscx_v0_query_pipeline_create`](super::pipeline::cosmoscx_v0_query_pipeline_create) must remain valid until that function returns.
  * After the function returns, the language binding may free the memory.
+ * This lifetime is represented by the lifetime parameter `'a`, which should prohibit Rust code from storing the value.
+ *
+ * The C representation of this struct is identical to [`OwnedSlice`], the only difference is that this type indicates that the language binding owns this memory.
+ * The language binding is responsible for ensuring the underlying `data` pointer and `len` are correct and the data is properly aligned such that the `data` pointer is a valid C-style array of `T` values.
  */
 typedef struct CosmosCxSlice_u8 {
   const uint8_t *data;
   uintptr_t len;
 } CosmosCxSlice_u8;
 
+/**
+ * A [`Slice`] of `u8` values, which must ALSO be a valid UTF-8 string.
+ *
+ * The language binding owns this memory. It must keep the memory valid for the duration of any function call that receives it.
+ * For example, the [`Slice`]s passed to [`cosmoscx_v0_query_pipeline_create`](super::pipeline::cosmoscx_v0_query_pipeline_create) must remain valid until that function returns.
+ * After the function returns, the language binding may free the memory.
+ * This lifetime is represented by the lifetime parameter `'a`, which should prohibit Rust code from storing the value.
+ *
+ * This is a "C-safe" type wrapping the equivalent of a rust [`&str`](primitive@str).
+ */
 typedef struct CosmosCxSlice_u8 CosmosCxStr;
 
 /**
  * A result type for FFI functions.
+ *
+ * An `FfiResult` is returned from a function that both returns a value AND can fail.
+ *
+ * The C representation of this struct is:
+ *
+ * ```
+ * struct {
+ *   intptr_t code; // The result code, which will be '0' if the operation succeeded
+ *   const void *value; // A pointer to the returned value, which will be `nullptr`/`0` if the operation failed.
+ * };
+ * ```
+ *
+ * The data pointed to by the `value` pointer is OWNED BY THE ENGINE and must be freed by calling the appropriate free function, depending on the data.
  */
 typedef struct CosmosCxFfiResult_Str {
   CosmosCxResultCode code;
@@ -68,33 +133,70 @@ typedef struct CosmosCxFfiResult_Str {
  * Represents a contiguous sequence of objects OWNED BY THE ENGINE.
  *
  * The language binding MUST free the memory associated with this sequence by calling the appropriate 'free' function.
- * For example, all [`OwnedSlice`]s within a [`PipelineResponse`](crate::query::PipelineResponse) are freed by calling [`cosmoscx_v0_query_pipeline_free_result`](super::pipeline::cosmoscx_v0_query_pipeline_free_result).
+ * For example, all [`OwnedSlice`]s within a [`PipelineResponse`](azure_data_cosmos_engine::query::PipelineResponse) are freed by calling [`cosmoscx_v0_query_pipeline_free_result`](super::pipeline::cosmoscx_v0_query_pipeline_free_result).
+ *
+ * The C representation of this struct is:
+ *
+ * ```
+ * struct {
+ *   const void *data; // A pointer to the first item in the slice
+ *   intptr_t len; // The number of items in the slice.
+ * };
+ * ```
+ *
+ * The `data` pointer is guaranteed to point to a contiguous sequence of `T` values.
+ * Each `T` value will be properly aligned.
+ * Thus, the `data` pointer can be treated as a C-style array of length `len`.
  */
 typedef struct CosmosCxOwnedSlice_u8 {
   uint8_t *data;
   uintptr_t len;
 } CosmosCxOwnedSlice_u8;
 
+/**
+ * Represents a contiguous sequence of valid UTF-8 bytes OWNED BY THE ENGINE.
+ *
+ * The language binding MUST free the memory associated with this sequence by calling the appropriate 'free' function.
+ * For example, all [`OwnedSlice`]s within a [`PipelineResponse`](azure_data_cosmos_engine::query::PipelineResponse) are freed by calling [`cosmoscx_v0_query_pipeline_free_result`](super::pipeline::cosmoscx_v0_query_pipeline_free_result).
+ */
 typedef struct CosmosCxOwnedSlice_u8 CosmosCxOwnedString;
 
 /**
  * Represents a contiguous sequence of objects OWNED BY THE ENGINE.
  *
  * The language binding MUST free the memory associated with this sequence by calling the appropriate 'free' function.
- * For example, all [`OwnedSlice`]s within a [`PipelineResponse`](crate::query::PipelineResponse) are freed by calling [`cosmoscx_v0_query_pipeline_free_result`](super::pipeline::cosmoscx_v0_query_pipeline_free_result).
+ * For example, all [`OwnedSlice`]s within a [`PipelineResponse`](azure_data_cosmos_engine::query::PipelineResponse) are freed by calling [`cosmoscx_v0_query_pipeline_free_result`](super::pipeline::cosmoscx_v0_query_pipeline_free_result).
+ *
+ * The C representation of this struct is:
+ *
+ * ```
+ * struct {
+ *   const void *data; // A pointer to the first item in the slice
+ *   intptr_t len; // The number of items in the slice.
+ * };
+ * ```
+ *
+ * The `data` pointer is guaranteed to point to a contiguous sequence of `T` values.
+ * Each `T` value will be properly aligned.
+ * Thus, the `data` pointer can be treated as a C-style array of length `len`.
  */
 typedef struct CosmosCxOwnedSlice_OwnedString {
   CosmosCxOwnedString *data;
   uintptr_t len;
 } CosmosCxOwnedSlice_OwnedString;
 
+/**
+ * Represents a request for more data from the pipeline.
+ *
+ * Each `DataRequest` represents a request FROM the query pipeline to the calling SDK to perform a query against a single Cosmos partition.
+ */
 typedef struct CosmosCxDataRequest {
   /**
-   * The Partition Key Range ID to request data from.
+   * An [`OwnedString`] containing the Partition Key Range ID to request data from.
    */
   CosmosCxOwnedString pkrangeid;
   /**
-   * The continuation token to provide, or an empty slice (len == 0) if no continuation should be provided.
+   * An [`OwnedString`] containing the continuation token to provide, or an empty slice (len == 0) if no continuation should be provided.
    */
   CosmosCxOwnedString continuation;
 } CosmosCxDataRequest;
@@ -103,30 +205,59 @@ typedef struct CosmosCxDataRequest {
  * Represents a contiguous sequence of objects OWNED BY THE ENGINE.
  *
  * The language binding MUST free the memory associated with this sequence by calling the appropriate 'free' function.
- * For example, all [`OwnedSlice`]s within a [`PipelineResponse`](crate::query::PipelineResponse) are freed by calling [`cosmoscx_v0_query_pipeline_free_result`](super::pipeline::cosmoscx_v0_query_pipeline_free_result).
+ * For example, all [`OwnedSlice`]s within a [`PipelineResponse`](azure_data_cosmos_engine::query::PipelineResponse) are freed by calling [`cosmoscx_v0_query_pipeline_free_result`](super::pipeline::cosmoscx_v0_query_pipeline_free_result).
+ *
+ * The C representation of this struct is:
+ *
+ * ```
+ * struct {
+ *   const void *data; // A pointer to the first item in the slice
+ *   intptr_t len; // The number of items in the slice.
+ * };
+ * ```
+ *
+ * The `data` pointer is guaranteed to point to a contiguous sequence of `T` values.
+ * Each `T` value will be properly aligned.
+ * Thus, the `data` pointer can be treated as a C-style array of length `len`.
  */
 typedef struct CosmosCxOwnedSlice_DataRequest {
   struct CosmosCxDataRequest *data;
   uintptr_t len;
 } CosmosCxOwnedSlice_DataRequest;
 
+/**
+ * Represents the result of a single execution of the query pipeline.
+ */
 typedef struct CosmosCxPipelineResult {
   /**
    * A boolean indicating if the pipeline has completed.
    */
   bool completed;
   /**
-   * A [`Slice`] of [`Str`]s containing the JSON for each item in the output.
+   * An [`OwnedSlice`] of [`OwnedString`]s containing the JSON for each item in the output.
    */
   struct CosmosCxOwnedSlice_OwnedString items;
   /**
-   * A [`Slice`] of [`DataRequest`]s describing additional requests that must be made and provided to [`cosmoscx_v0_query_pipeline_provide_data`] before retrieving the next batch.
+   * An [`OwnedSlice`] of [`DataRequest`]s describing additional requests that must be made and provided to [`cosmoscx_v0_query_pipeline_provide_data`] before retrieving the next batch.
    */
   struct CosmosCxOwnedSlice_DataRequest requests;
 } CosmosCxPipelineResult;
 
 /**
  * A result type for FFI functions.
+ *
+ * An `FfiResult` is returned from a function that both returns a value AND can fail.
+ *
+ * The C representation of this struct is:
+ *
+ * ```
+ * struct {
+ *   intptr_t code; // The result code, which will be '0' if the operation succeeded
+ *   const void *value; // A pointer to the returned value, which will be `nullptr`/`0` if the operation failed.
+ * };
+ * ```
+ *
+ * The data pointed to by the `value` pointer is OWNED BY THE ENGINE and must be freed by calling the appropriate free function, depending on the data.
  */
 typedef struct CosmosCxFfiResult_PipelineResult {
   CosmosCxResultCode code;
@@ -149,7 +280,7 @@ const char *cosmoscx_v0_query_supported_features(void);
  * Enables built-in tracing for the Cosmos Client Engine.
  *
  * This is an early version of the tracing API and is subject to change.
- * For now, it activates the default console tracing in [`tracing_subscriber::fmt`] and enables the [`EnvFilter`](`tracing_subscriber::EnvFilter`) using the `COSMOSCX_LOG` environment variable.
+ * For now, it activates the default console tracing in [`tracing_subscriber::fmt`](fn@tracing_subscriber::fmt) and enables the [`EnvFilter`](`tracing_subscriber::EnvFilter`) using the `COSMOSCX_LOG` environment variable.
  *
  * Once enabled in this way, tracing cannot be disabled.
  */
@@ -168,6 +299,8 @@ struct CosmosCxFfiResult_Pipeline cosmoscx_v0_query_pipeline_create(CosmosCxStr 
 
 /**
  * Frees the memory associated with a pipeline.
+ *
+ * After calling this function, the memory pointed to by the `pointer` parameter becomes invalid.
  */
 void cosmoscx_v0_query_pipeline_free(struct CosmosCxPipeline *pipeline);
 
@@ -180,11 +313,15 @@ void cosmoscx_v0_query_pipeline_free(struct CosmosCxPipeline *pipeline);
 struct CosmosCxFfiResult_Str cosmoscx_v0_query_pipeline_query(struct CosmosCxPipeline *pipeline);
 
 /**
- * Fetches the next batch of query results.
+ * Executes a single turn of the query pipeline.
  *
- * The [`PipelineResult`] returned here MUST be freed using [`cosmoscx_v0_query_pipeline_free_result`].
+ * See [`QueryPipeline::run`](azure_data_cosmos_engine::query::QueryPipeline::run) for more information on "turns".
+ *
+ * The [`PipelineResult`] returned by this function MUST be freed using [`cosmoscx_v0_query_pipeline_free_result`] to release the memory associated with the result.
+ * However, it does NOT need to be freed before the next time you call `cosmoscx_v0_query_pipeline_run`
+ * You may have multiple outstanding un-freed [`PipelineResult`]s at once.
  */
-struct CosmosCxFfiResult_PipelineResult cosmoscx_v0_query_pipeline_next_batch(struct CosmosCxPipeline *pipeline);
+struct CosmosCxFfiResult_PipelineResult cosmoscx_v0_query_pipeline_run(struct CosmosCxPipeline *pipeline);
 
 /**
  * Frees all the memory associated with a [`PipelineResult`].

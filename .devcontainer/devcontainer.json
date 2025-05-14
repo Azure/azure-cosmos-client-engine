@@ -1,6 +1,8 @@
 {
 	"name": "Azure Cosmos Client Engine Dev Container",
-	"image": "mcr.microsoft.com/devcontainers/rust:1-1-bullseye",
+	"build": {
+		"dockerfile": "Dockerfile",
+	},
 	"onCreateCommand": "./script/codespace-oncreate",
 	"features": {
 		"ghcr.io/devcontainers/features/azure-cli:1": {},

@@ -118,7 +118,7 @@ engine_python: #/ Builds the python extension module for the engine
 	poetry -C ./python run maturin develop --profile $(cargo_profile) $(maturin_args)
 
 .PHONY: test
-test: test_rust test_go test_python #/ Runs all language binding tests
+test: test_rust test_go #/ Runs all language binding tests, except Python which isn't currently supported
 
 .PHONY: test_rust
 test_rust:

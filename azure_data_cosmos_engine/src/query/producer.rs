@@ -20,9 +20,13 @@ enum PartitionStage {
     Done,
 }
 
+/// Indicates the way in which multiple partition results should be merged.
 #[derive(Debug)]
 pub enum MergeStrategy {
+    /// Results should be merged by comparing the sort order of the `ORDER BY` items.
     Ordered(Vec<SortOrder>),
+
+    /// Results are not re-ordered by the query and should be ordered by the partition key range.
     Unordered,
 }
 
@@ -38,6 +42,11 @@ impl<T: Debug, I: QueryClauseItem> PartitionState<T, I> {
         self.queue.is_empty() && matches!(self.stage, PartitionStage::Done)
     }
 
+    /// Adds all the provided items to this partition's buffer and updates the latest continuation value.
+    ///
+    /// The `continuation` value is used to update the partition stage:
+    /// * If the continuation is `Some`, the partition moves to [`PartitionStage::Continuing`].
+    /// * If the continuation is `None`, the partition moves to [`PartitionStage::Done`].
     #[tracing::instrument(level = "trace", skip_all, fields(pkrange_id = %self.pkrange.id))]
     pub fn extend(
         &mut self,
@@ -52,6 +61,10 @@ impl<T: Debug, I: QueryClauseItem> PartitionState<T, I> {
         tracing::debug!(queue_len = self.queue.len(), stage = ?self.stage, "received new data");
     }
 
+    /// Gets the next [`DataRequest`] for this partition.
+    ///
+    /// If this value is `None`, the partition has been exhausted and no further requests need to be made.
+    /// If this value is `Some`, the partition may have additional items that should be considered to satisfy the query.
     #[tracing::instrument(level = "trace", skip_all, fields(pkrange_id = %self.pkrange.id))]
     pub fn next_data_request(&self) -> Option<DataRequest> {
         match &self.stage {
@@ -76,17 +89,26 @@ impl<T: Debug, I: QueryClauseItem> PartitionState<T, I> {
         }
     }
 
+    /// Returns a boolean indicating if the partition has "started".
+    ///
+    /// A partition has started if it's been [`PartitionState::extend`]ed at least once.
     pub fn has_started(&self) -> bool {
         !matches!(self.stage, PartitionStage::Initial)
     }
 }
 
+/// An item producer handles merging results from several partitions into a single stream of results.
+///
+/// The single-partition result streams are merged according to a [`MergeStrategy`] provided when the producer is initialized.
 pub struct ItemProducer<T: Debug, I: QueryClauseItem> {
     partitions: Vec<PartitionState<T, I>>,
     strategy: MergeStrategy,
 }
 
 impl<T: Debug, I: QueryClauseItem> ItemProducer<T, I> {
+    /// Initializes the producer with the specified [`PartitionKeyRange`]s and [`MergeStrategy`]
+    ///
+    /// The provided [`PartitionKeyRange`]s are used to initialize buffers and state for accepting the single-partition results.
     pub fn new(
         pkranges: impl IntoIterator<Item = PartitionKeyRange>,
         strategy: MergeStrategy,
@@ -105,6 +127,7 @@ impl<T: Debug, I: QueryClauseItem> ItemProducer<T, I> {
         }
     }
 
+    /// Gets the [`DataRequest`]s that must be performed in order to add additional data to the partition buffers.
     pub fn data_requests(&self) -> Vec<DataRequest> {
         self.partitions
             .iter()
@@ -112,6 +135,7 @@ impl<T: Debug, I: QueryClauseItem> ItemProducer<T, I> {
             .collect()
     }
 
+    /// Provides additional data for the given partition.
     pub fn provide_data(
         &mut self,
         pkrange_id: &str,
@@ -134,6 +158,7 @@ impl<T: Debug, I: QueryClauseItem> ItemProducer<T, I> {
         Ok(())
     }
 
+    /// Requests the next item from the cross-partition result stream.
     #[tracing::instrument(level = "trace", skip(self))]
     pub fn produce_item(&mut self) -> crate::Result<Option<QueryResult<T, I>>> {
         let mut next_partition = None;
