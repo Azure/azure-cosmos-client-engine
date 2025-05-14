@@ -185,6 +185,7 @@ baselines: #/ Updates query result baselines using the emulator and the .NET cli
 
 .PHONY: check
 check: #/ Run linters and formatters in check mode
+	@echo "Running clippy..."
 	@cargo clippy --workspace --all-targets --all-features -- -D warnings
 	@if ! script/fmt --check; then \
 		echo "Formatting errors found. Run 'script/fmt --fix' to fix formatting issues."; \
