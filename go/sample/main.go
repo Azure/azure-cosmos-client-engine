@@ -23,7 +23,7 @@ func getenvOrDefault(key, def string) string {
 func executeQuery(container *azcosmos.ContainerClient, query string, queryEngine queryengine.QueryEngine) {
 	// Query for all items
 	pager := container.NewQueryItemsPager(query, azcosmos.NewPartitionKey(), &azcosmos.QueryOptions{
-		UnstablePreviewQueryEngine: queryEngine,
+		QueryEngine: queryEngine,
 	})
 
 	for pager.More() {
