@@ -160,10 +160,16 @@ clean_rust: #/ Cleans all Rust build artifacts
 clean_artifacts: #/ Cleans the artifacts directory, which contains the generated C headers and libraries
 	rm -rf $(artifacts_dir)
 
+.PHONY: show_pkg_config
 show_pkg_config: #/ Shows the pkg-config settings for the library under the current settings
 	@echo "cflags: $$(pkg-config --cflags cosmoscx)"
 	@echo "libs: $$(pkg-config --libs cosmoscx)"
 
+.PHONY: vendor
 vendor: engine_c #/ Updates the vendored copy of the library
 	mkdir -p $(root_dir)/go/azcosmoscx/libcosmoscx-vendor/$(CARGO_BUILD_TARGET)
 	cp $(artifacts_dir)/lib/$(static_lib_filename) $(root_dir)/go/azcosmoscx/libcosmoscx-vendor/$(CARGO_BUILD_TARGET)/$(static_lib_filename)
+
+.PHONY: baselines
+baselines: #/ Updates query result baselines using the emulator and the .NET client.
+	dotnet run --project ./baselines/baseline-generator/baseline-generator.csproj -- ./baselines/queries

@@ -13,7 +13,6 @@ for (int i = 0; i < args.Length; i++)
             Console.WriteLine("Options:");
             Console.WriteLine("  --endpoint <endpoint>       The endpoint of the Cosmos DB.");
             Console.WriteLine("  --key <key>                 The key for the Cosmos DB.");
-            Console.WriteLine("  --database <database>       The name of the database.");
             return;
         case "--endpoint":
         case "-e":

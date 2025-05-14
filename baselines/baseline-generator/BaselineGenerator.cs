@@ -53,7 +53,15 @@ public class BaselineGenerator
         }
 
         // Connect to Cosmos DB
-        var client = new CosmosClient(endpoint, key);
+        var options = new CosmosClientOptions
+        {
+            ServerCertificateCustomValidationCallback = (cert, chain, errors) =>
+            {
+                // Accept all certificates
+                return true;
+            }
+        };
+        var client = new CosmosClient(endpoint, key, options);
         var uniqueName = $"baseline_{querySet.Name}_{Guid.NewGuid():N}";
 
         // Create a new database and container
@@ -101,7 +109,20 @@ public class BaselineGenerator
         while (results.HasMoreResults)
         {
             var response = await results.ReadNextAsync();
-            resultList.AddRange(response);
+
+            foreach (var token in response)
+            {
+                if (token is JObject obj)
+                {
+                    // Remove system-generated properties
+                    obj.Remove("_rid");
+                    obj.Remove("_self");
+                    obj.Remove("_etag");
+                    obj.Remove("_ts");
+                }
+
+                resultList.Add(token);
+            }
         }
 
         // Save the results

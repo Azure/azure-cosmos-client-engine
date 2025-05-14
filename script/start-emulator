@@ -19,7 +19,7 @@ while ! docker compose logs cosmos-emulator --no-log-prefix --no-color | grep "^
         exit 1
     fi
     count=$((count + 1))
-    echo "Waiting for emulator to start..."
+    echo "Waiting 5 sec for emulator to start..."
     sleep 5
 done
 
