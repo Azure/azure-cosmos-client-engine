@@ -136,6 +136,7 @@ test_python: #/ Runs the Python language binding tests
 	@echo "Running Python tests..."
 	poetry -C ./python run python -m pytest -rP .
 
+.PHONY: integration_test_go
 integration_test_go: #/ Runs the Go language binding integration tests
 	@echo "Running Go integration tests..."
 	go -C ./go/azcosmoscx clean -testcache

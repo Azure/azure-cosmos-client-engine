@@ -264,7 +264,7 @@ func runSingleQuery(t *testing.T, results []json.RawMessage, query QuerySpec, co
 	// Run the query
 	queryEngine := azcosmoscx.NewQueryEngine()
 	queryOptions := &azcosmos.QueryOptions{
-		UnstablePreviewQueryEngine: queryEngine,
+		QueryEngine: queryEngine,
 	}
 
 	pager := container.NewQueryItemsPager(query.Text, azcosmos.NewPartitionKey(), queryOptions)
