@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
 FROM mcr.microsoft.com/devcontainers/rust:1-1-bullseye
 
 USER vscode
