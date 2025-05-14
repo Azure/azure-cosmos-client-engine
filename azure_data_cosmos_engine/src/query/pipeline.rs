@@ -338,8 +338,7 @@ impl<T: Debug + DeserializeOwned, I: QueryClauseItem + DeserializeOwned + Defaul
 
 /// Rewrites the incoming query by replacing tokens within it.
 fn format_query(original: &str) -> String {
-    let rewritten = original.replace("{documentdb-formattableorderbyquery-filter}", "true");
-    rewritten
+    original.replace("{documentdb-formattableorderbyquery-filter}", "true")
 }
 
 // The tests for the pipeline are found in integration tests (in the `tests`) directory, since we want to test an end-to-end experience that matches what the user will see.

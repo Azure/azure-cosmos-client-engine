@@ -57,10 +57,7 @@ impl<T: Debug, I: QueryClauseItem> PartitionState<T, I> {
         continuation: Option<String>,
     ) {
         self.queue.extend(item);
-        self.stage = continuation.map_or_else(
-            || PartitionStage::Done,
-            |token| PartitionStage::Continuing(token),
-        );
+        self.stage = continuation.map_or_else(|| PartitionStage::Done, PartitionStage::Continuing);
         tracing::debug!(queue_len = self.queue.len(), stage = ?self.stage, "received new data");
     }
 

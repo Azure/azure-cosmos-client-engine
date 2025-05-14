@@ -35,11 +35,15 @@ impl<'a, T> Slice<'a, T> {
     ///
     /// If the underlying pointer is null, this returns `Ok(None)`.
     /// If the underlying string data is not valid UTF-8, this returns `Err(..)`.
+    ///
+    /// # Safety
+    ///
+    /// The caller must assert that the memory range referenced by the slice is valid.
     pub unsafe fn as_slice(&self) -> Option<&'a [T]> {
         if self.data.is_null() {
             None
         } else {
-            Some(std::slice::from_raw_parts(self.data as *const T, self.len))
+            Some(std::slice::from_raw_parts(self.data, self.len))
         }
     }
 }
@@ -69,6 +73,10 @@ impl<'a> Str<'a> {
     ///
     /// If the underlying pointer is null, this returns `Ok(None)`.
     /// If the underlying string data is not valid UTF-8, this returns `Err(..)`.
+    ///
+    /// # Safety
+    ///
+    /// The caller must assert that the memory range referenced by the slice is valid.
     pub unsafe fn as_str(&self) -> Result<Option<&'a str>, azure_data_cosmos_engine::Error> {
         let Some(slice) = self.as_slice() else {
             return Ok(None);
@@ -78,6 +86,10 @@ impl<'a> Str<'a> {
     }
 
     /// Creates a copy of the underlying string data
+    ///
+    /// # Safety
+    ///
+    /// The caller must assert that the memory range referenced by the slice is valid.
     pub unsafe fn into_string(&self) -> Result<Option<String>, azure_data_cosmos_engine::Error> {
         self.as_str().map(|o| o.map(|s| s.to_string()))
     }
@@ -201,6 +213,10 @@ impl OwnedString {
     ///
     /// If the underlying slice pointer is null, this returns `Ok(None)`.
     /// If the underlying bytes are not valid UTF-8, this returns `Err` (this is unlikely as the string _should_ have been created by Rust).
+    ///
+    /// # Safety
+    ///
+    /// The caller must assert that the memory range referenced by the slice is valid.
     pub unsafe fn into_string(self) -> Result<Option<String>, azure_data_cosmos_engine::Error> {
         let original_addr = self.data as *const u8;
 

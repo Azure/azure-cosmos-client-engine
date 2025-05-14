@@ -23,9 +23,9 @@ pub struct NativeQueryPipeline {
 // All methods in this block are NOT python-accessible, and only visible to Rust code
 impl NativeQueryPipeline {
     #[inline(always)]
-    fn pipeline<'a>(
-        &'a self,
-    ) -> PyResult<impl DerefMut<Target = QueryPipeline<Py<PyAny>, PyQueryClauseItem>> + 'a> {
+    fn pipeline(
+        &self,
+    ) -> PyResult<impl DerefMut<Target = QueryPipeline<Py<PyAny>, PyQueryClauseItem>> + '_> {
         self.pipeline
             .lock()
             .map_err(|_| PyErr::new::<exceptions::PyRuntimeError, _>("lock poisoned"))
@@ -52,7 +52,7 @@ impl NativeQueryPipeline {
         Ok(PyString::new(py, pipeline.query()))
     }
 
-    fn next_batch<'py>(&self, py: Python<'py>) -> PyResult<Option<PyPipelineResult>> {
+    fn next_batch(&self, py: Python) -> PyResult<Option<PyPipelineResult>> {
         let mut pipeline = self.pipeline()?;
         let result = pipeline.run()?;
         Ok(Some(PyPipelineResult::new(py, result)?))
@@ -95,8 +95,8 @@ pub struct PyPipelineResult {
 }
 
 impl PyPipelineResult {
-    pub fn new<'py>(py: Python<'py>, result: PipelineResponse<Py<PyAny>>) -> PyResult<Self> {
-        let items = result.items.into_iter().map(|item| item);
+    pub fn new(py: Python, result: PipelineResponse<Py<PyAny>>) -> PyResult<Self> {
+        let items = result.items.into_iter();
         let requests = result.requests.into_iter().map(|r| PyDataRequest {
             pkrange_id: PyString::new(py, r.pkrange_id.as_ref()).unbind(),
             continuation: r.continuation.map(|s| PyString::new(py, &s).unbind()),

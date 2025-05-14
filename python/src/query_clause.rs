@@ -30,8 +30,8 @@ impl QueryClauseItem for PyQueryClauseItem {
             }
 
             match (left_item, right_item) {
-                (None, None) => return Ok(std::cmp::Ordering::Equal),
-                (Some(l), Some(r)) => return Ok(l.compare(r)?),
+                (None, None) => Ok(std::cmp::Ordering::Equal),
+                (Some(l), Some(r)) => Ok(l.compare(r)?),
 
                 // These should be the same type if we got here.
                 _ => unreachable!(),
