@@ -16,8 +16,8 @@ if [ ! -d $gosdk_path ]; then
     git clone https://github.com/Azure/azure-sdk-for-go $gosdk_path
 fi
 
-pysdk_path="$parent_dir/azure-sdk-for-python"
-if [ ! -d $pysdk_path ]; then
-    echo "Cloning Python SDK to $pysdk_path"
-    git clone https://github.com/Azure/azure-sdk-for-python $pysdk_path
+rustsdk_path="$parent_dir/azure-sdk-for-rust"
+if [ ! -d $rustsdk_path ]; then
+    echo "Cloning Rust SDK to $rustsdk_path"
+    git clone https://github.com/Azure/azure-sdk-for-rust $rustsdk_path
 fi

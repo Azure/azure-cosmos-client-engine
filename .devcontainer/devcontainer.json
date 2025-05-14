@@ -22,7 +22,7 @@
 						"contents": "write"
 					}
 				},
-				"Azure/azure-sdk-for-python": {
+				"Azure/azure-sdk-for-rust": {
 					"permissions": {
 						"contents": "write"
 					}
