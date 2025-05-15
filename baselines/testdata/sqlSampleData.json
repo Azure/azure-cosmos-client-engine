@@ -1,5 +1,6 @@
 {
   "containerProperties": {
+    "id": "TestContainer",
     "partitionKey" : {
       "paths": [
         "/categoryId"

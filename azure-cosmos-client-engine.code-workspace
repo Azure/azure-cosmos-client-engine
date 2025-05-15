@@ -9,8 +9,8 @@
 			"path": "../azure-sdk-for-go"
 		},
 		{
-			"name": "azure-sdk-for-python",
-			"path": "../azure-sdk-for-python"
+			"name": "azure-sdk-for-rust",
+			"path": "../azure-sdk-for-rust"
 		}
 	],
 	"settings": {
