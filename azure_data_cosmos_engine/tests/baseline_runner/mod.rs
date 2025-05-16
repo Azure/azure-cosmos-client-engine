@@ -74,11 +74,7 @@ pub async fn run_baseline_test(
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Enable tracing
     let _ = tracing_subscriber::fmt()
-        .with_env_filter(
-            EnvFilter::builder()
-                .with_default_directive(LevelFilter::INFO.into())
-                .from_env_lossy(),
-        )
+        .with_env_filter(EnvFilter::from_default_env())
         .with_test_writer()
         .try_init()
         .expect("to successfully initialize tracing");
@@ -176,8 +172,7 @@ pub async fn run_baseline_test(
     for (i, (actual, expected)) in items.iter().zip(results.iter()).enumerate() {
         if actual != expected {
             return Err(format!(
-                "
-                item {} was expected to be {:?}, but was {:?}",
+                "item {} was expected to be {:?}, but was {:?}",
                 i, expected, actual
             )
             .into());
