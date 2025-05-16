@@ -1,11 +1,8 @@
 [workspace]
 resolver = "2"
-members = ["azure_data_cosmos_engine", "cosmoscx", "python"]
+members = ["azure_data_cosmos_engine", "azure_data_cosmos_engine/query-tests", "cosmoscx", "python"]
 
 [workspace.dependencies]
-azure_core = { path = "../azure-sdk-for-rust/sdk/core/azure_core" }
-azure_identity = { path = "../azure-sdk-for-rust/sdk/identity/azure_identity" }
-azure_data_cosmos = { path = "../azure-sdk-for-rust/sdk/cosmos/azure_data_cosmos", features = [ "preview_query_engine" ] }
 azure_data_cosmos_engine = { path = "azure_data_cosmos_engine" }
 pyo3 = "0.24.0"
 serde = { version = "1.0", features = ["derive"] }
@@ -15,3 +12,8 @@ tracing-subscriber = { version = "0.3.19", features = ["fmt", "env-filter"] }
 uuid = "1.16.0"
 futures = "0.3.31"
 tokio = "1.45.0"
+
+# TODO: Move to published dependencies once we've got the API stable.
+azure_core = { path = "../azure-sdk-for-rust/sdk/core/azure_core" }
+azure_identity = { path = "../azure-sdk-for-rust/sdk/identity/azure_identity" }
+azure_data_cosmos = { path = "../azure-sdk-for-rust/sdk/cosmos/azure_data_cosmos", features = [ "preview_query_engine" ] }

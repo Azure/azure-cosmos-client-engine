@@ -7,7 +7,7 @@ package azcosmoscx
 import "C"
 
 import (
-	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos/unstable/queryengine"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos/queryengine"
 )
 
 func Version() string {

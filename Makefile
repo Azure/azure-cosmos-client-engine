@@ -136,8 +136,16 @@ test_python: #/ Runs the Python language binding tests
 	@echo "Running Python tests..."
 	poetry -C ./python run python -m pytest -rP .
 
-.PHONY: integration_test_go
-integration_test_go: #/ Runs the Go language binding integration tests
+.PHONY: query_test
+query_test: query_test_rust query_test_go #/ Runs all query tests
+
+.PHONY: query_test_rust
+query_test_rust: #/ Runs the Rust query tests
+	@echo "Running Rust query tests..."
+	RUSTFLAGS=$(TEST_RUSTFLAGS) cargo test --profile $(cargo_profile) --package query-tests
+
+.PHONY: query_test_go
+query_test_go: #/ Runs the Go language binding integration tests
 	@echo "Running Go integration tests..."
 	go -C ./go/azcosmoscx clean -testcache
 	go -C ./go/integration-tests test -tags "$(GOTAGS)" -v ./...

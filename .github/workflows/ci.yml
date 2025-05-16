@@ -27,6 +27,32 @@ jobs:
         run: |
           script/check-headers
 
+  query-tests:
+    name: "Run query correctness tests"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install rust
+        run: rustup show
+
+      - name: Install Go
+        uses: actions/setup-go@v5
+        if: ${{ runner.os != 'windows' }}
+        with:
+          go-version-file: "azure-cosmos-client-engine/go/azcosmoscx/go.mod"
+          cache-dependency-path: |
+            go/engine/go.sum
+
+      - name: Start Cosmos Emulator
+        run: |
+          script/reset-emulator
+
+      - name: Build engine
+        run: |
+          make engine
+
   build:
     strategy:
       fail-fast: false # Don't cancel other jobs when one job fails

@@ -1,6 +1,8 @@
+#[cfg(test)]
 #[macro_use]
-mod baseline_runner;
+mod runner;
 
+#[cfg(test)]
 baseline_tests! {
     order_by {
         streaming_1,

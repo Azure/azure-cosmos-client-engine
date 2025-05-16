@@ -21,12 +21,3 @@ python_conversions = ["dep:pyo3"]
 
 [dev-dependencies]
 pretty_assertions = "1.4.1"
-
-# TODO: Move to published dependencies once we've got the API stable.
-azure_core.workspace = true
-azure_identity.workspace = true
-azure_data_cosmos = { workspace = true, features = ["key_auth"] }
-uuid.workspace = true
-futures.workspace = true
-tokio.workspace = true
-tracing-subscriber.workspace = true
