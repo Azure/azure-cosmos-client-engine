@@ -166,6 +166,8 @@ jobs:
 
       - name: Check formatting
         shell: bash
+        # The script doesn't work on Windows, but it's OK because we don't need to check formatting on multiple platforms.
+        if: ${{ runner.os != 'windows' }}
         working-directory: "azure-cosmos-client-engine"
         run: |
           make check
