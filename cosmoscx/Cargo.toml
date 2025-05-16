@@ -7,7 +7,7 @@ edition = "2021"
 crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
-azure_data_cosmos_engine.workspace = true
+azure_data_cosmos_engine = { workspace = true, default-features = false }
 tracing.workspace = true
 tracing-subscriber.workspace = true
 serde.workspace = true

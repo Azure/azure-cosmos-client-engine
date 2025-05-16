@@ -8,7 +8,13 @@ mod plan;
 mod producer;
 mod query_result;
 
-pub use pipeline::{QueryPipeline, SUPPORTED_FEATURES, SupportedFeatures};
+#[cfg(feature = "query_engine")]
+mod engine;
+
+#[cfg(feature = "query_engine")]
+pub use engine::*;
+
+pub use pipeline::{QueryPipeline, SupportedFeatures, SUPPORTED_FEATURES};
 pub use plan::{DistinctType, QueryInfo, QueryPlan, QueryRange, SortOrder};
 pub use query_result::{JsonQueryClauseItem, QueryClauseItem, QueryResult};
 

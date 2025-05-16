@@ -1,13 +1,15 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 use azure_core::credentials::Secret;
 use azure_data_cosmos::{
     clients::{ContainerClient, DatabaseClient},
     models::{ContainerProperties, PartitionKeyDefinition},
-    CosmosClient, PartitionKey, PartitionKeyValue,
+    CosmosClient, PartitionKey, PartitionKeyValue, QueryOptions,
 };
 use futures::TryStreamExt;
 use serde::Deserialize;
+use tracing::{level_filters::LevelFilter, Level};
+use tracing_subscriber::EnvFilter;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -56,9 +58,11 @@ async fn create_test_container(
 ) -> Result<(DatabaseClient, ContainerClient), Box<dyn std::error::Error>> {
     let database_name = format!("{}_{}", test_name, test_id);
     client.create_database(&database_name, None).await?;
+    tracing::debug!(database_name, "created database");
     let db_client = client.database_client(&database_name);
     properties.id = "TestContainer".into();
     db_client.create_container(properties, None).await?;
+    tracing::debug!("created container");
     let container_client = db_client.container_client("TestContainer");
     Ok((db_client, container_client))
 }
@@ -68,13 +72,25 @@ pub async fn run_baseline_test(
     suite_name: &str,
     test_name: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    // Enable tracing
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(
+            EnvFilter::builder()
+                .with_default_directive(LevelFilter::INFO.into())
+                .from_env_lossy(),
+        )
+        .with_test_writer()
+        .try_init()
+        .expect("to successfully initialize tracing");
+    let _span = tracing::info_span!("baseline_test", suite_name, test_name).entered();
+
     // Make the test file path absolute
     let root_dir = {
         let mut p = PathBuf::from(env!("CARGO_MANIFEST_DIR")); // ROOT/azure_data_cosmos_engine
         p.pop(); // ROOT
         p
     };
-    let test_file = root_dir
+    let test_file_path = root_dir
         .join(BASELINE_QUERIES_DIR)
         .join(format!("{}.json", suite_name));
     let results_file = root_dir
@@ -83,22 +99,28 @@ pub async fn run_baseline_test(
         .join(format!("{}.results.json", test_name));
 
     let test_file_dir = {
-        let mut p = test_file.clone();
+        let mut p = test_file_path.clone();
         p.pop();
         p
     };
 
     // Load and parse the test file
-    let test_file: TestFile = serde_json::from_str(&std::fs::read_to_string(test_file)?)?;
+    let test_file: TestFile = serde_json::from_str(&std::fs::read_to_string(&test_file_path)?)?;
     let test_query = test_file
         .queries
         .into_iter()
         .find(|q| q.name == test_name)
         .ok_or_else(|| format!("test query '{}' not found", test_name))?;
+    tracing::debug!(
+        ?test_file_path,
+        query = test_query.name,
+        "loaded test query file"
+    );
 
     // Load the test data file
     let test_data_file = test_file_dir.join(test_file.test_data);
-    let test_data: TestDataFile = serde_json::from_str(&std::fs::read_to_string(test_data_file)?)?;
+    let test_data: TestDataFile = serde_json::from_str(&std::fs::read_to_string(&test_data_file)?)?;
+    tracing::debug!(?test_data_file, "loaded test data");
 
     // Create the test database and container
     let test_id = uuid::Uuid::new_v4().simple().to_string();
@@ -112,23 +134,44 @@ pub async fn run_baseline_test(
     .await?;
 
     // Insert the test data into the container
-    for item in test_data.data {
-        let key = extract_partition_key(&item, &test_data.container_properties.partition_key)?;
-        container_client.create_item(key, &item, None).await?;
+    {
+        let _insert_test_data = tracing::info_span!("insert_test_data");
+        tracing::info!("inserting test data");
+        for item in test_data.data {
+            let key = extract_partition_key(&item, &test_data.container_properties.partition_key)?;
+            container_client.create_item(key, &item, None).await?;
+        }
+        tracing::info!("inserted test data");
     }
 
     // Now run the requested query
-    let pager = container_client.query_items::<serde_json::Value>(test_query.query, (), None)?;
-    let items = pager
-        .try_collect::<Vec<_>>()
-        .await?
-        .into_iter()
-        .flat_map(|p| p.into_items())
-        .collect::<Vec<_>>();
+    let items = {
+        let _run_query = tracing::info_span!("run_query");
+        tracing::info!("running query");
+
+        let options = QueryOptions {
+            query_engine: Some(Arc::new(azure_data_cosmos_engine::query::QueryEngine)),
+            ..Default::default()
+        };
+        let pager = container_client.query_items::<serde_json::Value>(
+            test_query.query,
+            (),
+            Some(options),
+        )?;
+        let items = pager
+            .try_collect::<Vec<_>>()
+            .await?
+            .into_iter()
+            .flat_map(|p| p.into_items())
+            .map(|item| sanitize_item(item))
+            .collect::<Vec<_>>();
+        items
+    };
 
     // Compare the results with the expected results
     let results: Vec<serde_json::Value> =
-        serde_json::from_str(&std::fs::read_to_string(results_file)?)?;
+        serde_json::from_str(&std::fs::read_to_string(&results_file)?)?;
+    tracing::info!(?results_file, "loaded expected results");
 
     for (i, (actual, expected)) in items.iter().zip(results.iter()).enumerate() {
         if actual != expected {
@@ -142,9 +185,25 @@ pub async fn run_baseline_test(
     }
 
     // Delete the database
+    tracing::info!("deleting database");
     db_client.delete(None).await?;
+    tracing::info!("deleted database");
 
     Ok(())
+}
+
+/// Removes system-generated properties from the item.
+fn sanitize_item(item: serde_json::Value) -> serde_json::Value {
+    let serde_json::Value::Object(mut map) = item else {
+        return item;
+    };
+
+    map.remove("_rid");
+    map.remove("_self");
+    map.remove("_etag");
+    map.remove("_ts");
+
+    serde_json::Value::Object(map)
 }
 
 fn extract_partition_key(

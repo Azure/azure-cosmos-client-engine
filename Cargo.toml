@@ -3,9 +3,15 @@ resolver = "2"
 members = ["azure_data_cosmos_engine", "cosmoscx", "python"]
 
 [workspace.dependencies]
+azure_core = { path = "../azure-sdk-for-rust/sdk/core/azure_core" }
+azure_identity = { path = "../azure-sdk-for-rust/sdk/identity/azure_identity" }
+azure_data_cosmos = { path = "../azure-sdk-for-rust/sdk/cosmos/azure_data_cosmos", features = [ "preview_query_engine" ] }
 azure_data_cosmos_engine = { path = "azure_data_cosmos_engine" }
 pyo3 = "0.24.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["raw_value"] }
 tracing = "0.1.40"
-tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3.19", features = ["fmt", "env-filter"] }
+uuid = "1.16.0"
+futures = "0.3.31"
+tokio = "1.45.0"
