@@ -72,7 +72,13 @@ jobs:
         run: |
           script/reset-emulator
 
-      - name: Run rust query tests
+      - name: Run Rust query tests
+        run: |
+          make query_test_rust
+
+      - name: Run Go query tests
+        run: |
+          make query_test_go
 
   build:
     strategy:
