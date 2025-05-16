@@ -33,8 +33,25 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          path: "azure-cosmos-client-engine"
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          repository: Azure/azure-sdk-for-go
+          ref: release/azcosmos-1.5.0-beta
+          path: "azure-sdk-for-go"
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          repository: Azure/azure-sdk-for-rust
+          ref: main
+          path: "azure-sdk-for-rust"
 
       - name: Install rust
+        working-directory: "azure-cosmos-client-engine"
         run: rustup show
 
       - name: Install Go
@@ -45,13 +62,17 @@ jobs:
           cache-dependency-path: |
             go/engine/go.sum
 
+      - name: Build engine
+        working-directory: "azure-cosmos-client-engine"
+        run: |
+          make engine
+
       - name: Start Cosmos Emulator
+        working-directory: "azure-cosmos-client-engine"
         run: |
           script/reset-emulator
 
-      - name: Build engine
-        run: |
-          make engine
+      - name: Run rust query tests
 
   build:
     strategy:
@@ -89,6 +110,13 @@ jobs:
           repository: Azure/azure-sdk-for-go
           ref: release/azcosmos-1.5.0-beta
           path: "azure-sdk-for-go"
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          repository: Azure/azure-sdk-for-rust
+          ref: main
+          path: "azure-sdk-for-rust"
 
       - name: Install rust
         run: rustup target add "${{ matrix.target.triple }}"
