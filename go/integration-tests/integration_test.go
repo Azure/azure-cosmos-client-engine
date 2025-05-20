@@ -227,6 +227,7 @@ func getenvOrDefault(key, def string) string {
 }
 
 func runIntegrationTest(t *testing.T, querySetPath string) {
+	// Default to the emulator and it's well-known (not secret) key.
 	endpoint := getenvOrDefault("AZURE_COSMOS_ENDPOINT", "https://localhost:8081")
 	key := getenvOrDefault("AZURE_COSMOS_KEY", "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==")
 

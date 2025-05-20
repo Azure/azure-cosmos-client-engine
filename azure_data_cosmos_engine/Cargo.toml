@@ -13,10 +13,10 @@ azure_data_cosmos = { workspace = true, optional = true }
 azure_core = { workspace = true, optional = true }
 
 [features]
-# We want to keep pyo3 code separate and in the Python module, but if we do that, we can't derive conversion traits like FromPyObject/IntoPyObject in this crate.
-# So, we do use pyo3 here, but only for those conversion traits, and it's behind this feature (which is enabled by the python module).
 default = ["query_engine"]
 query_engine = ["dep:azure_data_cosmos", "dep:azure_core", "azure_data_cosmos/preview_query_engine"]
+# We want to keep pyo3 code separate and in the Python module, but if we do that, we can't derive conversion traits like FromPyObject/IntoPyObject in this crate.
+# So, we do use pyo3 here, but only for those conversion traits, and it's behind this feature (which is enabled by the python module).
 python_conversions = ["dep:pyo3"]
 
 [dev-dependencies]

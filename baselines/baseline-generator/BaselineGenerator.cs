@@ -53,14 +53,14 @@ public class BaselineGenerator
         }
 
         // Connect to Cosmos DB
-        var options = new CosmosClientOptions
+        var options = endpoint == "https://localhost:8081" ? new CosmosClientOptions
         {
             ServerCertificateCustomValidationCallback = (cert, chain, errors) =>
             {
-                // Accept all certificates
+                // Accept all certificates, when using the emulator
                 return true;
             }
-        };
+        } : new CosmosClientOptions;
         var client = new CosmosClient(endpoint, key, options);
         var uniqueName = $"baseline_{querySet.Name}_{Guid.NewGuid():N}";
 
