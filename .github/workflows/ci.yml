@@ -15,14 +15,26 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          path: "azure-cosmos-client-engine"
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          repository: Azure/azure-sdk-for-rust
+          ref: main
+          path: "azure-sdk-for-rust"
 
       - name: Install rust
+        working-directory: "azure-cosmos-client-engine"
         run: rustup show
 
       - name: Install cbindgen
+        working-directory: "azure-cosmos-client-engine"
         run: cargo install --locked cbindgen
 
       - name: Check Headers
+        working-directory: "azure-cosmos-client-engine"
         shell: bash
         run: |
           script/check-headers
@@ -61,6 +73,12 @@ jobs:
           go-version-file: "azure-cosmos-client-engine/go/azcosmoscx/go.mod"
           cache-dependency-path: |
             go/engine/go.sum
+
+      - name: Bootstrap Repository
+        shell: bash
+        working-directory: "azure-cosmos-client-engine"
+        run: |
+          script/bootstrap
 
       - name: Build engine
         working-directory: "azure-cosmos-client-engine"
