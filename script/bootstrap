@@ -37,7 +37,7 @@ pipx install poetry
 poetry config virtualenvs.in-project true
 
 echo "Installing cbindgen..."
-cargo install --locked cbindgen
+cargo install --locked cbindgen@0.29.0
 
 echo "Activating virtualenv..."
 eval "$(poetry -C ./python env activate)"
