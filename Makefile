@@ -122,7 +122,7 @@ test: test_rust test_go #/ Runs all language binding tests, except Python which 
 
 .PHONY: test_rust
 test_rust:
-	RUSTFLAGS=$(TEST_RUSTFLAGS) cargo test --profile $(cargo_profile) --workspace --all-features
+	RUSTFLAGS=$(TEST_RUSTFLAGS) cargo test --profile $(cargo_profile) --package azure_data_cosmos_engine --package cosmoscx --all-features
 	cargo doc --profile $(cargo_profile) --no-deps --workspace --all-features
 
 .PHONY: test_go
