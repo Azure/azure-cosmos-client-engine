@@ -1,8 +1,8 @@
 use std::{path::PathBuf, sync::Arc};
 
-use azure_core::credentials::Secret;
+use azure_core::{credentials::Secret, http::TransportOptions};
 use azure_data_cosmos::{
-    CosmosClient, PartitionKey, PartitionKeyValue, QueryOptions,
+    CosmosClient, CosmosClientOptions, PartitionKey, PartitionKeyValue, QueryOptions,
     clients::{ContainerClient, DatabaseClient},
     models::{ContainerProperties, PartitionKeyDefinition},
 };
@@ -42,7 +42,24 @@ fn create_client() -> Result<CosmosClient, azure_core::Error> {
     if key.is_empty() && endpoint == "https://localhost:8081" {
         key = COSMOS_EMULATOR_WELL_KNOWN_KEY.to_string();
     }
-    CosmosClient::with_key(&endpoint, Secret::from(key), None)
+
+    // If we're talking to the emulator, we can disable SSL verification.
+    let mut options = CosmosClientOptions::default();
+    if endpoint == "https://localhost:8081" {
+        let http_client = reqwest::ClientBuilder::new()
+            .danger_accept_invalid_certs(true)
+            .build()
+            .map_err(|e| {
+                azure_core::Error::full(
+                    azure_core::error::ErrorKind::Other,
+                    e,
+                    "failed to create HTTP client",
+                )
+            })?;
+        options.client_options.transport = Some(TransportOptions::new(Arc::new(http_client)))
+    }
+
+    CosmosClient::with_key(&endpoint, Secret::from(key), Some(options))
 }
 
 async fn create_test_container(
