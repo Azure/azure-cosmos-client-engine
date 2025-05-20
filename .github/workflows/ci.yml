@@ -91,10 +91,12 @@ jobs:
           script/reset-emulator
 
       - name: Run Rust query tests
+        working-directory: "azure-cosmos-client-engine"
         run: |
           make query_test_rust
 
       - name: Run Go query tests
+        working-directory: "azure-cosmos-client-engine"
         run: |
           make query_test_go
 
