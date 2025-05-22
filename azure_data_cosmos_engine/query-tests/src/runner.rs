@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
 use std::{path::PathBuf, sync::Arc};
 
 use azure_core::{credentials::Secret, http::TransportOptions};

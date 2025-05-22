@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
 //! Provides an implementation of the Azure Data Cosmos SDK query engine API.
 
 use core::str;
