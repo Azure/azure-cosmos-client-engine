@@ -88,7 +88,7 @@ pub async fn run_baseline_test(
     test_name: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Enable tracing
-    let _ = tracing_subscriber::fmt()
+    tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env())
         .with_test_writer()
         .try_init()
@@ -170,14 +170,13 @@ pub async fn run_baseline_test(
             (),
             Some(options),
         )?;
-        let items = pager
+        pager
             .try_collect::<Vec<_>>()
             .await?
             .into_iter()
             .flat_map(|p| p.into_items())
-            .map(|item| sanitize_item(item))
-            .collect::<Vec<_>>();
-        items
+            .map(sanitize_item)
+            .collect::<Vec<_>>()
     };
 
     // Compare the results with the expected results
@@ -228,9 +227,9 @@ fn extract_partition_key(
 
     // TODO: Replace with PartitionKey::from when https://github.com/Azure/azure-sdk-for-rust/issues/2612 is fixed.
     match values.len() {
-        0 => return Err("partition key must have at least one path".into()),
-        1 => return Ok(PartitionKey::from(values[0].clone())),
-        _ => return Err("partition key must have exactly one path".into()), // TODO: We can support HPK once the bug above is fixed.
+        0 => Err("partition key must have at least one path".into()),
+        1 => Ok(PartitionKey::from(values[0].clone())),
+        _ => Err("partition key must have exactly one path".into()), // TODO: We can support HPK once the bug above is fixed.
     }
 }
 
