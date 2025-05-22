@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-cosmos-client-engine/go/azcosmoscx"
-	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos/unstable/queryengine"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos/queryengine"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

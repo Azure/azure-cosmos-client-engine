@@ -46,6 +46,18 @@
                     "CGO_LDFLAGS": "-ldl ${workspaceFolder}/artifacts/x86_64-unknown-linux-gnu/debug/lib/libcosmoscx.a"
                 }
             },
+        },
+        {
+            "name": ".NET Core Launch (console)",
+            "type": "coreclr",
+            "request": "launch",
+            "program": "${workspaceFolder}/baselines/baseline-generator/bin/Debug/net9.0/baseline-generator.dll",
+            "args": [
+                "./queries/order_by/order_by.json"
+            ],
+            "cwd": "${workspaceFolder}/baselines",
+            "stopAtEntry": false,
+            "console": "internalConsole"
         }
     ]
 }

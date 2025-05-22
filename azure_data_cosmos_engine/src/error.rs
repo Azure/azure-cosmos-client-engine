@@ -60,7 +60,7 @@ impl Display for ErrorKind {
 }
 
 impl ErrorKind {
-    pub fn with_source(self, source: impl std::error::Error + 'static) -> Error {
+    pub fn with_source(self, source: impl std::error::Error + Send + Sync + 'static) -> Error {
         Error::from(self).with_source(source)
     }
 
@@ -72,7 +72,7 @@ impl ErrorKind {
 #[derive(Debug)]
 pub struct Error {
     kind: ErrorKind,
-    source: Option<Box<dyn std::error::Error>>,
+    source: Option<Box<dyn std::error::Error + Send + Sync>>,
     message: Option<Cow<'static, str>>,
 }
 
@@ -87,7 +87,7 @@ impl From<ErrorKind> for Error {
 }
 
 impl Error {
-    pub fn with_source(mut self, source: impl std::error::Error + 'static) -> Self {
+    pub fn with_source(mut self, source: impl std::error::Error + Send + Sync + 'static) -> Self {
         self.source = Some(Box::new(source));
         self
     }
@@ -101,7 +101,7 @@ impl Error {
         self.kind
     }
 
-    pub fn into_source(self) -> Option<Box<dyn std::error::Error>> {
+    pub fn into_source(self) -> Option<Box<dyn std::error::Error + Send + Sync>> {
         self.source
     }
 }
@@ -117,7 +117,8 @@ impl Display for Error {
 
 impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        self.source.as_deref()
+        let source = self.source.as_ref()?;
+        Some(&**source)
     }
 }
 

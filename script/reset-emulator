@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+#/ Usage: script/reset-emulator
+#/
+#/ Resets the emulator to a clean state.
+script_dir=$(dirname "$(readlink -f "$0")")
+cd "$script_dir/.."
+
+echo "Stopping emulator..."
+docker compose down
+
+echo "Removing local cosmos emulator data... (you may be prompted for sudo password)"
+sudo rm -Rf ./.local/cosmos-emulator-data
+
+echo "Starting emulator..."
+script/start-emulator

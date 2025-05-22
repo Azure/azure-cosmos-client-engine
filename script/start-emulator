@@ -14,13 +14,13 @@ docker compose up -d
 
 count=0
 while ! docker compose logs cosmos-emulator --no-log-prefix --no-color | grep "^Started\s*$"; do
-    if [ $count -gt 10 ]; then
-        echo "Emulator failed to start after 10 attempts."
+    if [ $count -gt 4 ]; then
+        echo "Emulator failed to start after 1 minute."
         exit 1
     fi
     count=$((count + 1))
-    echo "Waiting for emulator to start..."
-    sleep 5
+    echo "Waiting 20 sec for emulator to start..."
+    sleep 20
 done
 
 echo "Emulator started successfully!"

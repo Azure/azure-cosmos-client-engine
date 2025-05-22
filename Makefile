@@ -122,18 +122,33 @@ test: test_rust test_go #/ Runs all language binding tests, except Python which 
 
 .PHONY: test_rust
 test_rust:
-	RUSTFLAGS=$(TEST_RUSTFLAGS) cargo test --profile $(cargo_profile) --workspace --all-features
+	RUSTFLAGS=$(TEST_RUSTFLAGS) cargo test --profile $(cargo_profile) --package azure_data_cosmos_engine --package cosmoscx --all-features
 	cargo doc --profile $(cargo_profile) --no-deps --workspace --all-features
 
 .PHONY: test_go
 test_go: #/ Runs the Go language binding tests
 	@echo "Running Go tests..."
+	go -C ./go/azcosmoscx clean -testcache
 	go -C ./go/azcosmoscx test -tags "$(GOTAGS)" -v ./...
 
 .PHONY: test_python
-test_python:
+test_python: #/ Runs the Python language binding tests
 	@echo "Running Python tests..."
 	poetry -C ./python run python -m pytest -rP .
+
+.PHONY: query_test
+query_test: query_test_rust query_test_go #/ Runs all query tests
+
+.PHONY: query_test_rust
+query_test_rust: #/ Runs the Rust query tests
+	@echo "Running Rust query tests..."
+	RUSTFLAGS=$(TEST_RUSTFLAGS) cargo test --profile $(cargo_profile) --package query-tests
+
+.PHONY: query_test_go
+query_test_go: #/ Runs the Go language binding integration tests
+	@echo "Running Go integration tests..."
+	go -C ./go/azcosmoscx clean -testcache
+	go -C ./go/integration-tests test -tags "$(GOTAGS)" -v ./...
 
 .PHONY: superclean
 superclean: clean #/ Delete the entire `targets` and `artifacts` directories
@@ -154,10 +169,16 @@ clean_rust: #/ Cleans all Rust build artifacts
 clean_artifacts: #/ Cleans the artifacts directory, which contains the generated C headers and libraries
 	rm -rf $(artifacts_dir)
 
+.PHONY: show_pkg_config
 show_pkg_config: #/ Shows the pkg-config settings for the library under the current settings
 	@echo "cflags: $$(pkg-config --cflags cosmoscx)"
 	@echo "libs: $$(pkg-config --libs cosmoscx)"
 
+.PHONY: vendor
 vendor: engine_c #/ Updates the vendored copy of the library
 	mkdir -p $(root_dir)/go/azcosmoscx/libcosmoscx-vendor/$(CARGO_BUILD_TARGET)
 	cp $(artifacts_dir)/lib/$(static_lib_filename) $(root_dir)/go/azcosmoscx/libcosmoscx-vendor/$(CARGO_BUILD_TARGET)/$(static_lib_filename)
+
+.PHONY: baselines
+baselines: #/ Updates query result baselines using the emulator and the .NET client.
+	dotnet run --project ./baselines/baseline-generator/baseline-generator.csproj -- ./baselines/queries

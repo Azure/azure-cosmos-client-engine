@@ -1,0 +1,29 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.2.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "baselines", "baselines", "{9664A68D-AF56-4BB0-C434-C6CBC566C0E4}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "baseline-generator", "baselines\baseline-generator\baseline-generator.csproj", "{B038E677-DCF3-92F7-46FC-FE4CAFB91561}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{B038E677-DCF3-92F7-46FC-FE4CAFB91561}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B038E677-DCF3-92F7-46FC-FE4CAFB91561}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B038E677-DCF3-92F7-46FC-FE4CAFB91561}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B038E677-DCF3-92F7-46FC-FE4CAFB91561}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{B038E677-DCF3-92F7-46FC-FE4CAFB91561} = {9664A68D-AF56-4BB0-C434-C6CBC566C0E4}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {A8C23F93-D62A-49CF-B487-28A2CD625E5D}
+	EndGlobalSection
+EndGlobal

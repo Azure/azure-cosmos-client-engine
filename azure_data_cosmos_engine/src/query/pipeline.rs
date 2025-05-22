@@ -111,6 +111,7 @@ impl<T: Debug, I: QueryClauseItem> QueryPipeline<T, I> {
     /// * `query` - The ORIGINAL query specified by the user. If the [`QueryPlan`] has a `rewritten_query`, the pipeline will handle rewriting it.
     /// * `plan` - The query plan that describes how to execute the query.
     /// * `pkranges` - An iterator that produces the [`PartitionKeyRange`]s that the query will be executed against.
+    #[tracing::instrument(level = "debug", skip_all, err)]
     pub fn new(
         query: &str,
         plan: QueryPlan,
@@ -209,8 +210,13 @@ impl<T: Debug, I: QueryClauseItem> QueryPipeline<T, I> {
         &self.query
     }
 
+    /// Indicates if the pipeline has been completed.
+    pub fn complete(&self) -> bool {
+        self.terminated
+    }
+
     /// Provides more data for the specified partition key range.
-    #[tracing::instrument(level = "debug", skip_all, fields(pkrange_id = pkrange_id, data_len = data.len(), continuation = continuation.as_deref()))]
+    #[tracing::instrument(level = "debug", skip_all, err, fields(pkrange_id = pkrange_id, data_len = data.len(), continuation = continuation.as_deref()))]
     pub fn provide_data(
         &mut self,
         pkrange_id: &str,
@@ -236,7 +242,7 @@ impl<T: Debug, I: QueryClauseItem> QueryPipeline<T, I> {
     /// to return any requests that still need to be made.
     ///
     /// If the pipeline returns no items and no requests, then the query has completed and there are no further results to return.
-    #[tracing::instrument(level = "debug", skip(self))]
+    #[tracing::instrument(level = "debug", skip(self), err)]
     pub fn run(&mut self) -> crate::Result<PipelineResponse<T>> {
         if self.terminated {
             return Ok(PipelineResponse::TERMINATED);

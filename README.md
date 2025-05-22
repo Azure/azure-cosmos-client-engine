@@ -6,6 +6,7 @@ The primary feature it provides is the Query Engine, which handles fanning out c
 This repo contains several components:
 
 * `azure_data_cosmos_engine` - A Rust library that implements the core functionality of the engine and exports a pure Rust API.
+* `baselines` - A set of query correctness data, and a .NET application to generate that data.
 * `cosmoscx` - A Rust `cdylib`/`staticlib` that exposes a C API, `libcosmoscx`, for the engine, which can be used by other languages.
 * `python` - A Python module, using [PyO3](https://pyo3.rs) and built with [Maturin](https://maturin.rs), that wraps the Rust engine and provides a Pythonic interface to the engine.
 * `go/azcosmoscx` - A Go module that wraps `libcosmoscx` and provides a Go interface to the engine.
@@ -19,7 +20,7 @@ However, we only test and produce builds for the following platforms:
 * `x86_64-unknown-linux-gnu` - Linux (GNU libc) x86_64
 * `aarch64-apple-darwin` - macOS ARM64
 * `x86_64-pc-windows-msvc` - Windows (MSVC ABI) x86_64.
-    * **NOTE**: We do not currently support the Go bindings on this platform
+  * **NOTE**: We do not currently support the Go bindings on this platform
 * `x86_64-pc-windows-gnu` - Windows (GNU ABI and libc) x86_64.
 
 ## Setting up your development environment
@@ -109,7 +110,7 @@ E   ModuleNotFoundError: No module named 'azure_cosmoscx'
 
 This project welcomes contributions and suggestions.  Most contributions require you to agree to a
 Contributor License Agreement (CLA) declaring that you have the right to, and actually do, grant us
-the rights to use your contribution. For details, visit https://cla.opensource.microsoft.com.
+the rights to use your contribution. For details, visit <https://cla.opensource.microsoft.com>.
 
 When you submit a pull request, a CLA bot will automatically determine whether you need to provide
 a CLA and decorate the PR appropriately (e.g., status check, comment). Simply follow the instructions
@@ -121,8 +122,8 @@ contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additio
 
 ## Trademarks
 
-This project may contain trademarks or logos for projects, products, or services. Authorized use of Microsoft 
-trademarks or logos is subject to and must follow 
+This project may contain trademarks or logos for projects, products, or services. Authorized use of Microsoft
+trademarks or logos is subject to and must follow
 [Microsoft's Trademark & Brand Guidelines](https://www.microsoft.com/en-us/legal/intellectualproperty/trademarks/usage/general).
 Use of Microsoft trademarks or logos in modified versions of this project must not cause confusion or imply Microsoft sponsorship.
 Any use of third-party trademarks or logos are subject to those third-party's policies.

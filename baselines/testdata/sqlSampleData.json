@@ -1,4 +1,14 @@
 {
+  "containerProperties": {
+    "id": "TestContainer",
+    "partitionKey" : {
+      "paths": [
+        "/categoryId"
+      ],
+      "kind": "Hash",
+      "version": 2
+    }
+  },
   "data": [
     {
       "id": "027D0B9A-F9D9-4C96-8213-C8546C4AAE71",
