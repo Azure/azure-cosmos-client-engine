@@ -1,3 +1,7 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
+//! Contains the definition of the Python Extension Module for the Rust Client Engine
 //! This crate is NOT intended to be consumed from Rust code.
 //! Building the crate produces the Python module, `azure_cosmoscx`,
 //! which can be imported in Python applications and exports an interface to the Cosmos Client Engine.

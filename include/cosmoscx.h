@@ -1,4 +1,4 @@
-// Copyright (c) Microsoft Corporation. All rights reserved.
+// Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
 
@@ -301,6 +301,10 @@ struct CosmosCxFfiResult_Pipeline cosmoscx_v0_query_pipeline_create(CosmosCxStr 
  * Frees the memory associated with a pipeline.
  *
  * After calling this function, the memory pointed to by the `pointer` parameter becomes invalid.
+ *
+ * # Safety
+ *
+ * The caller must ensure that the pointer passed to this function is a valid pointer to a [`PipelineResult`] returned by [`cosmoscx_v0_query_pipeline_run`].
  */
 void cosmoscx_v0_query_pipeline_free(struct CosmosCxPipeline *pipeline);
 
@@ -327,6 +331,10 @@ struct CosmosCxFfiResult_PipelineResult cosmoscx_v0_query_pipeline_run(struct Co
  * Frees all the memory associated with a [`PipelineResult`].
  *
  * Calling this function will release all the strings and buffers provided within the [`PipelineResult`], so ensure you have copied it all out before calling this.
+ *
+ * # Safety
+ *
+ * The caller must ensure that the pointer passed to this function is a valid pointer to a [`PipelineResult`] returned by [`cosmoscx_v0_query_pipeline_run`].
  */
 void cosmoscx_v0_query_pipeline_free_result(struct CosmosCxPipelineResult *result);
 

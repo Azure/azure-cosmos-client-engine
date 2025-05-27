@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
 //! Functions related to creating and executing query pipelines.
 
 use azure_data_cosmos_engine::{
@@ -23,6 +26,12 @@ pub struct Pipeline;
 impl Pipeline {
     // We can't make this into a "method" without the arbitrary_self_types feature
     // (https://github.com/rust-lang/rust/issues/44874)
+
+    /// Unwraps the pointer to the underlying `RawQueryPipeline` type.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that the pointer passed to this function is a valid pointer to a `RawQueryPipeline`.
     pub unsafe fn unwrap_ptr(
         pipeline: *mut Self,
     ) -> Result<&'static mut RawQueryPipeline, azure_data_cosmos_engine::Error> {
@@ -76,8 +85,12 @@ pub extern "C" fn cosmoscx_v0_query_pipeline_create<'a>(
 /// Frees the memory associated with a pipeline.
 ///
 /// After calling this function, the memory pointed to by the `pointer` parameter becomes invalid.
+///
+/// # Safety
+///
+/// The caller must ensure that the pointer passed to this function is a valid pointer to a [`PipelineResult`] returned by [`cosmoscx_v0_query_pipeline_run`].
 #[no_mangle]
-pub extern "C" fn cosmoscx_v0_query_pipeline_free(pipeline: *mut Pipeline) {
+pub unsafe extern "C" fn cosmoscx_v0_query_pipeline_free(pipeline: *mut Pipeline) {
     unsafe { crate::free(pipeline) }
 }
 
@@ -132,10 +145,10 @@ pub struct PipelineResult {
 /// However, it does NOT need to be freed before the next time you call `cosmoscx_v0_query_pipeline_run`
 /// You may have multiple outstanding un-freed [`PipelineResult`]s at once.
 #[no_mangle]
-pub extern "C" fn cosmoscx_v0_query_pipeline_run<'a>(
+pub extern "C" fn cosmoscx_v0_query_pipeline_run(
     pipeline: *mut Pipeline,
 ) -> FfiResult<PipelineResult> {
-    fn inner<'a>(
+    fn inner(
         pipeline: *mut Pipeline,
     ) -> Result<Box<PipelineResult>, azure_data_cosmos_engine::Error> {
         let pipeline = unsafe { Pipeline::unwrap_ptr(pipeline) }?;
@@ -176,8 +189,12 @@ pub extern "C" fn cosmoscx_v0_query_pipeline_run<'a>(
 /// Frees all the memory associated with a [`PipelineResult`].
 ///
 /// Calling this function will release all the strings and buffers provided within the [`PipelineResult`], so ensure you have copied it all out before calling this.
+///
+/// # Safety
+///
+/// The caller must ensure that the pointer passed to this function is a valid pointer to a [`PipelineResult`] returned by [`cosmoscx_v0_query_pipeline_run`].
 #[no_mangle]
-pub extern "C" fn cosmoscx_v0_query_pipeline_free_result<'a>(result: *mut PipelineResult) {
+pub unsafe extern "C" fn cosmoscx_v0_query_pipeline_free_result(result: *mut PipelineResult) {
     unsafe { crate::free(result) }
 }
 

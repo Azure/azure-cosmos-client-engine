@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
 use serde::{Deserialize, Deserializer};
 use std::fmt::Debug;
 
@@ -48,7 +51,7 @@ impl<T: Debug, I: QueryClauseItem> QueryResult<T, I> {
         Self {
             group_by_items: Vec::new(),
             order_by_items: Vec::new(),
-            payload: payload.into(),
+            payload,
         }
     }
 
@@ -266,6 +269,7 @@ mod tests {
         ) => {
             $(
                 #[test]
+                #[allow(clippy::redundant_pattern_matching)] // Clippy doesn't like that sometimes we match on Err(_) instead of calling .is_err
                 pub fn $name() {
                     $(
                         let left = serde_json::json!($left);
@@ -273,6 +277,7 @@ mod tests {
                         let left: JsonQueryClauseItem = serde_json::from_value(left).unwrap();
                         let right: JsonQueryClauseItem  = serde_json::from_value(right).unwrap();
                         let result = left.compare(&right);
+
                         assert!(matches!(result, $expected), "comparing {:?} and {:?}, expected: {}, but got {:?}", left, right, stringify!($expected), result);
                     )*
                 }

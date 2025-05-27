@@ -82,7 +82,7 @@ export DYLD_LIBRARY_PATH
 
 # Default target, don't put any targets above this one.
 .PHONY: all
-all: headers engine test #/ Builds the engine and runs all tests
+all: headers engine test check #/ Builds the engine and runs all tests
 
 .PHONY: help
 help: #/ Show this help
@@ -182,3 +182,12 @@ vendor: engine_c #/ Updates the vendored copy of the library
 .PHONY: baselines
 baselines: #/ Updates query result baselines using the emulator and the .NET client.
 	dotnet run --project ./baselines/baseline-generator/baseline-generator.csproj -- ./baselines/queries
+
+.PHONY: check
+check: #/ Run linters and formatters in check mode
+	@echo "Running clippy..."
+	@cargo clippy --workspace --all-targets --all-features -- -D warnings
+	@if ! script/fmt --check; then \
+		echo "Formatting errors found. Run 'script/fmt --fix' to fix formatting issues."; \
+		exit 1; \
+	fi

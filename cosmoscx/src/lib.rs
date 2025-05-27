@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
 //! Defines the C API for the Cosmos Client Engine
 //!
 //! API functions can be found throughout the Rust modules in this crate.

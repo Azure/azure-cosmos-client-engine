@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
 //! Diagnostics-related functions, such as enabling and configuring tracing.
 
 use tracing_subscriber::EnvFilter;
