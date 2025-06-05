@@ -94,10 +94,12 @@ help: #/ Show this help
 .PHONY: engine
 engine: engine_rust engine_c engine_python #/ Builds all versions of the engine
 
-.PHONY: headers
-headers: #/ Builds the C header file for the engine, used by cgo and other bindgen-like tools
+.PHONY: _generate_headers
+_generate_headers: #/ (Internal) Generates the header file for the engine.
 	cbindgen --quiet --config cbindgen.toml --crate "cosmoscx" --output $(COSMOSCX_HEADER_PATH)
 
+.PHONY: headers
+headers: _generate_headers #/ Builds the C header file for the engine, used by cgo and other bindgen-like tools
 	# There needs to be a copy inside the Go package for cgo to find it.
 	[ -d $(root_dir)/go/azcosmoscx/include ] || mkdir -p $(root_dir)/go/azcosmoscx/include
 	cp $(COSMOSCX_HEADER_PATH) $(root_dir)/go/azcosmoscx/include/cosmoscx.h
