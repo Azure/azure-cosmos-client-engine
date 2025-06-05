@@ -98,6 +98,10 @@ engine: engine_rust engine_c engine_python #/ Builds all versions of the engine
 headers: #/ Builds the C header file for the engine, used by cgo and other bindgen-like tools
 	cbindgen --quiet --config cbindgen.toml --crate "cosmoscx" --output $(COSMOSCX_HEADER_PATH)
 
+	# There needs to be a copy inside the Go package for cgo to find it.
+	[ -d $(root_dir)/go/azcosmoscx/include ] || mkdir -p $(root_dir)/go/azcosmoscx/include
+	cp $(COSMOSCX_HEADER_PATH) $(root_dir)/go/azcosmoscx/include/cosmoscx.h
+
 .PHONY: engine_rust
 engine_rust: #/ Builds the Core Rust Engine.
 	cargo build --package "azure_data_cosmos_engine" --profile $(cargo_profile)
