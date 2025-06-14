@@ -70,7 +70,7 @@ class TestPipeline(unittest.TestCase):
         pipeline = azure_cosmoscx.QueryEngine().create_pipeline(
             "SELECT * FROM c", plan, pkranges)
 
-        result = pipeline.run()
+        result = pipeline.next_batch()
         self.assertFalse(result.terminated)
 
         self.assertEqual(0, len(result.items))
@@ -110,7 +110,7 @@ class TestPipeline(unittest.TestCase):
         pipeline.provide_data(
             "partition1", [3, 4], "p1c0")
 
-        result = pipeline.run()
+        result = pipeline.next_batch()
         self.assertFalse(result.terminated)
 
         self.assertEqual([1, 2], result.items)
@@ -127,7 +127,7 @@ class TestPipeline(unittest.TestCase):
         pipeline.provide_data(
             "partition1", [], None)
 
-        result = pipeline.run()
+        result = pipeline.next_batch()
         self.assertTrue(result.terminated)
         self.assertEqual([3, 4], result.items)
         self.assertEqual([], result.requests)
@@ -167,7 +167,7 @@ class TestPipeline(unittest.TestCase):
                 {"orderByItems": [{"item": 3}], "payload": 4}
             ], "p1c0")
 
-        result = pipeline.run()
+        result = pipeline.next_batch()
         self.assertFalse(result.terminated)
 
         self.assertEqual([3, 4], result.items)
@@ -182,7 +182,7 @@ class TestPipeline(unittest.TestCase):
         pipeline.provide_data(
             "partition1", [], None)
 
-        result = pipeline.run()
+        result = pipeline.next_batch()
         self.assertFalse(result.terminated)
 
         self.assertEqual([1, 2], result.items)
@@ -193,7 +193,7 @@ class TestPipeline(unittest.TestCase):
         pipeline.provide_data(
             "partition0", [], None)
 
-        result = pipeline.run()
+        result = pipeline.next_batch()
         self.assertTrue(result.terminated)
         self.assertEqual([], result.items)
         self.assertEqual([], result.requests)

@@ -6,7 +6,6 @@ import azure.cosmos
 import azure_cosmoscx
 import warnings
 import urllib3
-import timeit
 
 warnings.filterwarnings(
     "ignore", category=urllib3.exceptions.InsecureRequestWarning)
