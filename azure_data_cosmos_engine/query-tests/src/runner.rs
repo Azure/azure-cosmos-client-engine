@@ -5,9 +5,9 @@ use std::{path::PathBuf, sync::Arc};
 
 use azure_core::{credentials::Secret, http::TransportOptions};
 use azure_data_cosmos::{
-    CosmosClient, CosmosClientOptions, PartitionKey, PartitionKeyValue, QueryOptions,
     clients::{ContainerClient, DatabaseClient},
     models::{ContainerProperties, PartitionKeyDefinition},
+    CosmosClient, CosmosClientOptions, PartitionKey, PartitionKeyValue, QueryOptions,
 };
 use futures::TryStreamExt;
 use serde::Deserialize;

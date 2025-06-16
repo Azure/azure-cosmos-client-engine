@@ -8,12 +8,19 @@ repo_root="$PWD"
 
 GEN_PATH=`mktemp`
 trap 'rm -f ${GEN_PATH}' EXIT
-COSMOSCX_HEADER_PATH=${GEN_PATH} make headers
+COSMOSCX_HEADER_PATH=${GEN_PATH} make _generate_headers
 
 echo "Comparing headers..."
 if diff "${repo_root}/include/cosmoscx.h" "${GEN_PATH}"; then
-    echo "Headers are up-to-date"
+    echo "Header file 'include/cosmoscx.h' is up-to-date"
 else
-    echo "Headers are out-of-date. Run 'make headers' to update."
+    echo "Header file 'include/cosmoscx.h' is out-of-date. Run 'make headers' to update."
+    exit 1
+fi
+
+if diff "${repo_root}/go/azcosmoscx/include/cosmoscx.h" "${GEN_PATH}"; then
+    echo "Header file 'go/azcosmoscx/include/cosmoscx.h' is up-to-date"
+else
+    echo "Header file 'go/azcosmoscx/include/cosmoscx.h' is out-of-date. Run 'make headers' to update."
     exit 1
 fi

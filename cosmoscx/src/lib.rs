@@ -35,3 +35,7 @@ pub extern "C" fn cosmoscx_version() -> *const std::ffi::c_char {
 pub extern "C" fn cosmoscx_v0_query_supported_features() -> *const std::ffi::c_char {
     SUPPORTED_FEATURES.as_cstr().as_ptr()
 }
+
+#[no_mangle]
+/// cbindgen:ignore
+pub static BUILD_IDENTIFIER: &str = env!("BUILD_IDENTIFIER");
