@@ -5,10 +5,10 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use azure_core::{credentials::Secret, http::TransportOptions};
 use azure_data_cosmos::{
-    CosmosClient, CosmosClientOptions, CreateContainerOptions, PartitionKey, PartitionKeyValue,
-    Query, QueryOptions,
     clients::{ContainerClient, DatabaseClient},
     models::{ContainerProperties, PartitionKeyDefinition, ThroughputProperties},
+    CosmosClient, CosmosClientOptions, CreateContainerOptions, PartitionKey, PartitionKeyValue,
+    Query, QueryOptions,
 };
 use futures::TryStreamExt;
 use serde::Deserialize;
@@ -357,9 +357,7 @@ pub async fn run_baseline_test(
                     tracing::warn!(?e, "query failed, retrying");
                     retry_count += 1;
                     if retry_count == MAX_RETRIES {
-                        return Err(
-                            format!("query failed after {MAX_RETRIES} retries: {e}").into()
-                        );
+                        return Err(format!("query failed after {MAX_RETRIES} retries: {e}").into());
                     }
                 }
                 Err(e) => {
@@ -457,10 +455,7 @@ fn extract_single_partition_key(
 ) -> Result<PartitionKeyValue, Box<dyn std::error::Error>> {
     let original_path = path;
     if !path.starts_with('/') {
-        return Err(format!(
-            "partition key path '{original_path}' does not start with '/'"
-        )
-        .into());
+        return Err(format!("partition key path '{original_path}' does not start with '/'").into());
     }
 
     path = &path[1..];

@@ -4,21 +4,21 @@ pr:
   branches:
     include:
       - main
-      - releases/*
+      - feature/*
+      - hotfix/*
+      - release/*
 
-jobs:
-  - job: Linux
-    pool:
-      vmImage: "ubuntu-latest"
-    steps:
-      - script: echo hello from Linux
-  - job: macOS
-    pool:
-      vmImage: "macOS-latest"
-    steps:
-      - script: echo hello from macOS
-  - job: Windows
-    pool:
-      vmImage: "windows-latest"
-    steps:
-      - script: echo hello from macOS
+extends:
+  template: /script/pipelines/pipeline-template.yml
+  parameters:
+    IsReleaseBuild: false
+    LinuxPool:
+      name: ClientEngine
+      demands:
+        - ImageOverride -equals client-engine-linux-x86_64
+    MacPool:
+      vmImage: macos-15
+    WindowsPool:
+      name: ClientEngine
+      demands:
+        - ImageOverride -equals client-engine-windows-x86_64

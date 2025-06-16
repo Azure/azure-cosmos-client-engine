@@ -1,0 +1,47 @@
+parameters:
+  - name: RustTarget
+    type: string
+    default: ""
+  - name: HostIsWindows
+    type: boolean
+    default: false
+  - name: CargoCache
+    type: boolean
+    default: false
+
+steps:
+  - task: GoTool@0
+    displayName: "Install Go $(GO_VERSION)"
+    inputs:
+      version: $(GO_VERSION)
+
+  - task: UsePythonVersion@0
+    inputs:
+      versionSpec: $(PY_VERSION)
+      addToPath: true
+    displayName: "Use Python $(PY_VERSION)"
+
+  - ${{ if ne(parameters.RustTarget, '') }}:
+    - script: rustup target add ${{ parameters.RustTarget }}
+      displayName: "Install Rust Target ${{ parameters.RustTarget }}"
+    - pwsh: |
+        Write-Host "##vso[task.setvariable variable=CARGO_BUILD_TARGET]${{ parameters.RustTarget }}"
+      displayName: "Initialize Variables"
+
+  - ${{ if eq(parameters.CargoCache, true) }}:
+    - task: Cache@2
+      inputs:
+        key: '"cargo-registry" | "${{ parameters.RustTarget }}" | Cargo.lock'
+        ${{ if eq(parameters.HostIsWindows, true )}}:
+          path: $(UserProfile)/.cargo/registry
+        ${{ if eq(parameters.HostIsWindows, false )}}:
+          path: $(HOME)/.cargo/registry
+      displayName: "Restore Cargo Registry Cache"
+    - task: Cache@2
+      inputs:
+        key: '"cargo" | "${{ parameters.RustTarget }}" | Cargo.lock'
+        path: $(Build.SourcesDirectory)/target
+      displayName: "Restore Cargo Build Cache"
+
+  - powershell: script/bootstrap.ps1
+    displayName: "Bootstrap Repo"

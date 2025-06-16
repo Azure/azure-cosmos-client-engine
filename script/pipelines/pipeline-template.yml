@@ -1,0 +1,152 @@
+parameters:
+  - name: IsReleaseBuild
+    type: boolean
+    default: false
+  - name: LinuxPool
+    type: object
+  - name: MacPool
+    type: object
+  - name: WindowsPool
+    type: object
+
+variables:
+  CONFIGURATION: release
+  RUSTFLAGS: "-D warnings"
+  GO_VERSION: "1.24.5"
+  PY_VERSION: "3.11"
+  EMULATORMSIURL: https://aka.ms/cosmosdb-emulator
+
+stages:
+  - stage: Validate
+    dependsOn: []
+    jobs:
+      - job: analyze
+        displayName: "Analyze and Test"
+        pool: ${{ parameters.LinuxPool }}
+        steps:
+          - template: prep-agent.yml
+          - pwsh: script/check-headers.ps1
+            displayName: "Check headers"
+          - script: just check
+            displayName: "Check formatting and license headers"
+
+      - job: query_correctness
+        strategy:
+          matrix:
+            rust:
+              language: "Rust"
+              target: "query_test_rust"
+              CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
+            go:
+              language: "Go"
+              target: "query_test_go"
+              CARGO_BUILD_TARGET: x86_64-pc-windows-gnu # Go requires the GNU build
+        displayName: "Run ${{variables.language}} Query Correctness Tests"
+        pool: ${{ parameters.WindowsPool }}
+        steps:
+          - template: prep-agent.yml
+            parameters:
+              HostIsWindows: true
+
+          - template: emulator-setup.yml
+
+          - script: just engine
+            displayName: "Build Client Engine"
+
+          - script: just $(target)
+            displayName: "Run query tests"
+
+  - stage: Build
+    dependsOn: []
+    jobs:
+      - job: x86_64_pc_windows_msvc
+        displayName: "Windows x86_64 MSVC"
+        pool: ${{ parameters.WindowsPool }}
+        steps:
+          - template: /script/pipelines/build-job.yml
+            parameters:
+              RustTarget: x86_64-pc-windows-msvc
+              HostIsWindows: true
+              PublishArtifacts: ${{ parameters.IsReleaseBuild }}
+
+              # Go doesn't support MSVC-built libraries, we'll test it in the x86_64-pc-windows-gnu build
+              RunGoTests: false 
+              VendorForGo: false
+
+      - job: x86_64_pc_windows_gnu
+        displayName: "Windows x86_64 GNU"
+        pool: ${{ parameters.WindowsPool }}
+        steps:
+          - template: /script/pipelines/build-job.yml
+            parameters:
+              RustTarget: x86_64-pc-windows-gnu
+              HostIsWindows: true
+              PublishArtifacts: ${{ parameters.IsReleaseBuild }}
+
+      - job: x86_64_linux_gnu
+        displayName: "Linux x86_64"
+        pool: ${{ parameters.LinuxPool }}
+        steps:
+          - template: /script/pipelines/build-job.yml
+            parameters:
+              RustTarget: x86_64-unknown-linux-gnu
+              PublishArtifacts: ${{ parameters.IsReleaseBuild }}
+
+      - job: x86_64_apple_darwin
+        displayName: "macOS x86_64"
+        pool: ${{ parameters.MacPool }}
+        steps:
+          - template: /script/pipelines/build-job.yml
+            parameters:
+              RustTarget: x86_64-apple-darwin
+              PublishArtifacts: ${{ parameters.IsReleaseBuild }}
+
+      - job: aarch64_apple_darwin
+        displayName: "macOS aarch64"
+        pool: ${{ parameters.MacPool }}
+        steps:
+          - template: /script/pipelines/build-job.yml
+            parameters:
+              RustTarget: aarch64-apple-darwin
+              PublishArtifacts: ${{ parameters.IsReleaseBuild }}
+
+              # The job runs on an x86_64 machine, so we can't run tests.
+              RunGoTests: false 
+              RunRustTests: false 
+
+  - ${{ if eq(parameters.IsReleaseBuild, true) }}:
+      - stage: Package
+        dependsOn:
+          - Build
+        jobs:
+          - job: package
+            displayName: "Create packages"
+            pool: ${{ parameters.LinuxPool }}
+            steps:
+              - checkout: none
+              - download: current
+                patterns: "**"
+              - bash: |
+                  # Move up to the pipeline workspace directory.
+                  # The default working directory is in the 's' subdirectory of this one.
+                  # See https://learn.microsoft.com/en-us/azure/devops/pipelines/agents/agents?view=azure-devops&tabs=yaml%2Cbrowser#agent-directory-structure for more.
+                  cd "$(Pipeline.Workspace)"
+
+                  prepare_package() {
+                    local prefix="$1"
+                    output_dir=./s/output/$prefix
+                    mkdir -p $output_dir
+                    echo "Created $output_dir"
+                    for dir in $(find . -maxdepth 1 -mindepth 1 -type d -name ${prefix}_\*); do
+                      target=$(echo $dir | cut -d'_' -f 2-)
+                      source="$dir/libcosmoscx.a"
+                      mkdir "$output_dir/$target"
+                      echo "Moving $source to $output_dir/$target"
+                      mv $source "$output_dir/$target"
+                    done
+                  }
+
+                  prepare_package "vendored"
+              - publish: output
+                displayName: "Publish packages"
+                artifact: "packages"
