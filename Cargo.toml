@@ -19,3 +19,14 @@ tokio = "1.45.0"
 azure_core = "0.25.0"
 azure_identity = "0.25.0"
 azure_data_cosmos = { version = "0.24.0", features = [ "preview_query_engine" ] }
+
+# Optimizations for the cosmoscx binary embedded in the Go package.
+# Because it's embedded in the Go module, we want it to be fairly small, without sacrificing performance.
+[profile.vendored]
+inherits = "release"
+# Strangely, enabling LTO DOES reduce the size of a static library, even though there's no link step.
+# Experiments showed it reduced the size by over 50% though.
+lto = true
+# We don't use 'strip' here because it doesn't work on static libraries.
+# The 'strip' parameter is only given to the linker, and there's no linker involved in a static library build.
+# We'll run strip manually on the final binary.

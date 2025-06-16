@@ -19,6 +19,35 @@ endif
 # If CARGO_BUILD_TARGET is not set, we'll use the host target.
 export CARGO_BUILD_TARGET ?= $(shell rustc -vV | grep 'host: ' | cut -d ' ' -f 2)
 
+# Clunky, but the easiest way to "parse" a target triple.
+ifeq ($(CARGO_BUILD_TARGET),x86_64-unknown-linux-gnu)
+	TARGET_OS := linux
+	TARGET_ARCH := x86_64
+	TARGET_TOOLCHAIN := gnu
+else ifeq ($(CARGO_BUILD_TARGET),aarch64-unknown-linux-gnu)
+	TARGET_OS := linux
+	TARGET_ARCH := aarch64
+	TARGET_TOOLCHAIN := gnu
+else ifeq ($(CARGO_BUILD_TARGET),x86_64-pc-windows-gnu)
+	TARGET_OS := windows
+	TARGET_ARCH := x86_64
+	TARGET_TOOLCHAIN := gnu
+else ifeq ($(CARGO_BUILD_TARGET),x86_64-pc-windows-msvc)
+	TARGET_OS := windows
+	TARGET_ARCH := x86_64
+	TARGET_TOOLCHAIN := msvc
+else ifeq ($(CARGO_BUILD_TARGET),aarch64-apple-darwin)
+	TARGET_OS := macos
+	TARGET_ARCH := aarch64
+	TARGET_TOOLCHAIN := apple
+else ifeq ($(CARGO_BUILD_TARGET),x86_64-apple-darwin)
+	TARGET_OS := macos
+	TARGET_ARCH := x86_64
+	TARGET_TOOLCHAIN := apple
+else
+	TARGET_OS := $(error Unsupported target '$(CARGO_BUILD_TARGET)')
+endif
+
 target_dir := $(target_root)/$(CARGO_BUILD_TARGET)/$(CONFIGURATION)
 artifacts_dir := $(artifacts_root)/$(CARGO_BUILD_TARGET)/$(CONFIGURATION)
 
@@ -30,32 +59,22 @@ COSMOSCX_HEADER_PATH ?= $(root_dir)/include/$(shared_lib_name).h
 
 LIBRARY_MODE ?= static
 
-ifeq ($(OS),Windows_NT)
-	platform := windows
-else
-	uname := $(shell uname)
-	ifeq ($(uname),Darwin)
-		platform := macos
-	else
-		platform := linux
-	endif
-endif
-
-ifeq ($(platform),windows)
+ifeq ($(TARGET_OS),windows)
 	PATH := $(artifacts_dir)/lib:$(PATH)
-	ifeq ($(CARGO_BUILD_TARGET), x86_64-pc-windows-gnu)
+	ifeq ($(TARGET_TOOLCHAIN), gnu)
 		shared_lib_filename := $(shared_lib_name).dll
 		static_lib_filename := lib$(shared_lib_name).a
 	else
 		shared_lib_filename := $(shared_lib_name).dll
 		static_lib_filename := $(shared_lib_name).lib
 	endif
-else ifeq ($(platform),macos)
+else ifeq ($(TARGET_OS),macos)
 	shared_lib_filename := lib$(shared_lib_name).dylib
 	static_lib_filename := lib$(shared_lib_name).a
 else
 	shared_lib_filename := lib$(shared_lib_name).so
 	static_lib_filename := lib$(shared_lib_name).a
+	strip_args := --strip-debug
 endif
 
 PKG_CONFIG_PATH := $(artifacts_dir):$(PKG_CONFIG_PATH)
@@ -91,12 +110,19 @@ help: #/ Show this help
 	@echo "Targets:"
 	@egrep -h '\s#/\s' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?#/ *"}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
+# disabled engine_python for now, as it's not currently supported.
 .PHONY: engine
-engine: engine_rust engine_c engine_python #/ Builds all versions of the engine
+engine: engine_rust engine_c #/ Builds all versions of the engine
+
+.PHONY: _generate_headers
+_generate_headers: #/ (Internal) Generates the header file for the engine.
+	cbindgen --quiet --config cbindgen.toml --crate "cosmoscx" --output $(COSMOSCX_HEADER_PATH)
 
 .PHONY: headers
-headers: #/ Builds the C header file for the engine, used by cgo and other bindgen-like tools
-	cbindgen --quiet --config cbindgen.toml --crate "cosmoscx" --output $(COSMOSCX_HEADER_PATH)
+headers: _generate_headers #/ Builds the C header file for the engine, used by cgo and other bindgen-like tools
+	# There needs to be a copy inside the Go package for cgo to find it.
+	[ -d $(root_dir)/go/azcosmoscx/include ] || mkdir -p $(root_dir)/go/azcosmoscx/include
+	cp $(COSMOSCX_HEADER_PATH) $(root_dir)/go/azcosmoscx/include/cosmoscx.h
 
 	# There needs to be a copy inside the Go package for cgo to find it.
 	[ -d $(root_dir)/go/azcosmoscx/include ] || mkdir -p $(root_dir)/go/azcosmoscx/include
@@ -109,13 +135,17 @@ engine_rust: #/ Builds the Core Rust Engine.
 .PHONY: engine_c
 engine_c: #/ Builds the C API for the engine, producing the shared and static libraries
 	cargo build --package "cosmoscx" --profile $(cargo_profile)
-	cargo rustc --package "cosmoscx" -- --print native-static-libs
 	mkdir -p $(artifacts_dir)/lib
 	ls -l $(target_dir)
 	cp $(target_dir)/$(shared_lib_filename) $(artifacts_dir)/lib/$(shared_lib_filename)
 	cp $(target_dir)/$(static_lib_filename) $(artifacts_dir)/lib/$(static_lib_filename)
+	nm -g ./go/azcosmoscx/libcosmoscx-vendor/x86_64-unknown-linux-gnu/libcosmoscx.a | grep -E " _?cosmoscx_" | cut -d ' ' -f 3 > $(artifacts_dir)/lib/cosmoscx-symbols.txt
 	script/helpers/update-dylib-name $(artifacts_dir)/lib/$(shared_lib_filename)
 	script/helpers/write-pkg-config.sh $(artifacts_dir) $(root_dir)/include
+
+.PHONE: _print-native-libraries
+_print-native-libraries: #/ (Internal) Prints the native libraries that will be used by
+	cargo rustc --package "cosmoscx" --profile $(cargo_profile) -- --print native-static-libs
 
 .PHONY: engine_python
 engine_python: #/ Builds the python extension module for the engine
@@ -126,8 +156,8 @@ test: test_rust test_go #/ Runs all language binding tests, except Python which 
 
 .PHONY: test_rust
 test_rust:
-	RUSTFLAGS=$(TEST_RUSTFLAGS) cargo test --profile $(cargo_profile) --package azure_data_cosmos_engine --package cosmoscx --all-features
-	cargo doc --profile $(cargo_profile) --no-deps --workspace --all-features
+	RUSTFLAGS=$(TEST_RUSTFLAGS) cargo test --profile $(cargo_profile) --package azure_data_cosmos_engine --package cosmoscx
+	cargo doc --profile $(cargo_profile) --no-deps --workspace
 
 .PHONY: test_go
 test_go: #/ Runs the Go language binding tests
@@ -187,6 +217,7 @@ show_pkg_config: #/ Shows the pkg-config settings for the library under the curr
 vendor: engine_c #/ Updates the vendored copy of the library
 	mkdir -p $(root_dir)/go/azcosmoscx/libcosmoscx-vendor/$(CARGO_BUILD_TARGET)
 	cp $(artifacts_dir)/lib/$(static_lib_filename) $(root_dir)/go/azcosmoscx/libcosmoscx-vendor/$(CARGO_BUILD_TARGET)/$(static_lib_filename)
+	strip $(strip_args) $(root_dir)/go/azcosmoscx/libcosmoscx-vendor/$(CARGO_BUILD_TARGET)/$(static_lib_filename)
 
 .PHONY: baselines
 baselines: #/ Updates query result baselines using the emulator and the .NET client.

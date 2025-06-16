@@ -29,21 +29,21 @@ done
 echo "Checking dependencies we don't auto-install..."
 script/check-deps
 
-echo "Installing Maturin..."
-pipx install maturin
+# echo "Installing Maturin..."
+# pipx install maturin
 
-echo "Installing Poetry..."
-pipx install poetry
-poetry config virtualenvs.in-project true
+# echo "Installing Poetry..."
+# pipx install poetry
+# poetry config virtualenvs.in-project true
 
 echo "Installing cbindgen..."
 cargo install --locked cbindgen@0.29.0
 
-echo "Activating virtualenv..."
-eval "$(poetry -C ./python env activate)"
+# echo "Activating virtualenv..."
+# eval "$(poetry -C ./python env activate)"
 
-echo "Installing Python dependencies..."
-poetry -C ./python install
+# echo "Installing Python dependencies..."
+# poetry -C ./python install
 
 echo "Installing addlicense..."
 go install github.com/google/addlicense@v1.1.1
