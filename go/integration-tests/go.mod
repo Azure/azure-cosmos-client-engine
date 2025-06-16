@@ -25,7 +25,7 @@ require (
 
 require (
 	github.com/Azure/azure-cosmos-client-engine/go/azcosmoscx v0.0.0-00010101000000-000000000000
-	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.4.0
+	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.5.0-beta.0
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect

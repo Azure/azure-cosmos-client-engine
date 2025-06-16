@@ -174,7 +174,6 @@ pub async fn run_baseline_test(
             .try_collect::<Vec<_>>()
             .await?
             .into_iter()
-            .flat_map(|p| p.into_items())
             .map(sanitize_item)
             .collect::<Vec<_>>()
     };

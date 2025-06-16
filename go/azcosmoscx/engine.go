@@ -5,7 +5,7 @@ package azcosmoscx
 
 // TODO: We need to evaluate how to distribute the native library itself and how best to link it (static/shared).
 
-// #cgo CFLAGS: -I${SRCDIR}/../../include
+// #cgo CFLAGS: -I${SRCDIR}/include
 // #include <cosmoscx.h>
 import "C"
 
