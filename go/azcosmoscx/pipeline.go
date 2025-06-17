@@ -3,7 +3,7 @@
 
 package azcosmoscx
 
-// #cgo CFLAGS: -I${SRCDIR}/../../include
+// #cgo CFLAGS: -I${SRCDIR}/include
 // #include <cosmoscx.h>
 import "C"
 import (
