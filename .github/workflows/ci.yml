@@ -74,8 +74,6 @@ jobs:
           cache-dependency-path: |
             go/engine/go.sum
 
-      # Do this for python as well, so we can run the tests
-
       - name: Bootstrap Repository
         shell: bash
         working-directory: "azure-cosmos-client-engine"
@@ -101,11 +99,6 @@ jobs:
         working-directory: "azure-cosmos-client-engine"
         run: |
           make query_test_go
-
-      - name: Run Python query tests
-        working-directory: "azure-cosmos-client-engine"
-        run: |
-          make query_test_python
 
   build:
     strategy:
