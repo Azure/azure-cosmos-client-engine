@@ -1,0 +1,21 @@
+{
+    "name": "vector",
+    "testData": "../testdata/vectorTestData.json",
+    "queries": [
+        {
+            "name": "quantized_cosine",
+            "query": "SELECT c.text, VectorDistance(c.embedding, @testData_searchVector) AS SimilarityScore FROM c ORDER BY VectorDistance(c.embedding, @testData_searchVector)",
+            "container": "QuantizedCosine"
+        },
+        {
+            "name": "flat_euclidean",
+            "query": "SELECT c.text, VectorDistance(c.embedding, @testData_searchVector) AS SimilarityScore FROM c ORDER BY VectorDistance(c.embedding, @testData_searchVector)",
+            "container": "FlatEuclidean"
+        },
+        {
+            "name": "diskann_dotproduct",
+            "query": "SELECT c.text, VectorDistance(c.embedding, @testData_searchVector) AS SimilarityScore FROM c ORDER BY VectorDistance(c.embedding, @testData_searchVector)",
+            "container": "DiskANNDotProduct"
+        }
+    ]
+}

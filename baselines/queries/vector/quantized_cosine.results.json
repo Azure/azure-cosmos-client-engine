@@ -1,0 +1,42 @@
+[
+  {
+    "text": "Great weather today!",
+    "SimilarityScore": 0.5208898448992038
+  },
+  {
+    "text": "Good afternoon!",
+    "SimilarityScore": 0.49311398903900117
+  },
+  {
+    "text": "Good morning!",
+    "SimilarityScore": 0.47497166952845316
+  },
+  {
+    "text": "Awful weather today.",
+    "SimilarityScore": 0.422785976048198
+  },
+  {
+    "text": "Hope you're doing well.",
+    "SimilarityScore": 0.37793372606125714
+  },
+  {
+    "text": "Excuse me please.",
+    "SimilarityScore": 0.2855292166970657
+  },
+  {
+    "text": "Is this the right place?",
+    "SimilarityScore": 0.2720328426423252
+  },
+  {
+    "text": "The hero saves the day again.",
+    "SimilarityScore": 0.2511950828563507
+  },
+  {
+    "text": "Don't worry about it.",
+    "SimilarityScore": 0.21912174763248116
+  },
+  {
+    "text": "Dinosaurs were huge.",
+    "SimilarityScore": 0.0551241293315559
+  }
+]

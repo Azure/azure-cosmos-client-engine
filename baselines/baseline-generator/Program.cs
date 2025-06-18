@@ -1,10 +1,11 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-﻿// Default to the emulator, and it's well-known (non-secret) key
+// Default to the emulator, and it's well-known (non-secret) key
 var endpoint = "https://localhost:8081";
 var key = "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==";
 string? baselineFile = null;
+List<string> queryNames = new List<string>();
 
 for (int i = 0; i < args.Length; i++)
 {
@@ -17,6 +18,7 @@ for (int i = 0; i < args.Length; i++)
             Console.WriteLine("Options:");
             Console.WriteLine("  --endpoint <endpoint>       The endpoint of the Cosmos DB.");
             Console.WriteLine("  --key <key>                 The key for the Cosmos DB.");
+            Console.WriteLine("  --query <query-name>        Specific query to execute (can be specified multiple times).");
             return;
         case "--endpoint":
         case "-e":
@@ -39,6 +41,18 @@ for (int i = 0; i < args.Length; i++)
             else
             {
                 Console.WriteLine("Error: Missing value for --key.");
+                return;
+            }
+            break;
+        case "--query":
+        case "-q":
+            if (i + 1 < args.Length)
+            {
+                queryNames.Add(args[++i]);
+            }
+            else
+            {
+                Console.WriteLine("Error: Missing value for --query.");
                 return;
             }
             break;
@@ -66,7 +80,7 @@ if (File.Exists(baselineFile))
 {
     // Single baseline file
     Console.WriteLine($"Generating baseline: {baselineFile}");
-    await BaselineGenerator.GenerateBaselineAsync(endpoint, key, baselineFile);
+    await BaselineGenerator.GenerateBaselineAsync(endpoint, key, baselineFile, queryNames);
 }
 else if (Directory.Exists(baselineFile))
 {
@@ -75,6 +89,6 @@ else if (Directory.Exists(baselineFile))
     foreach (var subdirFile in subdirFiles)
     {
         Console.WriteLine($"Generating baseline: {subdirFile}");
-        await BaselineGenerator.GenerateBaselineAsync(endpoint, key, subdirFile);
+        await BaselineGenerator.GenerateBaselineAsync(endpoint, key, subdirFile, queryNames);
     }
 }
