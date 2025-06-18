@@ -141,7 +141,12 @@ test_python: #/ Runs the Python language binding tests
 	poetry -C ./python run python -m pytest -rP .
 
 .PHONY: query_test
-query_test: query_test_rust query_test_go #/ Runs all query tests
+query_test: query_test_rust query_test_go query_test_python #/ Runs all query tests
+
+.PHONY: query_test_python
+query_test_python: #/ Runs the Python query tests
+	@echo "Running Python query tests..."
+	poetry -C ./python run python -m pytest -rP ./test/query-tests
 
 .PHONY: query_test_rust
 query_test_rust: #/ Runs the Rust query tests
