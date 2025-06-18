@@ -1,11 +1,11 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-use std::{path::PathBuf, sync::Arc};
+use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use azure_core::{credentials::Secret, http::TransportOptions};
 use azure_data_cosmos::{
-    CosmosClient, CosmosClientOptions, PartitionKey, PartitionKeyValue, QueryOptions,
+    CosmosClient, CosmosClientOptions, PartitionKey, PartitionKeyValue, Query, QueryOptions,
     clients::{ContainerClient, DatabaseClient},
     models::{ContainerProperties, PartitionKeyDefinition},
 };
@@ -18,6 +18,9 @@ use tracing_subscriber::EnvFilter;
 struct TestFileQuery {
     pub name: String,
     pub query: String,
+    pub container: String,
+    #[serde(default)]
+    pub parameters: HashMap<String, serde_json::Value>,
 }
 
 #[derive(Deserialize)]
@@ -30,8 +33,10 @@ struct TestFile {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct TestDataFile {
-    pub container_properties: ContainerProperties,
+    pub containers: Vec<ContainerProperties>,
     pub data: Vec<serde_json::Value>,
+    #[serde(default)]
+    pub parameters: HashMap<String, serde_json::Value>,
 }
 
 // This key is not a secret, it's published in the docs (https://learn.microsoft.com/en-us/azure/cosmos-db/emulator).
@@ -67,7 +72,7 @@ fn create_client() -> Result<CosmosClient, azure_core::Error> {
 
 async fn create_test_container(
     client: &CosmosClient,
-    mut properties: ContainerProperties,
+    properties: ContainerProperties,
     test_id: &str,
     test_name: &str,
 ) -> Result<(DatabaseClient, ContainerClient), Box<dyn std::error::Error>> {
@@ -75,10 +80,10 @@ async fn create_test_container(
     client.create_database(&database_name, None).await?;
     tracing::debug!(database_name, "created database");
     let db_client = client.database_client(&database_name);
-    properties.id = "TestContainer".into();
+    let id = properties.id.clone();
     db_client.create_container(properties, None).await?;
     tracing::debug!("created container");
-    let container_client = db_client.container_client("TestContainer");
+    let container_client = db_client.container_client(&id);
     Ok((db_client, container_client))
 }
 
@@ -134,12 +139,25 @@ pub async fn run_baseline_test(
     let test_data: TestDataFile = serde_json::from_str(&std::fs::read_to_string(&test_data_file)?)?;
     tracing::debug!(?test_data_file, "loaded test data");
 
+    // Identify which container to use for the test
+    let test_container_properties = test_data
+        .containers
+        .iter()
+        .find(|c| c.id == test_query.container)
+        .ok_or_else(|| {
+            format!(
+                "test query '{}' references container '{}', but that container was not found in the test data
+                file",
+                test_query.name, test_query.container
+            )
+        })?;
+
     // Create the test database and container
     let test_id = uuid::Uuid::new_v4().simple().to_string();
     let client = create_client()?;
     let (db_client, container_client) = create_test_container(
         &client,
-        test_data.container_properties.clone(),
+        test_container_properties.clone(),
         &test_id,
         test_name,
     )
@@ -150,7 +168,7 @@ pub async fn run_baseline_test(
         let _insert_test_data = tracing::info_span!("insert_test_data");
         tracing::info!("inserting test data");
         for item in test_data.data {
-            let key = extract_partition_key(&item, &test_data.container_properties.partition_key)?;
+            let key = extract_partition_key(&item, &test_container_properties.partition_key)?;
             container_client.create_item(key, &item, None).await?;
         }
         tracing::info!("inserted test data");
@@ -165,11 +183,14 @@ pub async fn run_baseline_test(
             query_engine: Some(Arc::new(azure_data_cosmos_engine::query::QueryEngine)),
             ..Default::default()
         };
-        let pager = container_client.query_items::<serde_json::Value>(
-            test_query.query,
-            (),
-            Some(options),
-        )?;
+        let mut query = Query::from(test_query.query);
+        for (name, value) in test_query.parameters {
+            query = query.with_parameter(format!("@{}", name), value)?;
+        }
+        for (name, value) in test_data.parameters {
+            query = query.with_parameter(format!("@testData_{}", name), value)?;
+        }
+        let pager = container_client.query_items::<serde_json::Value>(query, (), Some(options))?;
         pager
             .try_collect::<Vec<_>>()
             .await?

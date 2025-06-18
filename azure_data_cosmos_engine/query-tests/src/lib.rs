@@ -9,5 +9,8 @@ mod runner;
 baseline_tests! {
     order_by {
         streaming_1,
+    },
+    vector {
+        quantized_cosine,
     }
 }
