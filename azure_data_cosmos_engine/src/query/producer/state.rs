@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
 use std::cmp::Ordering;
 
 use crate::query::{DataRequest, PartitionKeyRange};
@@ -35,9 +38,7 @@ impl Eq for PartitionState {}
 
 impl PartialOrd for PartitionState {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.pkrange
-            .min_inclusive
-            .partial_cmp(&other.pkrange.min_inclusive)
+        Some(self.cmp(other))
     }
 }
 

@@ -1,3 +1,6 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
 use std::{cmp::Ordering, fmt::Debug, sync::Arc};
 
 use crate::{
@@ -108,8 +111,6 @@ impl Sorting {
 #[cfg(test)]
 mod tests {
     use std::cmp::Ordering;
-
-    use serde_json::value::RawValue;
 
     use crate::{
         query::{producer::sorting::Sorting, JsonQueryClauseItem, QueryResult},

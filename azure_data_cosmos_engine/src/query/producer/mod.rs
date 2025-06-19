@@ -326,7 +326,7 @@ impl<T: Debug, I: QueryClauseItem> ItemProducer<T, I> {
                 ErrorKind::UnknownPartitionKeyRange
                     .with_message(format!("unknown partition key range ID: {}", pkrange_id))
             })?;
-        self.strategy.provide_data(&partition, data)?;
+        self.strategy.provide_data(partition, data)?;
         partition.update_state(continuation);
 
         Ok(())
