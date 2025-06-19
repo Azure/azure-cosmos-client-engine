@@ -99,17 +99,21 @@ async fn create_test_container(
     Ok((db_client, container_client))
 }
 
+static TRACING_SUBSCRIBER_INIT: std::sync::Once = std::sync::Once::new();
+
 const BASELINE_QUERIES_DIR: &str = "baselines/queries";
 pub async fn run_baseline_test(
     suite_name: &str,
     test_name: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Enable tracing
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env())
-        .with_test_writer()
-        .try_init()
-        .expect("to successfully initialize tracing");
+    TRACING_SUBSCRIBER_INIT.call_once(|| {
+        tracing_subscriber::fmt()
+            .with_env_filter(EnvFilter::from_default_env())
+            .with_test_writer()
+            .try_init()
+            .expect("to successfully initialize tracing");
+    });
     let _span = tracing::info_span!("baseline_test", suite_name, test_name).entered();
 
     // Make the test file path absolute

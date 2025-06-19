@@ -131,15 +131,16 @@ impl<T: Debug, I: QueryClauseItem> QueryPipeline<T, I> {
         tracing::trace!(?query, ?plan, "creating query pipeline");
 
         let producer = if plan.query_info.order_by.is_empty() {
-            tracing::debug!("using unordered merge strategy");
+            tracing::debug!("using unordered pipeline");
             ItemProducer::unordered(pkranges)
         } else {
             results_are_bare_payloads = false;
             if plan.query_info.has_non_streaming_order_by {
-                todo!()
+                tracing::debug!(?plan.query_info.order_by, "using non-streaming ORDER BY pipeline");
+                ItemProducer::non_streaming(pkranges, plan.query_info.order_by)
             } else {
                 // We can stream results, there's no vector or full-text search in the query.
-                tracing::debug!(?plan.query_info.order_by, "using streaming ORDER BY merge strategy");
+                tracing::debug!(?plan.query_info.order_by, "using streaming ORDER BY pipeline");
                 ItemProducer::streaming(pkranges, plan.query_info.order_by)
             }
         };

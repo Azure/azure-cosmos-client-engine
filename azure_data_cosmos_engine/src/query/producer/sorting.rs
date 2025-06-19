@@ -1,76 +1,99 @@
-use std::cmp::Ordering;
-use std::fmt::Debug;
+use std::{cmp::Ordering, fmt::Debug, sync::Arc};
 
 use crate::{
     query::{QueryClauseItem, QueryResult, SortOrder},
     ErrorKind,
 };
 
-pub struct Sorting(pub Vec<SortOrder>);
+// If we ever want to make this Send, to support parallel processing, we can use `Arc` instead of `Rc`.
+pub struct SortableResult<T: Debug, I: QueryClauseItem>(Sorting, QueryResult<T, I>);
 
-/// Represents the result of the sorting comparison.
-///
-/// We use this instead of [`Ordering`] because we may be ordering fields either ascending or descending.
-/// This type handles that, so returning values like `Less`, `Greater`, or `Equal` isn't as clear, and we want a clear distinction between the two.
-#[derive(Debug, PartialEq, Eq)]
-pub enum SortResult {
-    /// The left item should be sorted before the right item.
-    LeftBeforeRight,
-
-    /// The right item should be sorted before the left item.
-    RightBeforeLeft,
-
-    /// The two items are equal in terms of sorting.
-    Equal,
+impl<T: Debug, I: QueryClauseItem> PartialEq for SortableResult<T, I> {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other) == Ordering::Equal
+    }
 }
 
+impl<T: Debug, I: QueryClauseItem> Eq for SortableResult<T, I> {}
+
+impl<T: Debug, I: QueryClauseItem> PartialOrd for SortableResult<T, I> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<T: Debug, I: QueryClauseItem> Ord for SortableResult<T, I> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        // Unless the gateway provides invalid data, this shouldn't fail.
+        self.0
+            .compare(Some(&self.1.order_by_items), Some(&other.1.order_by_items))
+            .expect("Sorting should not fail")
+    }
+}
+
+impl<T: Debug, I: QueryClauseItem> SortableResult<T, I> {
+    pub fn new(sorting: Sorting, result: QueryResult<T, I>) -> Self {
+        Self(sorting, result)
+    }
+}
+
+impl<T: Debug, I: QueryClauseItem> From<SortableResult<T, I>> for QueryResult<T, I> {
+    fn from(value: SortableResult<T, I>) -> Self {
+        value.1
+    }
+}
+
+#[derive(Clone)]
+pub struct Sorting(Arc<[SortOrder]>);
+
 impl Sorting {
+    pub fn new(ordering: Vec<SortOrder>) -> Self {
+        Self(Arc::from(ordering))
+    }
+
     /// Compares two items based on the sorting order defined in this `Sorting` instance.
     ///
+    /// This ALWAYS returns an ordering based on sorting from LARGEST to SMALLEST, meaning that the first item in the list is greater than the second item.
+    /// We do this because we use a [`BinaryHeap`](std::collections::BinaryHeap) to sort items, which is a max-heap.
+    ///
+    /// In other words, we return an [`Ordering`] such that a DESCENDING sort of the items will result in the user's desired sort order.
+    ///
     /// The `left` and `right` parameters are optional, allowing for comparisons where one or both items may be absent.
-    pub fn compare<T: Debug, I: QueryClauseItem>(
+    pub fn compare<I: QueryClauseItem>(
         &self,
-        left: Option<&QueryResult<T, I>>,
-        right: Option<&QueryResult<T, I>>,
-    ) -> crate::Result<SortResult> {
+        left: Option<&[I]>,
+        right: Option<&[I]>,
+    ) -> crate::Result<Ordering> {
         let (left, right) = match (left, right) {
             (Some(left), Some(right)) => (left, right),
 
             // "Empty" partitions sort before non-empty partitions, because they need to cause iteration to stop so we can get more data.
-            (None, Some(_)) => return Ok(SortResult::LeftBeforeRight),
-            (Some(_), None) => return Ok(SortResult::RightBeforeLeft),
+            (None, Some(_)) => return Ok(Ordering::Greater),
+            (Some(_), None) => return Ok(Ordering::Less),
             (None, None) => {
-                return Ok(SortResult::Equal);
+                return Ok(Ordering::Equal);
             }
         };
 
-        if left.order_by_items.len() != right.order_by_items.len() {
+        if left.len() != right.len() {
             return Err(ErrorKind::InvalidGatewayResponse
                 .with_message("items have inconsistent numbers of order by items"));
         }
 
-        if left.order_by_items.len() != self.0.len() {
+        if left.len() != self.0.len() {
             return Err(ErrorKind::InvalidGatewayResponse
                 .with_message("items have inconsistent numbers of order by items"));
         }
 
-        let items = left
-            .order_by_items
-            .iter()
-            .zip(right.order_by_items.iter())
-            .zip(self.0.iter());
+        let items = left.iter().zip(right.iter()).zip(self.0.iter());
 
         for ((left, right), ordering) in items {
             let order = left.compare(right)?;
             match (ordering, order) {
-                (SortOrder::Ascending, Ordering::Less) => return Ok(SortResult::LeftBeforeRight),
-                (SortOrder::Ascending, Ordering::Greater) => {
-                    return Ok(SortResult::RightBeforeLeft)
-                }
-                (SortOrder::Descending, Ordering::Less) => return Ok(SortResult::RightBeforeLeft),
-                (SortOrder::Descending, Ordering::Greater) => {
-                    return Ok(SortResult::LeftBeforeRight)
-                }
+                (SortOrder::Ascending, Ordering::Less) => return Ok(Ordering::Greater),
+                (SortOrder::Ascending, Ordering::Greater) => return Ok(Ordering::Less),
+                (SortOrder::Descending, Ordering::Less) => return Ok(Ordering::Less),
+                (SortOrder::Descending, Ordering::Greater) => return Ok(Ordering::Greater),
 
                 // If the order is equal, we continue to the next item.
                 (_, Ordering::Equal) => {}
@@ -78,19 +101,18 @@ impl Sorting {
         }
 
         // The values are equal. Our caller will have to pick a tiebreaker.
-        Ok(SortResult::Equal)
+        Ok(Ordering::Equal)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::cmp::Ordering;
+
     use serde_json::value::RawValue;
 
     use crate::{
-        query::{
-            producer::sorting::{SortResult, Sorting},
-            JsonQueryClauseItem, QueryResult,
-        },
+        query::{producer::sorting::Sorting, JsonQueryClauseItem, QueryResult},
         ErrorKind,
     };
 
@@ -120,13 +142,15 @@ mod tests {
             group_by_items: vec![],
             payload: serde_json::value::RawValue::from_string(r#"{"a":1}"#.to_string()).unwrap(),
         };
-        let sorting = Sorting(vec![
+        let sorting = Sorting::new(vec![
             crate::query::SortOrder::Ascending,
             crate::query::SortOrder::Descending,
         ]);
         assert_eq!(
-            SortResult::LeftBeforeRight,
-            sorting.compare(Some(&left), Some(&right)).unwrap()
+            Ordering::Greater,
+            sorting
+                .compare(Some(&left.order_by_items), Some(&right.order_by_items))
+                .unwrap()
         );
     }
 
@@ -156,13 +180,15 @@ mod tests {
             group_by_items: vec![],
             payload: serde_json::value::RawValue::from_string(r#"{"a":1}"#.to_string()).unwrap(),
         };
-        let sorting = Sorting(vec![
+        let sorting = Sorting::new(vec![
             crate::query::SortOrder::Ascending,
             crate::query::SortOrder::Descending,
         ]);
         assert_eq!(
-            SortResult::Equal,
-            sorting.compare(Some(&left), Some(&right)).unwrap()
+            Ordering::Equal,
+            sorting
+                .compare(Some(&left.order_by_items), Some(&right.order_by_items))
+                .unwrap()
         );
     }
 
@@ -180,23 +206,25 @@ mod tests {
             group_by_items: vec![],
             payload: serde_json::value::RawValue::from_string(r#"{"a":1}"#.to_string()).unwrap(),
         };
-        let sorting = Sorting(vec![
+        let sorting = Sorting::new(vec![
             crate::query::SortOrder::Ascending,
             crate::query::SortOrder::Descending,
         ]);
         assert_eq!(
-            SortResult::LeftBeforeRight,
-            sorting.compare(None, Some(&non_empty)).unwrap()
-        );
-        assert_eq!(
-            SortResult::RightBeforeLeft,
-            sorting.compare(Some(&non_empty), None).unwrap()
-        );
-        assert_eq!(
-            SortResult::Equal,
+            Ordering::Greater,
             sorting
-                .compare::<Box<RawValue>, JsonQueryClauseItem>(None, None)
+                .compare(None, Some(&non_empty.order_by_items))
                 .unwrap()
+        );
+        assert_eq!(
+            Ordering::Less,
+            sorting
+                .compare(Some(&non_empty.order_by_items), None)
+                .unwrap()
+        );
+        assert_eq!(
+            Ordering::Equal,
+            sorting.compare::<JsonQueryClauseItem>(None, None).unwrap()
         );
     }
 
@@ -221,11 +249,13 @@ mod tests {
             group_by_items: vec![],
             payload: serde_json::value::RawValue::from_string(r#"{"a":1}"#.to_string()).unwrap(),
         };
-        let sorting = Sorting(vec![
+        let sorting = Sorting::new(vec![
             crate::query::SortOrder::Ascending,
             crate::query::SortOrder::Descending,
         ]);
-        let err = sorting.compare(Some(&left), Some(&right)).unwrap_err();
+        let err = sorting
+            .compare(Some(&left.order_by_items), Some(&right.order_by_items))
+            .unwrap_err();
         assert_eq!(ErrorKind::InvalidGatewayResponse, err.kind());
     }
 }

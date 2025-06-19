@@ -1,7 +1,5 @@
 use std::cmp::Ordering;
 
-use serde::de;
-
 use crate::query::{DataRequest, PartitionKeyRange};
 
 /// Represents the current stage of pagination for a partition.

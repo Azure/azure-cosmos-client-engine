@@ -6,8 +6,6 @@ use std::fmt::Debug;
 
 use crate::ErrorKind;
 
-use super::SortOrder;
-
 /// Represents the result of a rewritten query.
 ///
 /// When we generate a query plan, the gateway rewrites the query so that it can be properly executed against each partition.
