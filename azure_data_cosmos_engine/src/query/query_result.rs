@@ -23,13 +23,13 @@ pub struct QueryResult<T: Debug, I: QueryClauseItem> {
     #[allow(dead_code)]
     #[serde(default)]
     #[cfg_attr(feature = "python_conversions", pyo3(item("groupByItems"), default))]
-    group_by_items: Vec<I>,
+    pub group_by_items: Vec<I>,
 
     #[serde(default)]
     #[cfg_attr(feature = "python_conversions", pyo3(item("orderByItems"), default))]
-    order_by_items: Vec<I>,
+    pub order_by_items: Vec<I>,
 
-    payload: T,
+    pub payload: T,
 }
 
 impl<T: Debug, I: QueryClauseItem> QueryResult<T, I> {
@@ -53,46 +53,6 @@ impl<T: Debug, I: QueryClauseItem> QueryResult<T, I> {
             order_by_items: Vec::new(),
             payload,
         }
-    }
-
-    /// Compares two [`QueryResult`]s based on their `ORDER BY` items and the provided sort ordering.
-    ///
-    /// We can't just implement [`PartialOrd`] here, because we need to accept a sort order and return an error.
-    pub fn compare(
-        &self,
-        other: &QueryResult<T, I>,
-        orderings: &[SortOrder],
-    ) -> crate::Result<std::cmp::Ordering> {
-        if self.order_by_items.len() != other.order_by_items.len() {
-            return Err(ErrorKind::InvalidGatewayResponse
-                .with_message("items have inconsistent numbers of order by items"));
-        }
-
-        if self.order_by_items.len() != orderings.len() {
-            return Err(ErrorKind::InvalidGatewayResponse
-                .with_message("items have inconsistent numbers of order by items"));
-        }
-
-        let items = self
-            .order_by_items
-            .iter()
-            .zip(other.order_by_items.iter())
-            .zip(orderings.iter());
-
-        for ((left, right), ordering) in items {
-            let order = left.compare(right)?;
-            let order = match ordering {
-                SortOrder::Ascending => order,
-                SortOrder::Descending => order.reverse(),
-            };
-
-            if order != std::cmp::Ordering::Equal {
-                return Ok(order);
-            }
-        }
-
-        // The values are equal. Our caller will have to pick a tiebreaker.
-        Ok(std::cmp::Ordering::Equal)
     }
 
     pub fn payload(&self) -> &T {
@@ -329,98 +289,5 @@ mod tests {
             {"item": [1, 2]}, {"item": [3, 4]} => Err(_),
             {"item": {"a": 1}}, {} => Err(_),
         }
-    }
-
-    #[test]
-    pub fn compare_query_results_different() {
-        let left = QueryResult {
-            order_by_items: vec![
-                JsonQueryClauseItem {
-                    item: Some(serde_json::json!(1)),
-                },
-                JsonQueryClauseItem {
-                    item: Some(serde_json::json!("zzzz")),
-                },
-            ],
-            group_by_items: vec![],
-            payload: serde_json::value::RawValue::from_string(r#"{"a":1}"#.to_string()).unwrap(),
-        };
-        let right = QueryResult {
-            order_by_items: vec![
-                JsonQueryClauseItem {
-                    item: Some(serde_json::json!(1)),
-                },
-                JsonQueryClauseItem {
-                    item: Some(serde_json::json!("yyyy")),
-                },
-            ],
-            group_by_items: vec![],
-            payload: serde_json::value::RawValue::from_string(r#"{"a":1}"#.to_string()).unwrap(),
-        };
-        assert_eq!(
-            Ordering::Less,
-            left.compare(&right, &[SortOrder::Ascending, SortOrder::Descending])
-                .unwrap()
-        );
-    }
-
-    #[test]
-    pub fn compare_query_results_identical() {
-        let left = QueryResult {
-            order_by_items: vec![
-                JsonQueryClauseItem {
-                    item: Some(serde_json::json!(1)),
-                },
-                JsonQueryClauseItem {
-                    item: Some(serde_json::json!("zzzz")),
-                },
-            ],
-            group_by_items: vec![],
-            payload: serde_json::value::RawValue::from_string(r#"{"a":1}"#.to_string()).unwrap(),
-        };
-        let right = QueryResult {
-            order_by_items: vec![
-                JsonQueryClauseItem {
-                    item: Some(serde_json::json!(1)),
-                },
-                JsonQueryClauseItem {
-                    item: Some(serde_json::json!("zzzz")),
-                },
-            ],
-            group_by_items: vec![],
-            payload: serde_json::value::RawValue::from_string(r#"{"a":1}"#.to_string()).unwrap(),
-        };
-        assert_eq!(
-            Ordering::Equal,
-            left.compare(&right, &[SortOrder::Ascending, SortOrder::Descending])
-                .unwrap()
-        );
-    }
-
-    #[test]
-    pub fn compare_query_results_inconsistent() {
-        let left = QueryResult {
-            order_by_items: vec![JsonQueryClauseItem {
-                item: Some(serde_json::json!(1)),
-            }],
-            group_by_items: vec![],
-            payload: serde_json::value::RawValue::from_string(r#"{"a":1}"#.to_string()).unwrap(),
-        };
-        let right = QueryResult {
-            order_by_items: vec![
-                JsonQueryClauseItem {
-                    item: Some(serde_json::json!(1)),
-                },
-                JsonQueryClauseItem {
-                    item: Some(serde_json::json!("zzzz")),
-                },
-            ],
-            group_by_items: vec![],
-            payload: serde_json::value::RawValue::from_string(r#"{"a":1}"#.to_string()).unwrap(),
-        };
-        let err = left
-            .compare(&right, &[SortOrder::Ascending, SortOrder::Descending])
-            .unwrap_err();
-        assert_eq!(ErrorKind::InvalidGatewayResponse, err.kind());
     }
 }

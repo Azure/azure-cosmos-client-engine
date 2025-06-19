@@ -5,9 +5,11 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use azure_core::{credentials::Secret, http::TransportOptions};
 use azure_data_cosmos::{
-    CosmosClient, CosmosClientOptions, PartitionKey, PartitionKeyValue, Query, QueryOptions,
+    CosmosClient, CosmosClientOptions, CreateContainerOptions, PartitionKey, PartitionKeyValue,
+    Query, QueryOptions,
     clients::{ContainerClient, DatabaseClient},
-    models::{ContainerProperties, PartitionKeyDefinition},
+    models::{ContainerProperties, PartitionKeyDefinition, ThroughputProperties},
+    query::QueryExecutorOptions,
 };
 use futures::TryStreamExt;
 use serde::Deserialize;
@@ -42,6 +44,8 @@ struct TestDataFile {
 // This key is not a secret, it's published in the docs (https://learn.microsoft.com/en-us/azure/cosmos-db/emulator).
 const COSMOS_EMULATOR_WELL_KNOWN_KEY: &str =
     "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==";
+
+const THROUGHPUT_FOR_TWO_PARTITIONS: usize = 40_000;
 
 fn create_client() -> Result<CosmosClient, azure_core::Error> {
     let endpoint = std::env::var("AZURE_COSMOS_ENDPOINT")
@@ -81,7 +85,15 @@ async fn create_test_container(
     tracing::debug!(database_name, "created database");
     let db_client = client.database_client(&database_name);
     let id = properties.id.clone();
-    db_client.create_container(properties, None).await?;
+    db_client
+        .create_container(
+            properties,
+            Some(CreateContainerOptions {
+                throughput: Some(ThroughputProperties::manual(THROUGHPUT_FOR_TWO_PARTITIONS)),
+                ..Default::default()
+            }),
+        )
+        .await?;
     tracing::debug!("created container");
     let container_client = db_client.container_client(&id);
     Ok((db_client, container_client))
@@ -181,6 +193,9 @@ pub async fn run_baseline_test(
 
         let options = QueryOptions {
             query_engine: Some(Arc::new(azure_data_cosmos_engine::query::QueryEngine)),
+            query_executor_options: QueryExecutorOptions {
+                max_fetch_items_per_page: Some(1),
+            },
             ..Default::default()
         };
         let mut query = Query::from(test_query.query);
