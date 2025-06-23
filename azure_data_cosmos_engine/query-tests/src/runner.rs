@@ -242,7 +242,7 @@ pub async fn run_baseline_test(
         tracing_subscriber::fmt()
             .with_env_filter(
                 EnvFilter::builder()
-                    .with_default_directive(LevelFilter::ERROR.into()) // Log errors by default
+                    .with_default_directive(LevelFilter::WARN.into()) // Log errors by default
                     .from_env_lossy(),
             )
             .with_test_writer()
