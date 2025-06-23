@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
 prefix="${1}"
 includedir="${2}"
 
