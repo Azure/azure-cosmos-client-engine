@@ -13,6 +13,7 @@ use azure_data_cosmos::{
 };
 use futures::TryStreamExt;
 use serde::Deserialize;
+use tracing::level_filters::LevelFilter;
 use tracing_subscriber::EnvFilter;
 
 #[derive(Deserialize)]
@@ -23,6 +24,9 @@ struct TestFileQuery {
     pub container: String,
     #[serde(default)]
     pub parameters: HashMap<String, serde_json::Value>,
+
+    #[serde(default)]
+    pub validators: HashMap<String, String>,
 }
 
 #[derive(Deserialize)]
@@ -36,9 +40,137 @@ struct TestFile {
 #[serde(rename_all = "camelCase")]
 struct TestDataFile {
     pub containers: Vec<ContainerProperties>,
-    pub data: Vec<serde_json::Value>,
+    pub data: Vec<HashMap<String, serde_json::Value>>,
     #[serde(default)]
     pub parameters: HashMap<String, serde_json::Value>,
+}
+
+struct ValidationError {
+    item: usize,
+    property_name: String,
+    message: String,
+    expected: serde_json::Value,
+    actual: serde_json::Value,
+}
+
+fn get_validator<'a>(validators: &'a HashMap<String, String>, property_name: &str) -> &'a str {
+    if let Some(validator) = validators.get(property_name) {
+        return validator;
+    }
+
+    match property_name {
+        "_etag" => "ignore",
+        "_rid" => "ignore",
+        "_self" => "ignore",
+        "_ts" => "ignore",
+        "_attachments" => "ignore",
+        _ => "equal",
+    }
+}
+
+fn validator_ordered(
+    property_name: &str,
+    expected_items: &[serde_json::Value],
+    actual_items: &[serde_json::Value],
+    ascending: bool,
+) -> Vec<ValidationError> {
+    if actual_items.len() < 2 {
+        return Vec::new(); // No errors if there are fewer than 2 items.
+    }
+    for i in 1..actual_items.len() {
+        let left = &actual_items[i - 1];
+        let right = &actual_items[i];
+
+        let comparison_valid = match (left, right) {
+            (serde_json::Value::Number(left_num), serde_json::Value::Number(right_num)) => {
+                if ascending {
+                    left_num.as_f64() <= right_num.as_f64()
+                } else {
+                    left_num.as_f64() >= right_num.as_f64()
+                }
+            }
+            (serde_json::Value::String(left_str), serde_json::Value::String(right_str)) => {
+                if ascending {
+                    left_str <= right_str
+                } else {
+                    left_str >= right_str
+                }
+            }
+            _ => {
+                return vec![ValidationError {
+                    item: i,
+                    property_name: property_name.to_string(),
+                    message: format!(
+                        "unsupported comparison for '{}' in items at index {} and {}: {} and {}",
+                        property_name,
+                        i - 1,
+                        i,
+                        left,
+                        right
+                    ),
+                    expected: left.clone(),
+                    actual: right.clone(),
+                }];
+            }
+        };
+
+        if !comparison_valid {
+            return vec![ValidationError {
+                item: i,
+                property_name: property_name.to_string(),
+                message: format!(
+                    "items are not ordered {} by '{}': {} and {}",
+                    if ascending { "ascending" } else { "descending" },
+                    property_name,
+                    left,
+                    right,
+                ),
+                expected: expected_items[i - 1].clone(),
+                actual: actual_items[i].clone(),
+            }];
+        }
+    }
+    Vec::new()
+}
+
+fn validate_property(
+    validator: &str,
+    property_name: &str,
+    expected_items: &[serde_json::Value],
+    actual_items: &[serde_json::Value],
+) -> Vec<ValidationError> {
+    match validator {
+        "ignore" => Vec::new(),
+        "orderedDescending" => {
+            validator_ordered(property_name, expected_items, actual_items, false)
+        }
+        "orderedAscending" => validator_ordered(property_name, expected_items, actual_items, true),
+        "equal" => validator_equal(property_name, expected_items, actual_items),
+        x => panic!("unknown validator '{}' for property '{}'", x, property_name),
+    }
+}
+
+fn validator_equal(
+    property_name: &str,
+    expected_items: &[serde_json::Value],
+    actual_items: &[serde_json::Value],
+) -> Vec<ValidationError> {
+    let mut errors = Vec::new();
+    for (id, (expected, actual)) in expected_items.iter().zip(actual_items.iter()).enumerate() {
+        if expected != actual {
+            errors.push(ValidationError {
+                item: id,
+                property_name: property_name.to_string(),
+                message: format!(
+                    "expected '{}' to be equal, but found different values",
+                    property_name
+                ),
+                expected: expected.clone(),
+                actual: actual.clone(),
+            });
+        }
+    }
+    errors
 }
 
 // This key is not a secret, it's published in the docs (https://learn.microsoft.com/en-us/azure/cosmos-db/emulator).
@@ -109,7 +241,11 @@ pub async fn run_baseline_test(
     // Enable tracing
     TRACING_SUBSCRIBER_INIT.call_once(|| {
         tracing_subscriber::fmt()
-            .with_env_filter(EnvFilter::from_default_env())
+            .with_env_filter(
+                EnvFilter::builder()
+                    .with_default_directive(LevelFilter::ERROR.into()) // Log errors by default
+                    .from_env_lossy(),
+            )
             .with_test_writer()
             .try_init()
             .expect("to successfully initialize tracing");
@@ -209,13 +345,34 @@ pub async fn run_baseline_test(
         for (name, value) in test_data.parameters {
             query = query.with_parameter(format!("@testData_{}", name), value)?;
         }
-        let pager = container_client.query_items::<serde_json::Value>(query, (), Some(options))?;
-        pager
-            .try_collect::<Vec<_>>()
-            .await?
-            .into_iter()
-            .map(sanitize_item)
-            .collect::<Vec<_>>()
+
+        // Some simple retry logic because the emulator can be flaky on CI (because we're running on slower machines).
+        let mut retry_count = 0;
+        const MAX_RETRIES: usize = 3;
+        loop {
+            let pager = container_client.query_items::<HashMap<String, serde_json::Value>>(
+                query.clone(),
+                (),
+                Some(options.clone()),
+            )?;
+            let collect_result = pager.try_collect::<Vec<_>>().await;
+            match collect_result {
+                Ok(items) => break items,
+                Err(e) if e.http_status() == Some(azure_core::http::StatusCode::RequestTimeout) => {
+                    tracing::warn!(?e, "query failed, retrying");
+                    retry_count += 1;
+                    if retry_count == MAX_RETRIES {
+                        return Err(
+                            format!("query failed after {} retries: {}", MAX_RETRIES, e).into()
+                        );
+                    }
+                }
+                Err(e) => {
+                    tracing::error!(?e, "query failed for non-retryable reason");
+                    return Err(e.into());
+                }
+            }
+        }
     };
 
     // Compare the results with the expected results
@@ -223,14 +380,55 @@ pub async fn run_baseline_test(
         serde_json::from_str(&std::fs::read_to_string(&results_file)?)?;
     tracing::info!(?results_file, "loaded expected results");
 
-    for (i, (actual, expected)) in items.iter().zip(results.iter()).enumerate() {
-        if actual != expected {
-            return Err(format!(
-                "item {} was expected to be {:?}, but was {:?}",
-                i, expected, actual
-            )
-            .into());
+    if items.len() != results.len() {
+        panic!(
+            "query returned {} items, but expected {} items",
+            items.len(),
+            results.len()
+        );
+    }
+
+    // Get the list of properties to validate from the first item
+    let properties = items
+        .first()
+        .map(|i| i.keys().cloned().collect::<Vec<_>>())
+        .expect("expected at least one item in the results");
+    let mut validation_errors = Vec::new();
+    for property in properties {
+        // Run the validator for each property
+        let validator = get_validator(&test_query.validators, &property);
+        tracing::debug!(property, validator, "validating property");
+        let expected_items: Vec<_> = results
+            .iter()
+            .map(|item| item.get(&property).cloned().unwrap_or_default())
+            .collect();
+        let actual_items: Vec<_> = items
+            .iter()
+            .map(|item| item.get(&property).cloned().unwrap_or_default())
+            .collect();
+        let property_errors =
+            validate_property(validator, &property, &expected_items, &actual_items);
+        tracing::debug!(
+            property,
+            validator,
+            error_count = property_errors.len(),
+            "validated property"
+        );
+        validation_errors.extend(property_errors);
+    }
+
+    if !validation_errors.is_empty() {
+        for error in &validation_errors {
+            tracing::error!(
+                item = error.item,
+                property_name = error.property_name,
+                expected = ?error.expected,
+                actual = ?error.actual,
+                "validation error: {}",
+                error.message
+            );
         }
+        panic!("validation failed with {} errors", validation_errors.len());
     }
 
     // Delete the database
@@ -241,22 +439,8 @@ pub async fn run_baseline_test(
     Ok(())
 }
 
-/// Removes system-generated properties from the item.
-fn sanitize_item(item: serde_json::Value) -> serde_json::Value {
-    let serde_json::Value::Object(mut map) = item else {
-        return item;
-    };
-
-    map.remove("_rid");
-    map.remove("_self");
-    map.remove("_etag");
-    map.remove("_ts");
-
-    serde_json::Value::Object(map)
-}
-
 fn extract_partition_key(
-    item: &serde_json::Value,
+    item: &HashMap<String, serde_json::Value>,
     partition_key: &PartitionKeyDefinition,
 ) -> Result<PartitionKey, Box<dyn std::error::Error>> {
     let mut values = Vec::new();
@@ -273,7 +457,7 @@ fn extract_partition_key(
 }
 
 fn extract_single_partition_key(
-    item: &serde_json::Value,
+    item: &HashMap<String, serde_json::Value>,
     mut path: &str,
 ) -> Result<PartitionKeyValue, Box<dyn std::error::Error>> {
     let original_path = path;
@@ -295,11 +479,7 @@ fn extract_single_partition_key(
         .into());
     }
 
-    let serde_json::Value::Object(map) = item else {
-        return Err("items must be JSON objects".into());
-    };
-
-    let value = map
+    let value = item
         .get(path)
         .ok_or_else(|| format!("partition key path '{}' not found", original_path))?;
     match value {
@@ -319,8 +499,8 @@ macro_rules! baseline_tests {
                 $(
                     $test:ident,
                 )*
-            }
-        ),*
+            },
+        )*
     ) => {
         $(
             mod $testsuite {

@@ -5,20 +5,26 @@
         {
             "name": "quantized_cosine",
             "query": "SELECT TOP 6 c.text, VectorDistance(c.embedding, @testData_searchVector) AS SimilarityScore FROM c ORDER BY VectorDistance(c.embedding, @testData_searchVector)",
-            "options": {
-
-            },
-            "container": "QuantizedCosine"
+            "container": "QuantizedCosine",
+            "validators": {
+                "SimilarityScore": "orderedDescending"
+            }
         },
         {
             "name": "flat_euclidean",
             "query": "SELECT TOP 6 c.text, VectorDistance(c.embedding, @testData_searchVector) AS SimilarityScore FROM c ORDER BY VectorDistance(c.embedding, @testData_searchVector)",
-            "container": "FlatEuclidean"
+            "container": "FlatEuclidean",
+            "validators": {
+                "SimilarityScore": "orderedAscending"
+            }
         },
         {
             "name": "diskann_dotproduct",
             "query": "SELECT TOP 6 c.text, VectorDistance(c.embedding, @testData_searchVector) AS SimilarityScore FROM c ORDER BY VectorDistance(c.embedding, @testData_searchVector)",
-            "container": "DiskANNDotProduct"
+            "container": "DiskANNDotProduct",
+            "validators": {
+                "SimilarityScore": "orderedDescending"
+            }
         }
     ]
 }

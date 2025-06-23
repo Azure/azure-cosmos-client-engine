@@ -12,5 +12,7 @@ baseline_tests! {
     },
     vector {
         quantized_cosine,
-    }
+        flat_euclidean,
+        diskann_dotproduct,
+    },
 }

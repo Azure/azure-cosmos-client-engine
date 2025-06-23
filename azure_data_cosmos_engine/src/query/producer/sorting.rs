@@ -8,7 +8,6 @@ use crate::{
     ErrorKind,
 };
 
-// If we ever want to make this Send, to support parallel processing, we can use `Arc` instead of `Rc`.
 pub struct SortableResult<T: Debug, I: QueryClauseItem>(Sorting, QueryResult<T, I>);
 
 impl<T: Debug, I: QueryClauseItem> PartialEq for SortableResult<T, I> {
