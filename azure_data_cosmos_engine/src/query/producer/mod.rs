@@ -174,19 +174,27 @@ impl<T: Debug, I: QueryClauseItem> ProducerStrategy<T, I> {
 
                     if !partition.started() {
                         // If any partition hasn't started, we have to stop producing items.
+                        // A Partition is considered "started" when we've received at least one `provide_data` call referencing it.
+                        // For a streaming order by, we can't stream ANY results until we've received at least one set of results from each partition.
+                        // The missing partitions may contain values that sort BEFORE items in the partitions we've received.
+                        //
+                        // SDKs could optimize how they call the engine to avoid this scenario (by always making requests first, for example),
+                        // but we can't assume that will always be the case.
                         tracing::debug!(pkrange_id = ?partition.pkrange.id, "partition not started, stopping item production");
                         return Ok(None);
                     }
 
                     if partition.done() && buffer.is_empty() {
                         // If the partition is done and the buffer is empty, we can skip it.
+                        // In fact, we NEED to skip it because we know it won't produce any more items and if we leave it in the set of partitions we consider,
+                        // we might end up trying to query it for more data.
                         tracing::debug!(pkrange_id = ?partition.pkrange.id, "partition done and buffer empty, skipping");
                         continue;
                     }
 
                     match current_match {
                         None => {
-                            // If we haven't found a match yet, we set the current match to this partition.
+                            // If we haven't found a match yet, we set the current match to this partition so that we always pick a partition.
                             current_match = Some((i, buffer.front()));
                         }
                         Some((current_index, current_item)) => {
@@ -200,6 +208,9 @@ impl<T: Debug, I: QueryClauseItem> ProducerStrategy<T, I> {
                                 }
                                 Ordering::Less => {
                                     // The new item sorts higher than the current item, so we update the current match to this partition.
+                                    // Note: This might be because the partition's buffer is currently empty.
+                                    // That can result in the selected partition being one with an empty buffer.
+                                    // This is intentional, see below where we return the item.
                                     current_match = Some((i, buffer.front()));
                                 }
                                 Ordering::Equal => {
@@ -220,6 +231,11 @@ impl<T: Debug, I: QueryClauseItem> ProducerStrategy<T, I> {
                         buffers[i].0, partitions[i].pkrange.id,
                         "buffer ID should match partition key range ID",
                     );
+                    // If the buffer is empty, this may return `None`. That's by design!
+                    // It means the partition has an empty buffer, and we may need to fetch more data for it.
+                    // If it was fully exhausted, the check for `done() && buffer.is_empty()` would have excluded it.
+                    // Instead, we have an empty buffer AND the possibility for more data from this partition.
+                    // That means we WANT to return `None` here. We need to check this partition for more data before we can yield an item.
                     Ok(buffers[i].1.pop_front())
                 } else {
                     // No match found, meaning all partitions are either exhausted or waiting for data.
@@ -243,7 +259,11 @@ impl<T: Debug, I: QueryClauseItem> ProducerStrategy<T, I> {
 
 /// An item producer handles merging results from several partitions into a single stream of results.
 ///
-/// The single-partition result streams are merged according to a [`MergeStrategy`] provided when the producer is initialized.
+/// The single-partition result streams are merged according to a [`ProducerStrategy`] selected when the producer is initialized.
+/// The producer is only responsible for handling ordering the results, other query operations like aggregations or offset/limit
+/// are handled by the pipeline that runs after a specific item has been produced.
+/// Ordering can't really be done by the pipeline though, since it may require buffering results from some or all partitions.
+/// So, before the pipeline runs, the producer is responsible for actually organizing the initial set of results in the correct order.
 pub struct ItemProducer<T: Debug, I: QueryClauseItem> {
     strategy: ProducerStrategy<T, I>,
     partitions: Vec<PartitionState>,
@@ -262,6 +282,12 @@ fn create_partition_state(
 }
 
 impl<T: Debug, I: QueryClauseItem> ItemProducer<T, I> {
+    /// Creates a producer for queries without ORDER BY clauses.
+    ///
+    /// This strategy processes partitions sequentially in partition key range order,
+    /// exhausting one partition completely before moving to the next.
+    ///
+    /// Use this for queries that don't require global ordering across partitions.
     pub fn unordered(pkranges: impl IntoIterator<Item = PartitionKeyRange>) -> Self {
         let partitions = create_partition_state(pkranges);
         Self {
@@ -274,6 +300,16 @@ impl<T: Debug, I: QueryClauseItem> ItemProducer<T, I> {
         }
     }
 
+    /// Creates a producer for ORDER BY queries where each partition returns globally sorted results.
+    ///
+    /// This strategy can stream results immediately because it assumes each partition's results
+    /// are already sorted in the global order. It maintains a small buffer per partition and
+    /// continuously merges the "head" items to produce the next globally ordered result.
+    ///
+    /// Use this when:
+    /// - The query has an ORDER BY clause
+    /// - Each partition's results are sorted in the same global order
+    /// - You want to stream results without waiting for all partitions to complete
     pub fn streaming(
         pkranges: impl IntoIterator<Item = PartitionKeyRange>,
         sorting: Vec<SortOrder>,
@@ -291,6 +327,17 @@ impl<T: Debug, I: QueryClauseItem> ItemProducer<T, I> {
         }
     }
 
+    /// Creates a producer for ORDER BY queries where partitions return locally sorted results.
+    ///
+    /// This strategy buffers ALL results from ALL partitions before returning any items.
+    /// It uses a binary heap to sort results globally after collecting everything.
+    /// No results can be streamed until all partitions are completely exhausted.
+    ///
+    /// Use this when:
+    /// - The query has an ORDER BY clause
+    /// - Each partition's results are only sorted locally (not in global order)
+    /// - You can afford to buffer the entire result set in memory
+    /// - Correctness is more important than streaming performance
     pub fn non_streaming(
         pkranges: impl IntoIterator<Item = PartitionKeyRange>,
         sorting: Vec<SortOrder>,
