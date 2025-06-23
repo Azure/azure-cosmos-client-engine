@@ -9,7 +9,6 @@ use azure_data_cosmos::{
     Query, QueryOptions,
     clients::{ContainerClient, DatabaseClient},
     models::{ContainerProperties, PartitionKeyDefinition, ThroughputProperties},
-    query::QueryExecutorOptions,
 };
 use futures::TryStreamExt;
 use serde::Deserialize;
@@ -333,9 +332,6 @@ pub async fn run_baseline_test(
 
         let options = QueryOptions {
             query_engine: Some(Arc::new(azure_data_cosmos_engine::query::QueryEngine)),
-            query_executor_options: QueryExecutorOptions {
-                max_fetch_items_per_page: Some(1),
-            },
             ..Default::default()
         };
         let mut query = Query::from(test_query.query);
