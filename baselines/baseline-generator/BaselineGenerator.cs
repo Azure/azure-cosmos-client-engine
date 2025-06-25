@@ -1,32 +1,77 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+using System.Text.Json;
 using Microsoft.Azure.Cosmos;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 public class QuerySet
 {
+    /// <summary>
+    /// The name of the query set, used for generating the baseline file.
+    /// </summary>
     public required string Name { get; set; }
+
+    /// <summary>
+    /// The path to the test data file, relative to the baseline file.
+    /// </summary>
     public required string TestData { get; set; }
+
+    /// <summary>
+    /// The list of queries to be executed against the container.
+    /// Each query should have a unique name across all files.
+    /// </summary>
     public required List<QuerySpec> Queries { get; set; }
 }
 
 public class QuerySpec
 {
+    /// <summary>
+    /// The name of the query, used for generating the baseline file.
+    /// </summary>
     public required string Name { get; set; }
+
+    /// <summary>
+    /// The name of the container, found in the test data file, where the query will be executed.
+    /// </summary>
+    public required string Container { get; set; }
+
+    /// <summary>
+    /// The SQL query to be executed against the container.
+    /// </summary>
     public required string Query { get; set; }
+
+    /// <summary>
+    /// Parameters that can be used in the query, prefixed with '@'.
+    /// </summary>
+    public Dictionary<string, JToken> Parameters { get; set; } = new Dictionary<string, JToken>();
 }
 
 public class TestData
 {
-    public required ContainerProperties ContainerProperties { get; set; }
+    /// <summary>
+    /// The data to be inserted into the container for testing.
+    /// </summary>
     public required JArray Data { get; set; }
+
+    /// <summary>
+    /// Parameters that can be used in queries, prefixed with '@testData_'.
+    /// </summary>
+    public Dictionary<string, JToken> Parameters { get; set; } = new Dictionary<string, JToken>();
+
+    /// <summary>
+    /// Containers that will be created for the test data.
+    /// Each container should have a unique name across all files.
+    /// Each container will be created with the properties listed here and the same set of data, specified in <see cref="Data" /> will be inserted into each container.
+    /// </summary>
+    public required List<ContainerProperties> Containers { get; set; }
 }
 
 public class BaselineGenerator
 {
-    public static async Task GenerateBaselineAsync(string endpoint, string key, string baselineFile)
+    const int ThroughputForTwoPartitions = 12_000;
+    public static async Task GenerateBaselineAsync(string endpoint, string key, string baselineFile, IEnumerable<string>? queryNames = null)
     {
         // Load the file
         var containingDirectory = Path.GetDirectoryName(baselineFile);
@@ -63,30 +108,32 @@ public class BaselineGenerator
                 // Accept all certificates, when using the emulator
                 return true;
             }
-        } : new CosmosClientOptions;
+        } : new CosmosClientOptions();
         var client = new CosmosClient(endpoint, key, options);
         var uniqueName = $"baseline_{querySet.Name}_{Guid.NewGuid():N}";
 
         // Create a new database and container
-        Console.WriteLine($"Creating database: {uniqueName}");
-        var database = (await client.CreateDatabaseIfNotExistsAsync(uniqueName, throughput: 40_000)).Database;
+        Console.WriteLine("Running query set: " + querySet.Name);
+        Console.WriteLine($"- Creating database: {uniqueName}");
+        var database = (await client.CreateDatabaseIfNotExistsAsync(uniqueName, throughput: ThroughputForTwoPartitions)).Database;
         try
         {
-            testData.ContainerProperties.Id = uniqueName;
-
-            Console.WriteLine($"Creating container: {uniqueName}");
-            var container = (await database.CreateContainerIfNotExistsAsync(testData.ContainerProperties, throughput: 40_000)).Container;
-
-            // Insert test data
-            Console.WriteLine($"Inserting test data into container: {uniqueName}");
-            foreach (var item in testData.Data)
-            {
-                await container.CreateItemAsync(item);
-            }
+            var containers = await CreateTestContainersAsync(database, testData);
 
             foreach (var querySpec in querySet.Queries)
             {
-                await GenerateQueryBaselineAsync(container, querySet, querySpec, containingDirectory);
+                // Skip queries not in the list if query names are specified
+                if (queryNames != null && queryNames.Any() && !queryNames.Contains(querySpec.Name))
+                {
+                    continue;
+                }
+                Console.WriteLine("- Running query: " + querySpec.Name);
+                if (!containers.TryGetValue(querySpec.Container, out var container))
+                {
+                    Console.WriteLine($"Error: Container {querySpec.Container} not found in test data.");
+                    continue;
+                }
+                await GenerateQueryBaselineAsync(container, testData, querySet, querySpec, containingDirectory);
             }
         }
         finally
@@ -96,7 +143,26 @@ public class BaselineGenerator
         }
     }
 
-    private static async Task GenerateQueryBaselineAsync(Container container, QuerySet querySet, QuerySpec querySpec, string containingDirectory)
+    private static async Task<Dictionary<string, Container>> CreateTestContainersAsync(Database database, TestData testData)
+    {
+        var containers = new Dictionary<string, Container>();
+        foreach (var containerProperties in testData.Containers)
+        {
+            Console.WriteLine($"-- Creating container: {containerProperties.Id}");
+            var container = (await database.CreateContainerIfNotExistsAsync(containerProperties, throughput: ThroughputForTwoPartitions)).Container;
+
+            // Insert test data
+            Console.WriteLine($"-- Inserting test data into container: {containerProperties.Id}");
+            foreach (var item in testData.Data)
+            {
+                await container.CreateItemAsync(item);
+            }
+            containers.Add(containerProperties.Id, container);
+        }
+        return containers;
+    }
+
+    private static async Task GenerateQueryBaselineAsync(Container container, TestData testData, QuerySet querySet, QuerySpec querySpec, string containingDirectory)
     {
         var outputDir = Path.Combine(containingDirectory, querySet.Name);
         if (!Directory.Exists(outputDir))
@@ -105,9 +171,20 @@ public class BaselineGenerator
         }
         var resultFilePath = Path.Combine(outputDir, $"{querySpec.Name}.results.json");
 
-        // Execute the query
-        Console.WriteLine($"Executing query: {querySpec.Query}");
-        var results = container.GetItemQueryIterator<JToken>(querySpec.Query);
+        // Build the query
+        var query = new QueryDefinition(querySpec.Query);
+        foreach (var parameter in querySpec.Parameters)
+        {
+            query.WithParameter($"@{parameter.Key}", parameter.Value);
+        }
+        // Add parameters from the test data, using the 'testData_' prefix.
+        foreach (var parameter in testData.Parameters)
+        {
+            query.WithParameter($"@testData_{parameter.Key}", parameter.Value);
+        }
+
+        Console.WriteLine($"-- Executing query: {querySpec.Query}");
+        var results = container.GetItemQueryIterator<JToken>(query);
         var resultList = new List<JToken>();
         while (results.HasMoreResults)
         {

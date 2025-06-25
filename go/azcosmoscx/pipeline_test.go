@@ -70,37 +70,63 @@ func TestPipelineWithDataReturnsData(t *testing.T) {
 	require.NoError(t, err)
 	defer pipeline.Close()
 
+	result, err := pipeline.Run()
+	require.NoError(t, err)
+	require.Empty(t, result.Items)
+	assert.Equal(t, 1, len(result.Requests))
+	assert.Equal(t, "partition0", result.Requests[0].PartitionKeyRangeID)
+	assert.Empty(t, result.Requests[0].Continuation)
+
 	err = pipeline.ProvideData(queryengine.NewQueryResultString("partition0", `{
 		"Documents": [1, 2]
 	}`, "p0c1"))
 	require.NoError(t, err)
-	err = pipeline.ProvideData(queryengine.NewQueryResultString("partition1", `{
-		"Documents": [3, 4]
-	}`, "p1c1"))
-	require.NoError(t, err)
 
-	result, err := pipeline.Run()
+	result, err = pipeline.Run()
 	require.NoError(t, err)
-
-	require.NotNil(t, result.Items)
-	require.NotNil(t, result.Requests)
 
 	assert.EqualValues(t, [][]byte{
 		[]byte("1"),
 		[]byte("2"),
 	}, result.Items)
 
-	assert.NotEmpty(t, result.Requests)
-
-	assert.Equal(t, 2, len(result.Requests))
+	assert.Equal(t, 1, len(result.Requests))
 	assert.Equal(t, "partition0", result.Requests[0].PartitionKeyRangeID)
 	assert.Equal(t, "p0c1", result.Requests[0].Continuation)
-	assert.Equal(t, "partition1", result.Requests[1].PartitionKeyRangeID)
-	assert.Equal(t, "p1c1", result.Requests[1].Continuation)
 
-	// Provide empty data for the remaining partitions
 	err = pipeline.ProvideData(queryengine.NewQueryResultString("partition0", `{"Documents":[]}`, ""))
 	require.NoError(t, err)
+
+	result, err = pipeline.Run()
+	require.NoError(t, err)
+
+	assert.Empty(t, result.Items)
+	assert.Equal(t, 1, len(result.Requests))
+	assert.Equal(t, "partition1", result.Requests[0].PartitionKeyRangeID)
+	assert.Empty(t, result.Requests[0].Continuation)
+
+	err = pipeline.ProvideData(queryengine.NewQueryResultString("partition1", `{
+		"Documents": [3, 4]
+	}`, "p1c1"))
+	require.NoError(t, err)
+
+	result, err = pipeline.Run()
+	require.NoError(t, err)
+
+	require.NotNil(t, result.Items)
+	require.NotNil(t, result.Requests)
+
+	assert.EqualValues(t, [][]byte{
+		[]byte("3"),
+		[]byte("4"),
+	}, result.Items)
+
+	assert.NotEmpty(t, result.Requests)
+
+	assert.Equal(t, 1, len(result.Requests))
+	assert.Equal(t, "partition1", result.Requests[0].PartitionKeyRangeID)
+	assert.Equal(t, "p1c1", result.Requests[0].Continuation)
+
 	err = pipeline.ProvideData(queryengine.NewQueryResultString("partition1", `{"Documents":[]}`, ""))
 	require.NoError(t, err)
 
@@ -108,8 +134,7 @@ func TestPipelineWithDataReturnsData(t *testing.T) {
 	result, err = pipeline.Run()
 
 	require.NoError(t, err)
-	assert.EqualValues(t, [][]byte{
-		[]byte("3"),
-		[]byte("4"),
-	}, result.Items)
+	assert.Empty(t, result.Items)
+	assert.Empty(t, result.Requests)
+	assert.True(t, pipeline.IsComplete())
 }

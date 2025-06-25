@@ -10,7 +10,7 @@ use crate::ErrorKind;
 use super::{
     node::{LimitPipelineNode, OffsetPipelineNode, PipelineNode, PipelineSlice},
     plan::DistinctType,
-    producer::{ItemProducer, MergeStrategy},
+    producer::ItemProducer,
     PartitionKeyRange, PipelineResponse, QueryClauseItem, QueryFeature, QueryPlan, QueryResult,
 };
 
@@ -53,7 +53,13 @@ macro_rules! supported_features {
     };
 }
 
-supported_features!(OffsetAndLimit, OrderBy, MultipleOrderBy, Top);
+supported_features!(
+    OffsetAndLimit,
+    OrderBy,
+    MultipleOrderBy,
+    Top,
+    NonStreamingOrderBy
+);
 
 /// Represents a query pipeline capable of accepting single-partition results for a query and returning a cross-partition stream of results.
 ///
@@ -122,21 +128,22 @@ impl<T: Debug, I: QueryClauseItem> QueryPipeline<T, I> {
     ) -> crate::Result<Self> {
         let mut results_are_bare_payloads = true;
 
-        let merge_strategy = if plan.query_info.order_by.is_empty() {
-            tracing::debug!("using unordered merge strategy");
-            MergeStrategy::Unordered
+        tracing::trace!(?query, ?plan, "creating query pipeline");
+
+        let producer = if plan.query_info.order_by.is_empty() {
+            tracing::debug!("using unordered pipeline");
+            ItemProducer::unordered(pkranges)
         } else {
-            if plan.query_info.has_non_streaming_order_by {
-                return Err(ErrorKind::UnsupportedQueryPlan
-                    .with_message("non-streaming ORDER BY queries are not supported"));
-            }
-
-            tracing::debug!(?plan.query_info.order_by, "using ORDER BY merge strategy");
             results_are_bare_payloads = false;
-            MergeStrategy::Ordered(plan.query_info.order_by)
+            if plan.query_info.has_non_streaming_order_by {
+                tracing::debug!(?plan.query_info.order_by, "using non-streaming ORDER BY pipeline");
+                ItemProducer::non_streaming(pkranges, plan.query_info.order_by)
+            } else {
+                // We can stream results, there's no vector or full-text search in the query.
+                tracing::debug!(?plan.query_info.order_by, "using streaming ORDER BY pipeline");
+                ItemProducer::streaming(pkranges, plan.query_info.order_by)
+            }
         };
-
-        let producer = ItemProducer::new(pkranges, merge_strategy);
 
         // We are building the pipeline outside-in.
         // That means the first node we push will be the first node executed.

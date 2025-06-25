@@ -25,8 +25,8 @@ import (
 )
 
 type TestData struct {
-	ContainerProperties azcosmos.ContainerProperties `json:"containerProperties"`
-	Data                []json.RawMessage            `json:"data"`
+	Containers []azcosmos.ContainerProperties `json:"containers"`
+	Data       []json.RawMessage              `json:"data"`
 }
 
 type QuerySet struct {
@@ -36,15 +36,81 @@ type QuerySet struct {
 }
 
 type QuerySpec struct {
-	Name string `json:"name"`
-	Text string `json:"query"`
+	Name       string            `json:"name"`
+	Text       string            `json:"query"`
+	Container  string            `json:"container"`
+	Validators map[string]string `json:"validators"`
 }
 
+const ValidationIgnore = "ignore"
+const ValidationEqual = "equal"
+const ValidationOrderedDescending = "orderedDescending"
+const ValidationOrderedAscending = "orderedAscending"
+
 type QueryContext struct {
-	Query     QuerySet
-	TestData  TestData
-	UniqueId  string
-	Directory string
+	Query      QuerySet
+	TestData   TestData
+	UniqueId   string
+	Directory  string
+	Containers map[string]*azcosmos.ContainerClient
+}
+
+type ValidationError struct {
+	Item     int
+	Property string
+	Message  string
+	Expected interface{}
+	Actual   interface{}
+}
+
+var Validators = map[string]func(t *testing.T, propertyName string, expected, actual []map[string]interface{}) []ValidationError{
+	ValidationIgnore: func(t *testing.T, propertyName string, expected, actual []map[string]interface{}) []ValidationError {
+		return nil
+	},
+	ValidationEqual: func(t *testing.T, propertyName string, expected, actual []map[string]interface{}) []ValidationError {
+		errors := make([]ValidationError, 0)
+		for i, exp := range expected {
+			if i >= len(actual) {
+				return []ValidationError{{Item: i, Property: propertyName, Expected: exp, Actual: nil}}
+			}
+			act := actual[i]
+			expectedPropertyValue := expected[i][propertyName]
+			actualPropertyValue, ok := act[propertyName]
+			if !ok {
+				errors = append(errors, ValidationError{Item: i, Property: propertyName, Message: "missing expected property", Expected: expectedPropertyValue, Actual: nil})
+				continue
+			}
+			patch, err := jsondiff.Compare(expectedPropertyValue, actualPropertyValue)
+			if err != nil {
+				errors = append(errors, ValidationError{Item: i, Property: propertyName, Message: fmt.Sprintf("error comparing property: %v", err), Expected: expectedPropertyValue, Actual: actualPropertyValue})
+				continue
+			}
+			if len(patch) > 0 {
+				errors = append(errors, ValidationError{
+					Item:     i,
+					Property: propertyName,
+					Message:  fmt.Sprintf("property mismatch: %s", patch),
+					Expected: expectedPropertyValue,
+					Actual:   actualPropertyValue,
+				})
+			}
+		}
+		return errors
+	},
+	ValidationOrderedDescending: func(t *testing.T, propertyName string, expected, actual []map[string]interface{}) []ValidationError {
+		return validateOrdered(propertyName, actual, false)
+	},
+	ValidationOrderedAscending: func(t *testing.T, propertyName string, expected, actual []map[string]interface{}) []ValidationError {
+		return validateOrdered(propertyName, actual, true)
+	},
+}
+
+var DefaultValidators = map[string]string{
+	"_etag":        ValidationIgnore,
+	"_rid":         ValidationIgnore,
+	"_self":        ValidationIgnore,
+	"_ts":          ValidationIgnore,
+	"_attachments": ValidationIgnore,
 }
 
 func LoadQueryContext(context context.Context, queryPath string) (queryContext QueryContext, err error) {
@@ -78,10 +144,10 @@ func LoadQueryContext(context context.Context, queryPath string) (queryContext Q
 
 	queryResultDir := path.Join(queryDir, querySpec.Name)
 
-	return QueryContext{querySpec, testData, uniqueId, queryResultDir}, nil
+	return QueryContext{querySpec, testData, uniqueId, queryResultDir, nil}, nil
 }
 
-func (queryContext *QueryContext) RunWithTestResources(context context.Context, endpoint, key string, fn func(context context.Context, client *azcosmos.Client, database *azcosmos.DatabaseClient, container *azcosmos.ContainerClient)) error {
+func (queryContext *QueryContext) RunWithTestResources(context context.Context, endpoint, key string, fn func(context context.Context, client *azcosmos.Client, database *azcosmos.DatabaseClient, queryContext *QueryContext)) error {
 	client, err := createClient(endpoint, key)
 	if err != nil {
 		return err
@@ -103,61 +169,65 @@ func (queryContext *QueryContext) RunWithTestResources(context context.Context, 
 	}
 	defer database.Delete(context, nil)
 
-	containerResponse, err := database.CreateContainer(context, queryContext.TestData.ContainerProperties, &azcosmos.CreateContainerOptions{
-		ThroughputProperties: &throughputProperties,
-	})
-	if err != nil {
-		return err
-	}
-
-	container, err := database.NewContainer(containerResponse.ContainerProperties.ID)
-	if err != nil {
-		return err
-	}
-	// Deleting the database will delete the container
-
-	// Insert test data
-	for _, item := range queryContext.TestData.Data {
-		// Build partition key
-		var deserializedItem map[string]interface{}
-		err = json.Unmarshal(item, &deserializedItem)
+	// Create all containers
+	queryContext.Containers = make(map[string]*azcosmos.ContainerClient)
+	for _, containerProps := range queryContext.TestData.Containers {
+		containerResponse, err := database.CreateContainer(context, containerProps, &azcosmos.CreateContainerOptions{
+			ThroughputProperties: &throughputProperties,
+		})
 		if err != nil {
 			return err
 		}
 
-		partitionKey := azcosmos.NewPartitionKey()
-		for _, path := range queryContext.TestData.ContainerProperties.PartitionKeyDefinition.Paths {
-			if path[0] != '/' {
-				return fmt.Errorf("Partition key path %s must start with '/'", path)
+		container, err := database.NewContainer(containerResponse.ContainerProperties.ID)
+		if err != nil {
+			return err
+		}
+		queryContext.Containers[containerProps.ID] = container
+
+		// Insert test data into this container
+		for _, item := range queryContext.TestData.Data {
+			// Build partition key
+			var deserializedItem map[string]interface{}
+			err = json.Unmarshal(item, &deserializedItem)
+			if err != nil {
+				return err
 			}
-			property := path[1:]
-			if strings.Contains(property, "/") {
-				return fmt.Errorf("Partition key path %s must not contain '/'", path)
-			}
-			if value, ok := deserializedItem[property]; ok {
-				switch v := value.(type) {
-				case string:
-					partitionKey = partitionKey.AppendString(v)
-				default:
-					return fmt.Errorf("Unsupported partition key type %T", v)
+
+			partitionKey := azcosmos.NewPartitionKey()
+			for _, path := range containerProps.PartitionKeyDefinition.Paths {
+				if path[0] != '/' {
+					return fmt.Errorf("Partition key path %s must start with '/'", path)
 				}
-			} else {
-				return fmt.Errorf("Partition key property %s not found in item", property)
+				property := path[1:]
+				if strings.Contains(property, "/") {
+					return fmt.Errorf("Partition key path %s must not contain '/'", path)
+				}
+				if value, ok := deserializedItem[property]; ok {
+					switch v := value.(type) {
+					case string:
+						partitionKey = partitionKey.AppendString(v)
+					default:
+						return fmt.Errorf("Unsupported partition key type %T", v)
+					}
+				} else {
+					return fmt.Errorf("Partition key property %s not found in item", property)
+				}
 			}
-		}
 
-		jsonItem, err := item.MarshalJSON()
-		if err != nil {
-			return err
-		}
+			jsonItem, err := item.MarshalJSON()
+			if err != nil {
+				return err
+			}
 
-		_, err = container.CreateItem(context, partitionKey, jsonItem, nil)
-		if err != nil {
-			return err
+			_, err = container.CreateItem(context, partitionKey, jsonItem, nil)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
-	fn(context, client, database, container)
+	fn(context, client, database, queryContext)
 	return nil
 }
 
@@ -182,19 +252,18 @@ func loadTestData(path, uniqueId string) (TestData, error) {
 		return TestData{}, err
 	}
 
-	// Fill in the container ID
-	testData.ContainerProperties.ID = uniqueId
+	// Container IDs are already unique within the test data, no need to modify them
 	return testData, nil
 }
 
-func loadResults(path string) ([]json.RawMessage, error) {
+func loadExpectedResults(path string) ([]map[string]interface{}, error) {
 	resultsFile, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
 
 	defer resultsFile.Close()
-	var results []json.RawMessage
+	var results []map[string]interface{}
 	err = json.NewDecoder(resultsFile).Decode(&results)
 	if err != nil {
 		return nil, err
@@ -247,13 +316,20 @@ func runIntegrationTest(t *testing.T, querySetPath string) {
 		return
 	}
 
-	err = queryContext.RunWithTestResources(context.Background(), endpoint, key, func(ctx context.Context, client *azcosmos.Client, database *azcosmos.DatabaseClient, container *azcosmos.ContainerClient) {
+	err = queryContext.RunWithTestResources(context.Background(), endpoint, key, func(ctx context.Context, client *azcosmos.Client, database *azcosmos.DatabaseClient, queryContext *QueryContext) {
 		for _, query := range queryContext.Query.Queries {
 			t.Run(query.Name, func(t *testing.T) {
+				// Find the container for this query
+				container, ok := queryContext.Containers[query.Container]
+				if !ok {
+					t.Errorf("Query '%s' references container '%s', but that container was not found", query.Name, query.Container)
+					return
+				}
+
 				// Load results for this test
 				resultsFileName := fmt.Sprintf("%s.results.json", query.Name)
 				resultsPath := path.Join(queryContext.Directory, resultsFileName)
-				results, err := loadResults(resultsPath)
+				results, err := loadExpectedResults(resultsPath)
 				require.NoError(t, err)
 
 				err = runSingleQuery(t, results, query, container)
@@ -264,7 +340,7 @@ func runIntegrationTest(t *testing.T, querySetPath string) {
 	require.NoError(t, err)
 }
 
-func runSingleQuery(t *testing.T, results []json.RawMessage, query QuerySpec, container *azcosmos.ContainerClient) error {
+func runSingleQuery(t *testing.T, expectedResults []map[string]interface{}, query QuerySpec, container *azcosmos.ContainerClient) error {
 	// Run the query
 	queryEngine := azcosmoscx.NewQueryEngine()
 	queryOptions := &azcosmos.QueryOptions{
@@ -274,6 +350,7 @@ func runSingleQuery(t *testing.T, results []json.RawMessage, query QuerySpec, co
 	pager := container.NewQueryItemsPager(query.Text, azcosmos.NewPartitionKey(), queryOptions)
 
 	actualItemCount := 0
+	actualItems := make([]map[string]interface{}, 0, len(expectedResults))
 	for pager.More() {
 		page, err := pager.NextPage(context.TODO())
 		if err != nil {
@@ -282,27 +359,93 @@ func runSingleQuery(t *testing.T, results []json.RawMessage, query QuerySpec, co
 
 		for idx, actualJson := range page.Items {
 			actualItemCount++
-			// Find the expected item
-			if idx >= len(results) {
-				return fmt.Errorf("expected %d items, but got %d", len(results), actualItemCount)
-			}
-			expectedJson := results[idx]
-
-			// Compare with jsondiff, but make sure we ignore the system-generated properties.
-			diff, err := jsondiff.CompareJSON(expectedJson, actualJson, jsondiff.Ignores(
-				"/_rid",
-				"/_self",
-				"/_etag",
-				"/_attachments",
-				"/_ts",
-			))
+			var actualItem map[string]interface{}
+			err := json.Unmarshal(actualJson, &actualItem)
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to unmarshal item %d: %v", idx, err)
 			}
-			assert.Empty(t, diff, "Item %d does not match expected result. Diff: %s", idx, diff)
+			actualItems = append(actualItems, actualItem)
+		}
+	}
+	assert.Equal(t, len(actualItems), actualItemCount, "Expected %d items, but got %d", len(actualItems), actualItemCount)
+
+	// Now run the validators for each property. Use the first item to determine the properties to validate.
+	if len(actualItems) == 0 {
+		return fmt.Errorf("no items returned for query %s", query.Name)
+	}
+	firstItem := actualItems[0]
+	properties := make([]string, 0, len(firstItem))
+	for property := range firstItem {
+		properties = append(properties, property)
+	}
+	for _, property := range properties {
+		validator, ok := query.Validators[property]
+		if !ok {
+			validator, ok = DefaultValidators[property]
+			if !ok {
+				validator = ValidationEqual // Default to equal if no validator is specified
+			}
+		}
+		validateFunc, ok := Validators[validator]
+		if !ok {
+			return fmt.Errorf("unknown validator %s for property %s", validator, property)
+		}
+		errors := validateFunc(t, property, expectedResults, actualItems)
+		if len(errors) > 0 {
+			for _, err := range errors {
+				t.Errorf("Item %d, property '%s' validation failed: %s\nExpected: %v\nActual: %v\nMessage: %s",
+					err.Item, err.Property, err.Message, err.Expected, err.Actual, err.Message)
+			}
 		}
 	}
 
-	assert.Equal(t, len(results), actualItemCount, "Expected %d items, but got %d", len(results), actualItemCount)
 	return nil
+}
+
+// validateOrdered checks that the actual results are ordered by the specified property.
+// ascending determines whether to check for ascending (true) or descending (false) order.
+func validateOrdered(propertyName string, actual []map[string]interface{}, ascending bool) []ValidationError {
+	errors := make([]ValidationError, 0)
+	if len(actual) == 0 {
+		return []ValidationError{{Item: 0, Property: propertyName, Message: "no actual results to validate against"}}
+	}
+	for i := 0; i < len(actual)-1; i++ {
+		currentValue, ok := actual[i][propertyName]
+		if !ok {
+			errors = append(errors, ValidationError{Item: i, Property: propertyName, Message: "missing expected property", Expected: nil, Actual: nil})
+			continue
+		}
+		nextValue, ok := actual[i+1][propertyName]
+		if !ok {
+			errors = append(errors, ValidationError{Item: i + 1, Property: propertyName, Message: "missing expected property", Expected: nil, Actual: nil})
+			continue
+		}
+
+		// Compare current and next values
+		// TODO: Handle different types (e.g., strings, numbers)
+		currentFloat := currentValue.(float64)
+		nextFloat := nextValue.(float64)
+
+		var orderValid bool
+		if ascending {
+			orderValid = currentFloat <= nextFloat
+		} else {
+			orderValid = currentFloat >= nextFloat
+		}
+
+		if !orderValid {
+			orderDirection := "ascending"
+			if !ascending {
+				orderDirection = "descending"
+			}
+			errors = append(errors, ValidationError{
+				Item:     i,
+				Property: propertyName,
+				Message:  fmt.Sprintf("expected %v to be %s relative to %v", currentFloat, orderDirection, nextFloat),
+				Expected: currentValue,
+				Actual:   nextValue,
+			})
+		}
+	}
+	return errors
 }

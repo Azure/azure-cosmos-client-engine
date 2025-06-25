@@ -86,10 +86,7 @@ pub fn unordered_query() -> Result<(), Box<dyn std::error::Error>> {
         vec![
             PipelineResponse {
                 items: vec![],
-                requests: vec![
-                    DataRequest::new("partition0", None),
-                    DataRequest::new("partition1", None),
-                ],
+                requests: vec![DataRequest::new("partition0", None),],
                 terminated: false,
             },
             PipelineResponse {
@@ -98,10 +95,7 @@ pub fn unordered_query() -> Result<(), Box<dyn std::error::Error>> {
                     "partition0/item1".to_string(),
                     "partition0/item2".to_string(),
                 ],
-                requests: vec![
-                    DataRequest::new("partition0", Some("3".into())),
-                    DataRequest::new("partition1", Some("3".into()))
-                ],
+                requests: vec![DataRequest::new("partition0", Some("3".into())),],
                 terminated: false,
             },
             PipelineResponse {
@@ -109,9 +103,21 @@ pub fn unordered_query() -> Result<(), Box<dyn std::error::Error>> {
                     "partition0/item3".to_string(),
                     "partition0/item4".to_string(),
                     "partition0/item5".to_string(),
+                ],
+                requests: vec![DataRequest::new("partition1", None),],
+                terminated: false,
+            },
+            PipelineResponse {
+                items: vec![
                     "partition1/item0".to_string(),
                     "partition1/item1".to_string(),
                     "partition1/item2".to_string(),
+                ],
+                requests: vec![DataRequest::new("partition1", Some("3".into())),],
+                terminated: false,
+            },
+            PipelineResponse {
+                items: vec![
                     "partition1/item3".to_string(),
                     "partition1/item4".to_string(),
                     "partition1/item5".to_string(),

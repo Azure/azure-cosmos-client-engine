@@ -1,0 +1,26 @@
+[
+  {
+    "text": "Great weather today!",
+    "SimilarityScore": 0.9788873120853921
+  },
+  {
+    "text": "Good afternoon!",
+    "SimilarityScore": 1.0068624315326546
+  },
+  {
+    "text": "Good morning!",
+    "SimilarityScore": 1.0247227295617907
+  },
+  {
+    "text": "Awful weather today.",
+    "SimilarityScore": 1.0744431579811307
+  },
+  {
+    "text": "Hope you're doing well.",
+    "SimilarityScore": 1.1154068880746217
+  },
+  {
+    "text": "Excuse me please.",
+    "SimilarityScore": 1.1953834468535185
+  }
+]
