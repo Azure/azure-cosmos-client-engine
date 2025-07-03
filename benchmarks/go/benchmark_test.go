@@ -62,7 +62,7 @@ func createPartitionKeyRanges(count int) string {
 
 // fulfillDataRequests handles data requests from the pipeline using batch API
 func fulfillDataRequests(pipeline queryengine.QueryPipeline, requests []queryengine.QueryRequest,
-	partitionData map[string][]BenchmarkItem) error {
+	partitionData map[string][]BenchmarkItem, ordered bool) error {
 	if len(requests) == 0 {
 		return nil
 	}
@@ -93,8 +93,15 @@ func fulfillDataRequests(pipeline queryengine.QueryPipeline, requests []queryeng
 		responseItems := items[startIndex:endIndex]
 		documents := make([]string, len(responseItems))
 		for i, item := range responseItems {
-			documents[i] = fmt.Sprintf(`{"id":"%s","partitionKey":"%s","value":%d,"description":"%s"}`,
-				item.ID, item.PartitionKey, item.Value, item.Description)
+			if ordered {
+				// For ordered queries, format as QueryResult with orderByItems
+				documents[i] = fmt.Sprintf(`{"payload":{"id":"%s","partition_key":"%s","value":%d,"description":"%s"},"orderByItems":[{"item":%d}]}`,
+					item.ID, item.PartitionKey, item.Value, item.Description, item.Value)
+			} else {
+				// For unordered queries, format as simple JSON object
+				documents[i] = fmt.Sprintf(`{"id":"%s","partitionKey":"%s","value":%d,"description":"%s"}`,
+					item.ID, item.PartitionKey, item.Value, item.Description)
+			}
 		}
 
 		// Determine continuation token
@@ -135,7 +142,7 @@ func fulfillDataRequests(pipeline queryengine.QueryPipeline, requests []queryeng
 }
 
 // runBenchmarkScenario executes a single benchmark scenario
-func runBenchmarkScenario(b *testing.B, partitionData map[string][]BenchmarkItem) (int, error) {
+func runBenchmarkScenario(b *testing.B, partitionData map[string][]BenchmarkItem, ordered bool) (int, error) {
 	// Create query plan and partition ranges
 	queryPlan := `{"partitionedQueryExecutionInfoVersion": 1, "queryInfo":{}, "queryRanges": []}`
 	partitionRanges := createPartitionKeyRanges(PartitionCount)
@@ -161,7 +168,7 @@ func runBenchmarkScenario(b *testing.B, partitionData map[string][]BenchmarkItem
 
 		// If there are data requests, fulfill them
 		if len(result.Requests) > 0 {
-			err = fulfillDataRequests(pipeline, result.Requests, partitionData)
+			err = fulfillDataRequests(pipeline, result.Requests, partitionData, ordered)
 			if err != nil {
 				return 0, err
 			}
@@ -187,7 +194,33 @@ func BenchmarkPipelineThroughput_Unordered_100(b *testing.B) {
 
 	totalItems := 0
 	for b.Loop() {
-		iterItems, err := runBenchmarkScenario(b, partitionData)
+		iterItems, err := runBenchmarkScenario(b, partitionData, false) // false for unordered
+		if err != nil {
+			b.Fatal(err)
+		}
+		totalItems += iterItems
+	}
+
+	b.ReportMetric(float64(totalItems)/float64(b.Elapsed().Seconds()), "items/s")
+}
+
+// BenchmarkPipelineThroughput_Ordered_100 benchmarks ordered pipeline with 100 items per partition
+func BenchmarkPipelineThroughput_Ordered_100(b *testing.B) {
+	b.ResetTimer()
+
+	itemsPerPartition := 100
+	b.SetBytes(int64(PartitionCount * itemsPerPartition))
+
+	// Pre-create test data
+	partitionData := make(map[string][]BenchmarkItem)
+	for i := 0; i < PartitionCount; i++ {
+		partitionID := fmt.Sprintf("partition_%d", i)
+		partitionData[partitionID] = createPartitionData(partitionID, itemsPerPartition)
+	}
+
+	totalItems := 0
+	for b.Loop() {
+		iterItems, err := runBenchmarkScenario(b, partitionData, true) // true for ordered
 		if err != nil {
 			b.Fatal(err)
 		}

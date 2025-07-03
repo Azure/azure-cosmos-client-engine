@@ -85,6 +85,13 @@ func (p *Pipeline) ProvideData(pkrangeid string, data string, continuation strin
 	return mapErr(C.cosmoscx_v0_query_pipeline_provide_data(p.ptr, pkrangeidC, dataC, continuationC))
 }
 
+// PartitionDataBatch represents data for a single partition in a batch operation
+type PartitionDataBatch struct {
+	PartitionKeyRangeID string
+	Data                string
+	Continuation        string
+}
+
 type PipelineResult struct {
 	ptr *C.CosmosCxPipelineResult
 }

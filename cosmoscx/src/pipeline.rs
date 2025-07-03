@@ -233,3 +233,16 @@ pub extern "C" fn cosmoscx_v0_query_pipeline_provide_data<'a>(
 
     inner(pipeline, pkrange_id, data, continuation).into()
 }
+
+/// Represents data for a single partition in a batch operation.
+#[repr(C)]
+pub struct PartitionData {
+    /// An [`Str`] containing the Partition Key Range ID.
+    pkrange_id: Str<'static>,
+
+    /// An [`Str`] containing the continuation token, or an empty slice if no continuation.
+    continuation: Str<'static>,
+
+    /// An [`Str`] containing the JSON data for this partition.
+    data: Str<'static>,
+}

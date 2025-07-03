@@ -1,11 +1,6 @@
 //! Benchmarks the raw throughput of the query pipeline under various conditions.
 //!
-//! This benchmark measures the pipeline's throughput in items per second for:
-//! - **Unordered queries**: Simple queries without ORDER BY clauses
-//! - **Ordered queries**: Queries with ORDER BY clauses that require sorting results across partitions
-//!   
-//! The ordered variant uses a simple ascending sort on an integer field and validates
-//! that results are returned in the correct order.
+//! The goal of these benchmarks is to provide a baseline for comparing the performance impact that arises when we wrap the Rust engine in other languages like Go or Python.
 
 use azure_data_cosmos_engine::query::{
     JsonQueryClauseItem, PartitionKeyRange, QueryInfo, QueryPipeline, QueryPlan, QueryResult,
@@ -51,7 +46,7 @@ struct BenchmarkScenario {
     name: &'static str,
     query_sql: &'static str,
     query_plan_fn: fn() -> QueryPlan,
-    data_generator_fn: fn(&str, usize) -> Vec<BenchmarkItem>,
+    item_formatter_fn: fn(&BenchmarkItem) -> String,
 }
 
 impl BenchmarkScenario {
@@ -59,15 +54,29 @@ impl BenchmarkScenario {
         name: &'static str,
         query_sql: &'static str,
         query_plan_fn: fn() -> QueryPlan,
-        data_generator_fn: fn(&str, usize) -> Vec<BenchmarkItem>,
+        item_formatter_fn: fn(&BenchmarkItem) -> String,
     ) -> Self {
         Self {
             name,
             query_sql,
             query_plan_fn,
-            data_generator_fn,
+            item_formatter_fn,
         }
     }
+}
+
+fn unordered_item_formatter(item: &BenchmarkItem) -> String {
+    format!(
+        r#"{{"id":"{}","partition_key":"{}","value":{},"description":"{}"}}"#,
+        item.id, item.partition_key, item.value, item.description
+    )
+}
+
+fn ordered_item_formatter(item: &BenchmarkItem) -> String {
+    format!(
+        r#"{{"payload":{{"id":"{}","partition_key":"{}","value":{},"description":"{}"}},"orderByItems":[{{"item":{}}}]}}"#,
+        item.id, item.partition_key, item.value, item.description, item.value
+    )
 }
 
 // Helper function to create test data for a partition
@@ -113,6 +122,7 @@ fn create_partition_key_ranges(count: usize) -> Vec<PartitionKeyRange> {
 
 // Helper to fulfill data requests from the pipeline
 fn fulfill_data_requests(
+    scenario: &BenchmarkScenario,
     requests: &[azure_data_cosmos_engine::query::DataRequest],
     partition_data: &HashMap<String, Vec<BenchmarkItem>>,
     pipeline: &mut RawQueryPipeline,
@@ -133,9 +143,9 @@ fn fulfill_data_requests(
             // Because we want to be able to compare this benchmark against the wrappers in Go and Python, we have to generate JSON strings
             // for each item, as the Go and Python benchmarks do.
             // Then, we parse them with pipeline.deserialize_payload, which is what the wrapper code does.
-            let items = items.into_iter()
-                .map(|i| format!("{{\"id\":\"{}\",\"partition_key\":\"{}\",\"value\":{},\"description\":\"{}\"}}",
-                    i.id, i.partition_key, i.value, i.description))
+            let items = items
+                .into_iter()
+                .map(|i| (scenario.item_formatter_fn)(&i))
                 .collect::<Vec<_>>();
 
             // Format this into a single response
@@ -171,7 +181,7 @@ fn run_benchmark_scenario(
     let partition_data_template: HashMap<String, Vec<BenchmarkItem>> = (0..PARTITION_COUNT)
         .map(|i| {
             let partition_id = format!("partition_{}", i);
-            let data = (scenario.data_generator_fn)(&partition_id, items_per_partition);
+            let data = create_partition_data(&partition_id, items_per_partition);
             (partition_id, data)
         })
         .collect();
@@ -203,7 +213,12 @@ fn run_benchmark_scenario(
             }
 
             // Fulfill data requests
-            fulfill_data_requests(&result.requests, &partition_data_template, &mut pipeline);
+            fulfill_data_requests(
+                &scenario,
+                &result.requests,
+                &partition_data_template,
+                &mut pipeline,
+            );
         }
 
         // Verify we processed all expected items
@@ -224,14 +239,14 @@ pub fn throughput(c: &mut Criterion) {
             "unordered",
             "SELECT * FROM c",
             create_simple_query_plan,
-            create_partition_data,
+            unordered_item_formatter,
         ),
-        // BenchmarkScenario::new(
-        //     "ordered",
-        //     "SELECT * FROM c ORDER BY c.value",
-        //     create_ordered_query_plan,
-        //     create_partition_data,
-        // ),
+        BenchmarkScenario::new(
+            "ordered",
+            "SELECT * FROM c ORDER BY c.value",
+            create_ordered_query_plan,
+            ordered_item_formatter,
+        ),
     ];
 
     for &items_per_partition in &items_per_partition_values {
