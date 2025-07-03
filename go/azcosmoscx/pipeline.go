@@ -3,8 +3,22 @@
 
 package azcosmoscx
 
+// We can mark every function as both noescape and nocallback, because we never retain a Go pointer beyond the C function call and we never call back in to Go code.
+
 // #cgo CFLAGS: -I${SRCDIR}/include
 // #include <cosmoscx.h>
+// #cgo noescape cosmoscx_v0_query_pipeline_create
+// #cgo noescape cosmoscx_v0_query_pipeline_free
+// #cgo noescape cosmoscx_v0_query_pipeline_query
+// #cgo noescape cosmoscx_v0_query_pipeline_run
+// #cgo noescape cosmoscx_v0_query_pipeline_provide_data
+// #cgo noescape cosmoscx_v0_query_pipeline_free_result
+// #cgo nocallback cosmoscx_v0_query_pipeline_create
+// #cgo nocallback cosmoscx_v0_query_pipeline_free
+// #cgo nocallback cosmoscx_v0_query_pipeline_query
+// #cgo nocallback cosmoscx_v0_query_pipeline_run
+// #cgo nocallback cosmoscx_v0_query_pipeline_provide_data
+// #cgo nocallback cosmoscx_v0_query_pipeline_free_result
 import "C"
 import (
 	"bytes"

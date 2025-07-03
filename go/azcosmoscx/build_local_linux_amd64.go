@@ -8,4 +8,16 @@ package azcosmoscx
 // #cgo debug LDFLAGS: ${SRCDIR}/../../artifacts/x86_64-unknown-linux-gnu/debug/lib/libcosmoscx.a -lgcc_s -lutil -lrt -lpthread -lm -ldl -lc
 // #cgo !debug LDFLAGS: ${SRCDIR}/../../artifacts/x86_64-unknown-linux-gnu/release/lib/libcosmoscx.a -lgcc_s -lutil -lrt -lpthread -lm -ldl -lc
 // #include <cosmoscx.h>
+// #cgo noescape cosmoscx_v0_query_pipeline_create
+// #cgo noescape cosmoscx_v0_query_pipeline_free
+// #cgo noescape cosmoscx_v0_query_pipeline_query
+// #cgo noescape cosmoscx_v0_query_pipeline_run
+// #cgo noescape cosmoscx_v0_query_pipeline_provide_data
+// #cgo noescape cosmoscx_v0_query_pipeline_free_result
+// #cgo nocallback cosmoscx_v0_query_pipeline_create
+// #cgo nocallback cosmoscx_v0_query_pipeline_free
+// #cgo nocallback cosmoscx_v0_query_pipeline_query
+// #cgo nocallback cosmoscx_v0_query_pipeline_run
+// #cgo nocallback cosmoscx_v0_query_pipeline_provide_data
+// #cgo nocallback cosmoscx_v0_query_pipeline_free_result
 import "C"

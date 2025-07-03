@@ -265,6 +265,40 @@ typedef struct CosmosCxFfiResult_PipelineResult {
 } CosmosCxFfiResult_PipelineResult;
 
 /**
+ * Represents data for a single partition in a batch operation.
+ */
+typedef struct CosmosCxPartitionData {
+  /**
+   * An [`Str`] containing the Partition Key Range ID.
+   */
+  CosmosCxStr pkrange_id;
+  /**
+   * An [`Str`] containing the continuation token, or an empty slice if no continuation.
+   */
+  CosmosCxStr continuation;
+  /**
+   * An [`Str`] containing the JSON data for this partition.
+   */
+  CosmosCxStr data;
+} CosmosCxPartitionData;
+
+/**
+ * Represents a contiguous sequence of objects OWNED BY THE CALLING CODE.
+ *
+ * The language binding owns this memory. It must keep the memory valid for the duration of any function call that receives it.
+ * For example, the [`Slice`]s passed to [`cosmoscx_v0_query_pipeline_create`](super::pipeline::cosmoscx_v0_query_pipeline_create) must remain valid until that function returns.
+ * After the function returns, the language binding may free the memory.
+ * This lifetime is represented by the lifetime parameter `'a`, which should prohibit Rust code from storing the value.
+ *
+ * The C representation of this struct is identical to [`OwnedSlice`], the only difference is that this type indicates that the language binding owns this memory.
+ * The language binding is responsible for ensuring the underlying `data` pointer and `len` are correct and the data is properly aligned such that the `data` pointer is a valid C-style array of `T` values.
+ */
+typedef struct CosmosCxSlice_PartitionData {
+  const struct CosmosCxPartitionData *data;
+  uintptr_t len;
+} CosmosCxSlice_PartitionData;
+
+/**
  * Returns the version of the Cosmos Client Engine in use.
  */
 const char *cosmoscx_version(void);
@@ -345,3 +379,10 @@ CosmosCxResultCode cosmoscx_v0_query_pipeline_provide_data(struct CosmosCxPipeli
                                                            CosmosCxStr pkrange_id,
                                                            CosmosCxStr data,
                                                            CosmosCxStr continuation);
+
+/**
+ * Inserts additional raw data for multiple partitions at once, in response to multiple [`DataRequest`]s from the pipeline.
+ * This is a batch version of [`cosmoscx_v0_query_pipeline_provide_data`] that reduces CGO overhead.
+ */
+CosmosCxResultCode cosmoscx_v0_query_pipeline_provide_data_batch(struct CosmosCxPipeline *pipeline,
+                                                                 struct CosmosCxSlice_PartitionData partition_data);

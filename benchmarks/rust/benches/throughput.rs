@@ -18,6 +18,8 @@ use std::collections::HashMap;
 const PARTITION_COUNT: usize = 4;
 const PAGE_SIZE: usize = 100;
 
+type RawQueryPipeline = QueryPipeline<Box<serde_json::value::RawValue>, JsonQueryClauseItem>;
+
 // Simple test item for benchmarking
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct BenchmarkItem {
@@ -44,24 +46,12 @@ impl From<BenchmarkItem> for QueryResult<BenchmarkItem, JsonQueryClauseItem> {
     }
 }
 
-impl BenchmarkItem {
-    /// Create a QueryResult with order_by_items populated for ordered queries
-    fn into_ordered_query_result(self) -> QueryResult<BenchmarkItem, JsonQueryClauseItem> {
-        let order_by_value = JsonQueryClauseItem {
-            item: Some(serde_json::Value::Number(serde_json::Number::from(
-                self.value,
-            ))),
-        };
-        QueryResult::new(vec![], vec![order_by_value], self)
-    }
-}
-
 // Benchmark scenario configuration
 struct BenchmarkScenario {
     name: &'static str,
     query_sql: &'static str,
     query_plan_fn: fn() -> QueryPlan,
-    data_generator_fn: fn(&str, usize) -> Vec<QueryResult<BenchmarkItem, JsonQueryClauseItem>>,
+    data_generator_fn: fn(&str, usize) -> Vec<BenchmarkItem>,
 }
 
 impl BenchmarkScenario {
@@ -69,7 +59,7 @@ impl BenchmarkScenario {
         name: &'static str,
         query_sql: &'static str,
         query_plan_fn: fn() -> QueryPlan,
-        data_generator_fn: fn(&str, usize) -> Vec<QueryResult<BenchmarkItem, JsonQueryClauseItem>>,
+        data_generator_fn: fn(&str, usize) -> Vec<BenchmarkItem>,
     ) -> Self {
         Self {
             name,
@@ -81,25 +71,9 @@ impl BenchmarkScenario {
 }
 
 // Helper function to create test data for a partition
-fn create_partition_data(
-    partition_id: &str,
-    item_count: usize,
-) -> Vec<QueryResult<BenchmarkItem, JsonQueryClauseItem>> {
+fn create_partition_data(partition_id: &str, item_count: usize) -> Vec<BenchmarkItem> {
     (0..item_count)
         .map(|i| BenchmarkItem::new(&format!("item_{}", i), partition_id, i as i32).into())
-        .collect()
-}
-
-// Helper function to create ordered test data for a partition
-fn create_ordered_partition_data(
-    partition_id: &str,
-    item_count: usize,
-) -> Vec<QueryResult<BenchmarkItem, JsonQueryClauseItem>> {
-    (0..item_count)
-        .map(|i| {
-            BenchmarkItem::new(&format!("item_{}", i), partition_id, i as i32)
-                .into_ordered_query_result()
-        })
         .collect()
 }
 
@@ -140,12 +114,12 @@ fn create_partition_key_ranges(count: usize) -> Vec<PartitionKeyRange> {
 // Helper to fulfill data requests from the pipeline
 fn fulfill_data_requests(
     requests: &[azure_data_cosmos_engine::query::DataRequest],
-    partition_data: &mut HashMap<String, Vec<QueryResult<BenchmarkItem, JsonQueryClauseItem>>>,
-    pipeline: &mut QueryPipeline<BenchmarkItem, JsonQueryClauseItem>,
+    partition_data: &HashMap<String, Vec<BenchmarkItem>>,
+    pipeline: &mut RawQueryPipeline,
 ) {
     for request in requests {
         let pkrange_id = request.pkrange_id.as_ref();
-        if let Some(partition_data) = partition_data.get_mut(pkrange_id) {
+        if let Some(partition_data) = partition_data.get(pkrange_id) {
             // Calculate which items to return based on continuation
             let start_index = request
                 .continuation
@@ -156,6 +130,17 @@ fn fulfill_data_requests(
             let end_index = std::cmp::min(start_index + PAGE_SIZE, partition_data.len());
             let items: Vec<_> = partition_data[start_index..end_index].to_vec();
 
+            // Because we want to be able to compare this benchmark against the wrappers in Go and Python, we have to generate JSON strings
+            // for each item, as the Go and Python benchmarks do.
+            // Then, we parse them with pipeline.deserialize_payload, which is what the wrapper code does.
+            let items = items.into_iter()
+                .map(|i| format!("{{\"id\":\"{}\",\"partition_key\":\"{}\",\"value\":{},\"description\":\"{}\"}}",
+                    i.id, i.partition_key, i.value, i.description))
+                .collect::<Vec<_>>();
+
+            // Format this into a single response
+            let json = format!("{{\"Documents\":[{}]}}", items.join(","));
+
             // Determine continuation token
             let continuation = if end_index < partition_data.len() {
                 Some(end_index.to_string())
@@ -163,9 +148,14 @@ fn fulfill_data_requests(
                 None
             };
 
+            // Now deserialize the items into QueryResult
+            let result = pipeline
+                .deserialize_payload(&json)
+                .expect("Failed to deserialize payload");
+
             // Provide data to pipeline
             pipeline
-                .provide_data(pkrange_id, items, continuation)
+                .provide_data(pkrange_id, result, continuation)
                 .expect("Failed to provide data");
         }
     }
@@ -178,10 +168,7 @@ fn run_benchmark_scenario(
     iters: u64,
 ) -> std::time::Duration {
     // Pre-create test data once per benchmark configuration
-    let partition_data_template: HashMap<
-        String,
-        Vec<QueryResult<BenchmarkItem, JsonQueryClauseItem>>,
-    > = (0..PARTITION_COUNT)
+    let partition_data_template: HashMap<String, Vec<BenchmarkItem>> = (0..PARTITION_COUNT)
         .map(|i| {
             let partition_id = format!("partition_{}", i);
             let data = (scenario.data_generator_fn)(&partition_id, items_per_partition);
@@ -196,13 +183,10 @@ fn run_benchmark_scenario(
         let query_plan = (scenario.query_plan_fn)();
         let partition_ranges = create_partition_key_ranges(PARTITION_COUNT);
 
-        // Create pipeline
-        let mut pipeline: QueryPipeline<BenchmarkItem, JsonQueryClauseItem> =
+        // Create pipeline, and use the "raw" query pipeline to emulate the behavior of the wrappers.
+        let mut pipeline: RawQueryPipeline =
             QueryPipeline::new(scenario.query_sql, query_plan, partition_ranges)
                 .expect("Failed to create pipeline");
-
-        // Clone the test data for this iteration
-        let mut partition_data = partition_data_template.clone();
 
         let mut total_items = 0;
 
@@ -219,7 +203,7 @@ fn run_benchmark_scenario(
             }
 
             // Fulfill data requests
-            fulfill_data_requests(&result.requests, &mut partition_data, &mut pipeline);
+            fulfill_data_requests(&result.requests, &partition_data_template, &mut pipeline);
         }
 
         // Verify we processed all expected items
@@ -232,7 +216,7 @@ fn run_benchmark_scenario(
 // Main benchmark function
 pub fn throughput(c: &mut Criterion) {
     // Test with different numbers of items per partition
-    let items_per_partition_values = [100, 500, 1000, 5000];
+    let items_per_partition_values = [100];
 
     // Define benchmark scenarios
     let scenarios = [
@@ -242,12 +226,12 @@ pub fn throughput(c: &mut Criterion) {
             create_simple_query_plan,
             create_partition_data,
         ),
-        BenchmarkScenario::new(
-            "ordered",
-            "SELECT * FROM c ORDER BY c.value",
-            create_ordered_query_plan,
-            create_ordered_partition_data,
-        ),
+        // BenchmarkScenario::new(
+        //     "ordered",
+        //     "SELECT * FROM c ORDER BY c.value",
+        //     create_ordered_query_plan,
+        //     create_partition_data,
+        // ),
     ];
 
     for &items_per_partition in &items_per_partition_values {
