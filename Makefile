@@ -210,10 +210,10 @@ bench: bench_rust bench_go #/ Runs all benchmarks
 .PHONY: bench_rust
 bench_rust: #/ Runs the Rust benchmarks
 	@echo "Running Rust benchmarks..."
-	RUSTFLAGS=$(TEST_RUSTFLAGS) cargo bench --profile $(cargo_profile) --package azure_data_cosmos_engine --package cosmoscx --all-features
+	RUSTFLAGS=$(TEST_RUSTFLAGS) cargo bench --profile $(cargo_profile) --package benchmarks --all-features
 
 .PHONY: bench_go
 bench_go: engine #/ Runs the Go benchmarks
 	@echo "Running Go benchmarks..."
-	go -C ./go/azcosmoscx clean -testcache
-	go -C ./go/azcosmoscx test -tags "$(GOTAGS)" -bench . -run=^$$ -v ./...
+	go -C ./benchmarks/go clean -testcache
+	go -C ./benchmarks/go test -tags "$(GOTAGS)" -bench . -run=^$$ -v ./...
