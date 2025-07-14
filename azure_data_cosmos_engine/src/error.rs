@@ -112,7 +112,7 @@ impl Error {
 impl Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match &self.message {
-            Some(message) => write!(f, "{}", message),
+            Some(message) => write!(f, "{message}"),
             None => write!(f, "{}", self.kind),
         }
     }

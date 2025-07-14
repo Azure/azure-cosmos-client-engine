@@ -50,7 +50,7 @@ impl<T: Clone + Debug> Engine<T> {
             .map(|(index, pkrange_id)| {
                 PartitionKeyRange::new(
                     pkrange_id.clone(),
-                    format!("{}", index),
+                    format!("{index}"),
                     format!("{}", index + 1),
                 )
             });

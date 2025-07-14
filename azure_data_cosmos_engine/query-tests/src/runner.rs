@@ -145,7 +145,7 @@ fn validate_property(
         }
         "orderedAscending" => validator_ordered(property_name, expected_items, actual_items, true),
         "equal" => validator_equal(property_name, expected_items, actual_items),
-        x => panic!("unknown validator '{}' for property '{}'", x, property_name),
+        x => panic!("unknown validator '{x}' for property '{property_name}'"),
     }
 }
 
@@ -161,8 +161,7 @@ fn validator_equal(
                 item: id,
                 property_name: property_name.to_string(),
                 message: format!(
-                    "expected '{}' to be equal, but found different values",
-                    property_name
+                    "expected '{property_name}' to be equal, but found different values"
                 ),
                 expected: expected.clone(),
                 actual: actual.clone(),
@@ -211,7 +210,7 @@ async fn create_test_container(
     test_id: &str,
     test_name: &str,
 ) -> Result<(DatabaseClient, ContainerClient), Box<dyn std::error::Error>> {
-    let database_name = format!("{}_{}", test_name, test_id);
+    let database_name = format!("{test_name}_{test_id}");
     client.create_database(&database_name, None).await?;
     tracing::debug!(database_name, "created database");
     let db_client = client.database_client(&database_name);
@@ -260,11 +259,11 @@ pub async fn run_baseline_test(
     };
     let test_file_path = root_dir
         .join(BASELINE_QUERIES_DIR)
-        .join(format!("{}.json", suite_name));
+        .join(format!("{suite_name}.json"));
     let results_file = root_dir
         .join(BASELINE_QUERIES_DIR)
         .join(suite_name)
-        .join(format!("{}.results.json", test_name));
+        .join(format!("{test_name}.results.json"));
 
     let test_file_dir = {
         let mut p = test_file_path.clone();
@@ -278,7 +277,7 @@ pub async fn run_baseline_test(
         .queries
         .into_iter()
         .find(|q| q.name == test_name)
-        .ok_or_else(|| format!("test query '{}' not found", test_name))?;
+        .ok_or_else(|| format!("test query '{test_name}' not found"))?;
     tracing::debug!(
         ?test_file_path,
         query = test_query.name,
@@ -336,10 +335,10 @@ pub async fn run_baseline_test(
         };
         let mut query = Query::from(test_query.query);
         for (name, value) in test_query.parameters {
-            query = query.with_parameter(format!("@{}", name), value)?;
+            query = query.with_parameter(format!("@{name}"), value)?;
         }
         for (name, value) in test_data.parameters {
-            query = query.with_parameter(format!("@testData_{}", name), value)?;
+            query = query.with_parameter(format!("@testData_{name}"), value)?;
         }
 
         // Some simple retry logic because the emulator can be flaky on CI (because we're running on slower machines).
@@ -359,7 +358,7 @@ pub async fn run_baseline_test(
                     retry_count += 1;
                     if retry_count == MAX_RETRIES {
                         return Err(
-                            format!("query failed after {} retries: {}", MAX_RETRIES, e).into()
+                            format!("query failed after {MAX_RETRIES} retries: {e}").into()
                         );
                     }
                 }
@@ -459,8 +458,7 @@ fn extract_single_partition_key(
     let original_path = path;
     if !path.starts_with('/') {
         return Err(format!(
-            "partition key path '{}' does not start with '/'",
-            original_path
+            "partition key path '{original_path}' does not start with '/'"
         )
         .into());
     }
@@ -469,20 +467,18 @@ fn extract_single_partition_key(
 
     if path.contains('/') {
         return Err(format!(
-            "partition key path '{}' references a nested property, which is not supported",
-            original_path
+            "partition key path '{original_path}' references a nested property, which is not supported"
         )
         .into());
     }
 
     let value = item
         .get(path)
-        .ok_or_else(|| format!("partition key path '{}' not found", original_path))?;
+        .ok_or_else(|| format!("partition key path '{original_path}' not found"))?;
     match value {
         serde_json::Value::String(s) => Ok(s.into()),
         _ => Err(format!(
-            "partition key path '{}' must be a string, but found '{:?}'",
-            original_path, value
+            "partition key path '{original_path}' must be a string, but found '{value:?}'"
         )
         .into()),
     }

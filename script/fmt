@@ -49,6 +49,7 @@ echo "Running addlicense..."
 addlicense "${addlicense_args[@]}" \
     -f "./script/licenseheader.tpl" \
     -ignore '**/*.yml' \
+    -ignore '**/obj/**' \
     -ignore 'include/*.h' \
     -ignore 'target/**' \
     -ignore 'script/**' \
