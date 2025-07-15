@@ -371,7 +371,7 @@ impl<T: Debug, I: QueryClauseItem> ItemProducer<T, I> {
             .find(|p| p.pkrange.id == pkrange_id)
             .ok_or_else(|| {
                 ErrorKind::UnknownPartitionKeyRange
-                    .with_message(format!("unknown partition key range ID: {}", pkrange_id))
+                    .with_message(format!("unknown partition key range ID: {pkrange_id}"))
             })?;
         self.strategy.provide_data(partition, data)?;
         partition.update_state(continuation);
@@ -425,7 +425,7 @@ mod tests {
         let item = Item::new(
             id.clone(),
             pkrange_id.to_string(),
-            format!("{} / {}", pkrange_id, id),
+            format!("{pkrange_id} / {id}"),
         );
         let order_by_items = order_by_items
             .into_iter()
@@ -457,7 +457,7 @@ mod tests {
                     producer.provide_data(&pkrange_id, items, next_token)?;
                 } else {
                     return Err(ErrorKind::UnknownPartitionKeyRange
-                        .with_message(format!("unknown partition key range ID: {}", pkrange_id)));
+                        .with_message(format!("unknown partition key range ID: {pkrange_id}")));
                 }
             }
 
