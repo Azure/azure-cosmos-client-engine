@@ -202,9 +202,13 @@ check: #/ Run linters and formatters in check mode
 	fi
 
 .PHONY: bench
-bench: bench_rust bench_go bench_python #/ Runs all benchmarks
+bench: _check_release bench_rust bench_go bench_python #/ Runs all benchmarks
+
+.PHONY: _check_release
+_check_release: #/ Checks if the configuration is set to release
 	@if [ "$(CONFIGURATION)" != "release" ]; then \
-		echo "WARNING: Benchmarks should be run in release mode. Use 'make bench CONFIGURATION=release'"; \
+		echo "Error: Benchmarks should be run in release mode. Use 'CONFIGURATION=release' to run this target"; \
+		exit 1; \
 	fi
 
 .PHONY: bench_rust

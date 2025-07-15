@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["azure_data_cosmos_engine", "azure_data_cosmos_engine/query-tests", "cosmoscx", "python", "benchmarks/rust"]
+members = ["azure_data_cosmos_engine", "azure_data_cosmos_engine/query-tests", "cosmoscx", "python"]
 
 [workspace.package]
 version = "0.0.6"
