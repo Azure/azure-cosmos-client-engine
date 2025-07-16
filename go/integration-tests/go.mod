@@ -1,6 +1,6 @@
 module github.com/Azure/azure-cosmos-client-engine/go/integration-tests
 
-go 1.23.6
+go 1.24.0
 
 replace (
 	github.com/Azure/azure-cosmos-client-engine/go/azcosmoscx => ../azcosmoscx

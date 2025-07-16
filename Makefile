@@ -200,3 +200,29 @@ check: #/ Run linters and formatters in check mode
 		echo "Formatting errors found. Run 'script/fmt --fix' to fix formatting issues."; \
 		exit 1; \
 	fi
+
+.PHONY: bench
+bench: _check_release bench_rust bench_go bench_python #/ Runs all benchmarks
+
+.PHONY: _check_release
+_check_release: #/ Checks if the configuration is set to release
+	@if [ "$(CONFIGURATION)" != "release" ]; then \
+		echo "Error: Benchmarks should be run in release mode. Use 'CONFIGURATION=release' to run this target"; \
+		exit 1; \
+	fi
+
+.PHONY: bench_rust
+bench_rust: #/ Runs the Rust benchmarks
+	@echo "Running Rust benchmarks..."
+	RUSTFLAGS=$(TEST_RUSTFLAGS) cargo bench --profile $(cargo_profile) --package azure_data_cosmos_engine --all-features
+
+.PHONY: bench_go
+bench_go: engine #/ Runs the Go benchmarks
+	@echo "Running Go benchmarks..."
+	go -C ./go/azcosmoscx/benchmarks clean -testcache
+	go -C ./go/azcosmoscx/benchmarks test -tags "$(GOTAGS)" -bench . -run=^$$ -v ./...
+
+.PHONY: bench_python
+bench_python: engine_python #/ Runs the Python benchmarks
+	@echo "Running Python benchmarks..."
+	poetry -C ./python run pytest benchmarks/test_throughput.py --benchmark-only -s

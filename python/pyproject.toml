@@ -25,6 +25,7 @@ version = "0.1.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.4"
+pytest-benchmark = "^4.0.0"
 
 [tool.poetry.dependencies]
 azure-cosmos = {path = "../../azure-sdk-for-python/sdk/cosmos/azure-cosmos", develop = true}
