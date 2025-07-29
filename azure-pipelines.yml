@@ -1,17 +1,5 @@
 trigger: none
 
-parameters:
-  # Overridable pool definitions, so that internal and public builds don't have to share identical pool/image names
-  - name: BuildAgentPools
-    type: object
-    default:
-      linux_x86_64:
-        name: ClientEngine
-        demands: ImageOverride -equals client-engine-linux-x86_64
-      macos_x86_64:
-        name: Azure Pipelines
-        vmImage: macos-latest
-
 variables:
   CONFIGURATION: release
 
@@ -28,7 +16,8 @@ stages:
     jobs:
       - job: check_headers
         displayName: "Check headers are up-to-date"
-        pool: ${{ parameters.BuildAgentPools.linux_x86_64 }}
+        pool:
+          vmImage: "ubuntu-latest"
         steps:
           - bash: rustup show
             displayName: "Install Rust"
@@ -47,7 +36,8 @@ stages:
               language: "Go"
               target: "query_test_go"
         displayName: "Run ${{variables.language}} Query Correctness Tests"
-        pool: ${{ parameters.BuildAgentPools.linux_x86_64 }}
+        pool:
+          vmImage: ubuntu-latest
         steps:
           - task: UsePythonVersion@0
             inputs:
@@ -77,10 +67,12 @@ stages:
         strategy:
           matrix:
             x86_64-unknown-linux-gnu:
-              BuildAgentPool: ${{ parameters.BuildAgentPools.linux_x86_64 }}
+              poolName: ClientEngine
+              poolDemands: ImageOverride -equals client-engine-linux-x86_64
               CARGO_BUILD_TARGET: x86_64-unknown-linux-gnu
             aarch64-apple-darwin:
-              BuildAgentPool: ${{ parameters.BuildAgentPools.macos_x86_64 }}
+              poolName: Azure Pipelines
+              poolDemands: Agent.OS -equals macos
 
               # The VM we're building on is a x86_64-apple-darwin machine, so we can't run the aarch64 tests.
               # Fortunately we can still BUILD the aarch64-apple-darwin binary.
@@ -88,10 +80,15 @@ stages:
               RunTests: false
               CARGO_BUILD_TARGET: aarch64-apple-darwin
             x86_64-apple-darwin:
-              BuildAgentPool: ${{ parameters.BuildAgentPools.macos_x86_64 }}
+              poolName: Azure Pipelines
+              poolDemands: Agent.OS -equals macos
               CARGO_BUILD_TARGET: x86_64-apple-darwin
         displayName: "Build"
-        pool: $(BuildAgentPool)
+        pool:
+          name: $(poolName)
+          vmImage: $(vmImage)
+          demands:
+            - $(poolDemand)
         steps:
           - task: GoTool@0
             displayName: "Install Go"
@@ -142,7 +139,8 @@ stages:
     jobs:
       - job: package
         displayName: "Create packages"
-        pool: ${{ parameters.BuildAgentPools.linux_x86_64 }}
+        pool:
+          vmImage: ubuntu-latest
         steps:
           - checkout: none
           - download: current
