@@ -1,6 +1,6 @@
 module github.com/Azure/azure-cosmos-client-engine/go/azcosmoscx
 
-go 1.23.3
+go 1.24.0
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.5.0-beta.0

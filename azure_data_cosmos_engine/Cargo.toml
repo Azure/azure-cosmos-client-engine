@@ -21,3 +21,13 @@ python_conversions = ["dep:pyo3"]
 
 [dev-dependencies]
 pretty_assertions = "1.4.1"
+criterion = { workspace = true, features = ["html_reports"] }
+uuid = { workspace = true }
+
+[[bench]]
+name = "throughput"
+harness = false
+
+[[bench]]
+name = "query_result_deserialization"
+harness = false
