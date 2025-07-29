@@ -1,0 +1,171 @@
+trigger: none
+
+variables:
+  CONFIGURATION: release
+
+  # Warnings-as-errors during CI builds
+  RUSTFLAGS: "-D warnings"
+  GO_VERSION: "1.24.3"
+  PY_VERSION: "3.11"
+
+# TODO: I expect we can parameterize/templatize a lot here, but I want to get it working first.
+
+stages:
+  - stage: Validate
+    dependsOn: []
+    jobs:
+      - job: check_headers
+        displayName: "Check headers are up-to-date"
+        pool:
+          vmImage: "ubuntu-latest"
+        steps:
+          - bash: rustup show
+            displayName: "Install Rust"
+          - bash: cargo install --locked cbindgen
+            displayName: "Install cbindgen"
+          - bash: script/check-headers
+            displayName: "Check headers"
+
+      - job: query_correctness
+        strategy:
+          matrix:
+            rust:
+              language: "Rust"
+              target: "query_test_rust"
+            go:
+              language: "Go"
+              target: "query_test_go"
+        displayName: "Run ${{variables.language}} Query Correctness Tests"
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: $(PY_VERSION)
+            displayName: "Use Python"
+          - task: GoTool@0
+            displayName: "Install Go"
+            inputs:
+              version: $(GO_VERSION)
+
+          - bash: rustup show
+            displayName: "Install Rust"
+
+          - bash: script/bootstrap
+            displayName: "Boostrap Repo"
+          - bash: make engine
+            displayName: "Build Client Engine"
+          - bash: |
+              script/reset-emulator
+              make $(target)
+            displayName: "Run query tests"
+
+  - stage: Build
+    dependsOn: []
+    jobs:
+      - job: build
+        strategy:
+          matrix:
+            x86_64-unknown-linux-gnu:
+              poolName: ClientEngine
+              poolDemand: ImageOverride -equals client-engine-linux-x86_64
+              CARGO_BUILD_TARGET: x86_64-unknown-linux-gnu
+            aarch64-apple-darwin:
+              poolName: Azure Pipelines
+              vmImage: macos-latest
+
+              # The VM we're building on is a x86_64-apple-darwin machine, so we can't run the aarch64 tests.
+              # Fortunately we can still BUILD the aarch64-apple-darwin binary.
+              # For now, we'll take the risk and only run tests on the x86_64 build and assume that implies the aarch64 build is good.
+              RunTests: false
+              CARGO_BUILD_TARGET: aarch64-apple-darwin
+            x86_64-apple-darwin:
+              poolName: Azure Pipelines
+              vmImage: macos-latest
+              CARGO_BUILD_TARGET: x86_64-apple-darwin
+        displayName: "Build"
+        pool:
+          name: $(poolName)
+          vmImage: $(vmImage)
+          demands:
+            - $(poolDemand)
+        steps:
+          - task: GoTool@0
+            displayName: "Install Go"
+            inputs:
+              version: $(GO_VERSION)
+
+          - bash: rustup target add $CARGO_BUILD_TARGET
+            displayName: "Install Rust"
+
+          - bash: script/bootstrap
+            displayName: "Boostrap Repo"
+          - bash: make engine
+            displayName: "Build Client Engine"
+
+            # Publish the artifacts now because a) we might as well have them even if the tests fail and b) 'make superclean' below will delete them
+          - publish: artifacts/$(CARGO_BUILD_TARGET)/release
+            displayName: "Publish Standard Build"
+            artifact: "$(CONFIGURATION)_$(CARGO_BUILD_TARGET)"
+
+          - bash: make test_rust
+            condition: ne(variables.RunTests, false)
+            displayName: "Run Rust tests"
+          - bash: |
+              go clean -cache
+              make test_go LIBRARY_MODE=shared
+            condition: ne(variables.RunTests, false)
+            displayName: "Run Go tests (Shared library)"
+          - bash: |
+              make vendor CONFIGURATION=vendored
+            displayName: "Build vendored library"
+          - bash: |
+              # We should now be able to clean the build artifacts and the tests should use the vendored copy
+              make superclean
+
+              # We can now run tests with no build tags, which should run them against the vendored copy.
+              go -C ./go/azcosmoscx test -v ./...
+            condition: ne(variables.RunTests, false)
+            displayName: "Run Go tests (Vendored static library)"
+
+            # Published the vendored copy (for committing to the Go package) separately
+          - publish: go/azcosmoscx/libcosmoscx-vendor/$(CARGO_BUILD_TARGET)
+            displayName: "Publish Vendored Build"
+            artifact: "vendored_$(CARGO_BUILD_TARGET)"
+
+  - stage: Package
+    dependsOn:
+      - Build
+    jobs:
+      - job: package
+        displayName: "Create packages"
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: none
+          - download: current
+            patterns: "**"
+          - bash: |
+              # Move up to the pipeline workspace directory.
+              # The default working directory is in the 's' subdirectory of this one.
+              # See https://learn.microsoft.com/en-us/azure/devops/pipelines/agents/agents?view=azure-devops&tabs=yaml%2Cbrowser#agent-directory-structure for more.
+              cd "$(Pipeline.Workspace)"
+
+              prepare_package() {
+                local prefix="$1"
+                output_dir=./s/output/$prefix
+                mkdir -p $output_dir
+                echo "Created $output_dir"
+                for dir in $(find . -maxdepth 1 -mindepth 1 -type d -name ${prefix}_\*); do
+                  target=$(echo $dir | cut -d'_' -f 2-)
+                  source="$dir/libcosmoscx.a"
+                  mkdir "$output_dir/$target"
+                  echo "Moving $source to $output_dir/$target"
+                  mv $source "$output_dir/$target"
+                done
+              }
+
+              prepare_package "vendored"
+          - publish: output
+            displayName: "Publish packages"
+            artifact: "packages"
