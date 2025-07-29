@@ -15,7 +15,6 @@ const PAGE_SIZE: usize = 100;
 
 type RawQueryPipeline = QueryPipeline<Box<serde_json::value::RawValue>, JsonQueryClauseItem>;
 
-// Simple test item for benchmarking
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct BenchmarkItem {
     id: String,
@@ -41,7 +40,6 @@ impl From<BenchmarkItem> for QueryResult<BenchmarkItem, JsonQueryClauseItem> {
     }
 }
 
-// Benchmark scenario configuration
 struct BenchmarkScenario {
     name: &'static str,
     query_sql: &'static str,
@@ -79,14 +77,12 @@ fn ordered_item_formatter(item: &BenchmarkItem) -> String {
     )
 }
 
-// Helper function to create test data for a partition
 fn create_partition_data(partition_id: &str, item_count: usize) -> Vec<BenchmarkItem> {
     (0..item_count)
         .map(|i| BenchmarkItem::new(&format!("item_{}", i), partition_id, i as i32).into())
         .collect()
 }
 
-// Helper to create a simple unordered query plan
 fn create_simple_query_plan() -> QueryPlan {
     QueryPlan {
         partitioned_query_execution_info_version: 1,
@@ -95,7 +91,6 @@ fn create_simple_query_plan() -> QueryPlan {
     }
 }
 
-// Helper to create a simple ordered query plan
 fn create_ordered_query_plan() -> QueryPlan {
     QueryPlan {
         partitioned_query_execution_info_version: 1,
@@ -107,7 +102,6 @@ fn create_ordered_query_plan() -> QueryPlan {
     }
 }
 
-// Helper to create partition key ranges
 fn create_partition_key_ranges(count: usize) -> Vec<PartitionKeyRange> {
     (0..count)
         .map(|i| {
@@ -120,7 +114,6 @@ fn create_partition_key_ranges(count: usize) -> Vec<PartitionKeyRange> {
         .collect()
 }
 
-// Helper to fulfill data requests from the pipeline
 fn fulfill_data_requests(
     scenario: &BenchmarkScenario,
     requests: &[azure_data_cosmos_engine::query::DataRequest],
@@ -130,7 +123,6 @@ fn fulfill_data_requests(
     for request in requests {
         let pkrange_id = request.pkrange_id.as_ref();
         if let Some(partition_data) = partition_data.get(pkrange_id) {
-            // Calculate which items to return based on continuation
             let start_index = request
                 .continuation
                 .as_ref()
@@ -148,22 +140,18 @@ fn fulfill_data_requests(
                 .map(|i| (scenario.item_formatter_fn)(&i))
                 .collect::<Vec<_>>();
 
-            // Format this into a single response
             let json = format!("{{\"Documents\":[{}]}}", items.join(","));
 
-            // Determine continuation token
             let continuation = if end_index < partition_data.len() {
                 Some(end_index.to_string())
             } else {
                 None
             };
 
-            // Now deserialize the items into QueryResult
             let result = pipeline
                 .deserialize_payload(&json)
                 .expect("Failed to deserialize payload");
 
-            // Provide data to pipeline
             pipeline
                 .provide_data(pkrange_id, result, continuation)
                 .expect("Failed to provide data");
@@ -171,13 +159,11 @@ fn fulfill_data_requests(
     }
 }
 
-// Helper to run a benchmark scenario
 fn run_benchmark_scenario(
     scenario: &BenchmarkScenario,
     items_per_partition: usize,
     iters: u64,
 ) -> std::time::Duration {
-    // Pre-create test data once per benchmark configuration
     let partition_data_template: HashMap<String, Vec<BenchmarkItem>> = (0..PARTITION_COUNT)
         .map(|i| {
             let partition_id = format!("partition_{}", i);
@@ -189,30 +175,24 @@ fn run_benchmark_scenario(
     let start = std::time::Instant::now();
 
     for _ in 0..iters {
-        // Create query plan and partition ranges
         let query_plan = (scenario.query_plan_fn)();
         let partition_ranges = create_partition_key_ranges(PARTITION_COUNT);
 
-        // Create pipeline, and use the "raw" query pipeline to emulate the behavior of the wrappers.
         let mut pipeline: RawQueryPipeline =
             QueryPipeline::new(scenario.query_sql, query_plan, partition_ranges)
                 .expect("Failed to create pipeline");
 
         let mut total_items = 0;
 
-        // Run the pipeline until completion
         loop {
             let result = pipeline.run().expect("Pipeline run failed");
 
-            // Count items yielded by this turn
             total_items += result.items.len();
 
-            // If pipeline is terminated, we're done
             if result.terminated {
                 break;
             }
 
-            // Fulfill data requests
             fulfill_data_requests(
                 &scenario,
                 &result.requests,
@@ -221,16 +201,13 @@ fn run_benchmark_scenario(
             );
         }
 
-        // Verify we processed all expected items
         assert_eq!(total_items, PARTITION_COUNT * items_per_partition);
     }
 
     start.elapsed()
 }
 
-// Main benchmark function
 pub fn throughput(c: &mut Criterion) {
-    // Test with different numbers of items per partition
     let items_per_partition_values = [100];
 
     // Define benchmark scenarios

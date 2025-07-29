@@ -11,35 +11,32 @@ use std::hint::black_box;
 
 type BenchmarkedQueryResult = QueryResult<Box<RawValue>, JsonQueryClauseItem>;
 
-/// Generates a JSON payload object with a "data" property containing random data of approximately the specified size.
 fn generate_payload_json(target_size: usize) -> String {
-    // Generate random data string to fill the target size
     let data_content = "x".repeat(target_size);
     serde_json::json!({
         "id": "test-item",
         "partitionKey": "test-partition",
         "data": data_content
-    }).to_string()
+    })
+    .to_string()
 }
 
-/// Generates order by items as JSON objects with the form {"item": value}.
 fn generate_order_by_items(count: usize) -> String {
     if count == 0 {
         return "[]".to_string();
     }
-    
+
     let items: Vec<String> = (0..count)
         .map(|i| format!(r#"{{"item": {}}}"#, i))
         .collect();
-    
+
     format!("[{}]", items.join(","))
 }
 
-/// Generates a complete QueryResult JSON for "rewritten" scenarios.
 fn generate_rewritten_json(payload_size: usize, order_by_count: usize) -> String {
     let payload = generate_payload_json(payload_size);
     let order_by_items = generate_order_by_items(order_by_count);
-    
+
     format!(
         r#"{{"orderByItems": {}, "payload": {}}}"#,
         order_by_items, payload
@@ -71,63 +68,56 @@ impl BenchmarkParams {
 fn benchmark_rewritten_deserialization(c: &mut Criterion, params: &BenchmarkParams) {
     let json_data = generate_rewritten_json(params.payload_size, params.order_by_count);
     let json_size = json_data.len();
-    
+
     let mut group = c.benchmark_group("query_result_deserialization");
     group.throughput(Throughput::Bytes(json_size as u64));
-    
+
     group.bench_with_input(
         BenchmarkId::from_parameter(params.benchmark_name()),
         &json_data,
         |b, json| {
             b.iter(|| {
                 let result: BenchmarkedQueryResult = black_box(
-                    serde_json::from_str(json).expect("Failed to deserialize QueryResult")
+                    serde_json::from_str(json).expect("Failed to deserialize QueryResult"),
                 );
                 black_box(result)
             })
         },
     );
-    
+
     group.finish();
 }
 
 fn benchmark_not_rewritten_deserialization(c: &mut Criterion, params: &BenchmarkParams) {
     let payload_json = generate_payload_json(params.payload_size);
     let json_size = payload_json.len();
-    
+
     let mut group = c.benchmark_group("query_result_deserialization");
     group.throughput(Throughput::Bytes(json_size as u64));
-    
+
     group.bench_with_input(
         BenchmarkId::from_parameter(params.benchmark_name()),
         &payload_json,
         |b, json| {
             b.iter(|| {
-                let payload: Box<RawValue> = black_box(
-                    serde_json::from_str(json).expect("Failed to deserialize payload")
-                );
-                let result: BenchmarkedQueryResult = black_box(
-                    QueryResult::from_payload(payload)
-                );
+                let payload: Box<RawValue> =
+                    black_box(serde_json::from_str(json).expect("Failed to deserialize payload"));
+                let result: BenchmarkedQueryResult = black_box(QueryResult::from_payload(payload));
                 black_box(result)
             })
         },
     );
-    
+
     group.finish();
 }
 
 fn query_result_deserialization_benchmarks(c: &mut Criterion) {
-    let payload_sizes = vec![
-        (10, "10b"),
-        (1024, "1kb"),
-    ];
-    
+    let payload_sizes = vec![(10, "10b"), (1024, "1kb")];
+
     let order_by_counts = vec![0, 1, 2];
-    
-    // Generate all benchmark parameter combinations
+
     let mut all_params = Vec::new();
-    
+
     // Rewritten scenarios (with all order by count variations)
     for (payload_size, payload_size_name) in &payload_sizes {
         for &order_by_count in &order_by_counts {
@@ -139,7 +129,7 @@ fn query_result_deserialization_benchmarks(c: &mut Criterion) {
             });
         }
     }
-    
+
     // Not rewritten scenarios (always 0 order by items)
     for (payload_size, payload_size_name) in &payload_sizes {
         all_params.push(BenchmarkParams {
@@ -149,7 +139,7 @@ fn query_result_deserialization_benchmarks(c: &mut Criterion) {
             is_rewritten: false,
         });
     }
-    
+
     // Run all benchmarks
     for params in &all_params {
         if params.is_rewritten {

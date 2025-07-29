@@ -12,7 +12,7 @@ To run the throughput benchmarks:
 
 ```bash
 # Navigate to the Python directory
-cd /workspaces/azure-cosmos-client-engine/python
+cd python
 
 # Install dependencies
 poetry install

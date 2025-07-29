@@ -4,10 +4,8 @@ import (
 	"testing"
 )
 
-// Benchmark functions for CGO transfer
 func BenchmarkCGOTransferNoop(b *testing.B) {
 	data := make([]byte, ByteArraySize)
-	// Fill with some data
 	for i := range data {
 		data[i] = byte(i % 256)
 	}
@@ -22,7 +20,6 @@ func BenchmarkCGOTransferNoop(b *testing.B) {
 
 func BenchmarkCGOTransferCopy(b *testing.B) {
 	data := make([]byte, ByteArraySize)
-	// Fill with some data
 	for i := range data {
 		data[i] = byte(i % 256)
 	}
@@ -37,7 +34,6 @@ func BenchmarkCGOTransferCopy(b *testing.B) {
 
 func BenchmarkCGOTransferProcess(b *testing.B) {
 	data := make([]byte, ByteArraySize)
-	// Fill with some data
 	for i := range data {
 		data[i] = byte(i % 256)
 	}
@@ -53,7 +49,6 @@ func BenchmarkCGOTransferProcess(b *testing.B) {
 // Benchmark functions for Go-to-Go transfer
 func BenchmarkGoTransferNoop(b *testing.B) {
 	data := make([]byte, ByteArraySize)
-	// Fill with some data
 	for i := range data {
 		data[i] = byte(i % 256)
 	}
@@ -68,7 +63,6 @@ func BenchmarkGoTransferNoop(b *testing.B) {
 
 func BenchmarkGoTransferCopy(b *testing.B) {
 	data := make([]byte, ByteArraySize)
-	// Fill with some data
 	for i := range data {
 		data[i] = byte(i % 256)
 	}
@@ -83,7 +77,6 @@ func BenchmarkGoTransferCopy(b *testing.B) {
 
 func BenchmarkGoTransferProcess(b *testing.B) {
 	data := make([]byte, ByteArraySize)
-	// Fill with some data
 	for i := range data {
 		data[i] = byte(i % 256)
 	}

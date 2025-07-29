@@ -27,8 +27,6 @@ from .utils import (
 
 
 class BenchmarkScenario:
-    """Benchmark scenario configuration."""
-
     def __init__(
         self,
         name: str,
@@ -48,11 +46,9 @@ def fulfill_data_requests(
     partition_data: Dict[str, List[BenchmarkItem]],
     scenario: BenchmarkScenario
 ) -> None:
-    """Fulfill data requests from the pipeline."""
     for request in requests:
         pkrange_id = request.pkrange_id
         if pkrange_id in partition_data:
-            # Calculate which items to return based on continuation
             start_index = 0
             if request.continuation:
                 try:
@@ -64,9 +60,7 @@ def fulfill_data_requests(
                             len(partition_data[pkrange_id]))
             items = partition_data[pkrange_id][start_index:end_index]
 
-            # Format items as Python objects (not JSON strings)
             if "ORDER BY" in scenario.query_sql.upper():
-                # For ordered queries, use the orderByItems format
                 formatted_items = [
                     {
                         "orderByItems": [{"item": item.value}],
@@ -75,14 +69,11 @@ def fulfill_data_requests(
                     for item in items
                 ]
             else:
-                # For unordered queries, use simple dict format
                 formatted_items = [item.to_dict() for item in items]
 
-            # Determine continuation token
             continuation = str(end_index) if end_index < len(
                 partition_data[pkrange_id]) else None
 
-            # Provide data to pipeline
             pipeline.provide_data(pkrange_id, formatted_items, continuation)
 
 
@@ -90,19 +81,15 @@ def run_benchmark_scenario(
     scenario: BenchmarkScenario,
     items_per_partition: int
 ) -> int:
-    """Run a single benchmark scenario and return total items processed."""
-    # Pre-create test data
     partition_data: Dict[str, List[BenchmarkItem]] = {}
     for i in range(PARTITION_COUNT):
         partition_id = f"partition_{i}"
         partition_data[partition_id] = create_partition_data(
             partition_id, items_per_partition)
 
-    # Create query plan and partition ranges
     query_plan = scenario.query_plan_fn()
     partition_ranges = create_partition_key_ranges(PARTITION_COUNT)
 
-    # Create pipeline
     engine = azure_cosmoscx.QueryEngine()
     pipeline = engine.create_pipeline(
         scenario.query_sql,
@@ -112,18 +99,14 @@ def run_benchmark_scenario(
 
     total_items = 0
 
-    # Run the pipeline until completion
     while True:
         result = pipeline.next_batch()
 
-        # Count items yielded by this turn
         total_items += len(result.items)
 
-        # If pipeline is terminated, we're done
         if result.terminated:
             break
 
-        # Fulfill data requests
         fulfill_data_requests(
             pipeline,
             result.requests,
@@ -131,7 +114,6 @@ def run_benchmark_scenario(
             scenario
         )
 
-    # Verify we processed all expected items
     expected_total = PARTITION_COUNT * items_per_partition
     assert total_items == expected_total, f"Expected {expected_total} items, got {total_items}"
 
@@ -143,7 +125,6 @@ class TestThroughputBenchmarks:
 
     @pytest.mark.parametrize("items_per_partition", [100])
     def test_unordered_throughput(self, benchmark, items_per_partition):
-        """Benchmark unordered query throughput."""
         scenario = BenchmarkScenario(
             "unordered",
             "SELECT * FROM c",
@@ -151,10 +132,8 @@ class TestThroughputBenchmarks:
             unordered_item_formatter
         )
 
-        # Calculate expected total items
         expected_total = PARTITION_COUNT * items_per_partition
 
-        # Run the benchmark and measure items per second
         def benchmark_with_throughput():
             start_time = time.perf_counter()
             total_items = run_benchmark_scenario(scenario, items_per_partition)
@@ -163,21 +142,17 @@ class TestThroughputBenchmarks:
             items_per_second = total_items / elapsed_time
             return total_items, items_per_second
 
-        # Run the benchmark
         result = benchmark(benchmark_with_throughput)
         total_items, items_per_second = result
 
-        # Print throughput information
         print(f"\n{scenario.name.capitalize()} Query Throughput:")
         print(f"  Total items processed: {total_items}")
         print(f"  Items per second: {items_per_second:,.0f}")
 
-        # Verify the expected number of items were processed
         assert total_items == expected_total
 
     @pytest.mark.parametrize("items_per_partition", [100])
     def test_ordered_throughput(self, benchmark, items_per_partition):
-        """Benchmark ordered query throughput."""
         scenario = BenchmarkScenario(
             "ordered",
             "SELECT * FROM c ORDER BY c.value",
@@ -185,10 +160,8 @@ class TestThroughputBenchmarks:
             ordered_item_formatter
         )
 
-        # Calculate expected total items
         expected_total = PARTITION_COUNT * items_per_partition
 
-        # Run the benchmark and measure items per second
         def benchmark_with_throughput():
             start_time = time.perf_counter()
             total_items = run_benchmark_scenario(scenario, items_per_partition)
@@ -197,14 +170,11 @@ class TestThroughputBenchmarks:
             items_per_second = total_items / elapsed_time
             return total_items, items_per_second
 
-        # Run the benchmark
         result = benchmark(benchmark_with_throughput)
         total_items, items_per_second = result
 
-        # Print throughput information
         print(f"\n{scenario.name.capitalize()} Query Throughput:")
         print(f"  Total items processed: {total_items}")
         print(f"  Items per second: {items_per_second:,.0f}")
 
-        # Verify the expected number of items were processed
         assert total_items == expected_total

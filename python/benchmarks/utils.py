@@ -11,8 +11,6 @@ from .config import PARTITION_COUNT, PAGE_SIZE
 
 
 class BenchmarkItem:
-    """Simple test item for benchmarking."""
-
     def __init__(self, id: str, partition_key: str, value: int):
         self.id = id
         self.partition_key = partition_key
@@ -20,7 +18,6 @@ class BenchmarkItem:
         self.description = f"Item {id} in partition {partition_key}"
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary representation."""
         return {
             "id": self.id,
             "partition_key": self.partition_key,
@@ -30,7 +27,6 @@ class BenchmarkItem:
 
 
 def create_partition_data(partition_id: str, item_count: int) -> List[BenchmarkItem]:
-    """Create test data for a partition."""
     return [
         BenchmarkItem(f"item_{i}", partition_id, i)
         for i in range(item_count)
@@ -38,7 +34,6 @@ def create_partition_data(partition_id: str, item_count: int) -> List[BenchmarkI
 
 
 def create_partition_key_ranges(count: int) -> List[Dict[str, str]]:
-    """Create partition key ranges for testing."""
     return [
         {
             "id": f"partition_{i}",
@@ -50,7 +45,6 @@ def create_partition_key_ranges(count: int) -> List[Dict[str, str]]:
 
 
 def unordered_item_formatter(item: BenchmarkItem) -> str:
-    """Format item for unordered queries."""
     return json.dumps({
         "id": item.id,
         "partition_key": item.partition_key,
@@ -60,7 +54,6 @@ def unordered_item_formatter(item: BenchmarkItem) -> str:
 
 
 def ordered_item_formatter(item: BenchmarkItem) -> str:
-    """Format item for ordered queries."""
     return json.dumps({
         "payload": {
             "id": item.id,
@@ -73,7 +66,6 @@ def ordered_item_formatter(item: BenchmarkItem) -> str:
 
 
 def create_simple_query_plan() -> Dict[str, Any]:
-    """Create a simple unordered query plan."""
     return {
         "partitionedQueryExecutionInfoVersion": 1,
         "queryInfo": {
@@ -84,7 +76,6 @@ def create_simple_query_plan() -> Dict[str, Any]:
 
 
 def create_ordered_query_plan() -> Dict[str, Any]:
-    """Create a simple ordered query plan."""
     return {
         "partitionedQueryExecutionInfoVersion": 1,
         "queryInfo": {

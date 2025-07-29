@@ -3,6 +3,7 @@ package benchmarks
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/Azure/azure-cosmos-client-engine/go/azcosmoscx"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos/queryengine"
@@ -32,7 +33,6 @@ func NewBenchmarkItem(id, partitionKey string, value int) BenchmarkItem {
 	}
 }
 
-// createPartitionData generates test data for a partition
 func createPartitionData(partitionID string, itemCount int) []BenchmarkItem {
 	items := make([]BenchmarkItem, itemCount)
 	for i := 0; i < itemCount; i++ {
@@ -41,7 +41,6 @@ func createPartitionData(partitionID string, itemCount int) []BenchmarkItem {
 	return items
 }
 
-// createPartitionKeyRanges creates partition key ranges for testing
 func createPartitionKeyRanges(count int) string {
 	ranges := make([]string, count)
 	for i := 0; i < count; i++ {
@@ -60,14 +59,16 @@ func createPartitionKeyRanges(count int) string {
 	return fmt.Sprintf(`{"PartitionKeyRanges":[%s]}`, rangesList)
 }
 
-// fulfillDataRequests handles data requests from the pipeline using batch API
 func fulfillDataRequests(pipeline queryengine.QueryPipeline, requests []queryengine.QueryRequest,
-	partitionData map[string][]BenchmarkItem, ordered bool) error {
+	partitionData map[string][]BenchmarkItem, ordered bool, latencyMs int) error {
 	if len(requests) == 0 {
 		return nil
 	}
 
-	// Collect all the results to provide in batch
+	if latencyMs > 0 {
+		time.Sleep(time.Duration(latencyMs) * time.Millisecond)
+	}
+
 	var results []queryengine.QueryResult
 
 	for _, request := range requests {
@@ -77,10 +78,8 @@ func fulfillDataRequests(pipeline queryengine.QueryPipeline, requests []queryeng
 			continue
 		}
 
-		// Calculate which items to return based on continuation
 		startIndex := 0
 		if request.Continuation != "" {
-			// Parse continuation as integer index
 			fmt.Sscanf(request.Continuation, "%d", &startIndex)
 		}
 
@@ -94,11 +93,9 @@ func fulfillDataRequests(pipeline queryengine.QueryPipeline, requests []queryeng
 		documents := make([]string, len(responseItems))
 		for i, item := range responseItems {
 			if ordered {
-				// For ordered queries, format as QueryResult with orderByItems
 				documents[i] = fmt.Sprintf(`{"payload":{"id":"%s","partition_key":"%s","value":%d,"description":"%s"},"orderByItems":[{"item":%d}]}`,
 					item.ID, item.PartitionKey, item.Value, item.Description, item.Value)
 			} else {
-				// For unordered queries, format as simple JSON object
 				documents[i] = fmt.Sprintf(`{"id":"%s","partitionKey":"%s","value":%d,"description":"%s"}`,
 					item.ID, item.PartitionKey, item.Value, item.Description)
 			}
@@ -124,30 +121,20 @@ func fulfillDataRequests(pipeline queryengine.QueryPipeline, requests []queryeng
 		results = append(results, queryengine.NewQueryResultString(partitionID, responseData, continuation))
 	}
 
-	// Use batch API if available, otherwise fall back to individual calls
-	if batchPipeline, ok := pipeline.(interface {
-		ProvideDataBatch([]queryengine.QueryResult) error
-	}); ok {
-		return batchPipeline.ProvideDataBatch(results)
-	} else {
-		// Fallback to individual calls
-		for _, result := range results {
-			err := pipeline.ProvideData(result)
-			if err != nil {
-				return err
-			}
+	for _, result := range results {
+		err := pipeline.ProvideData(result)
+		if err != nil {
+			return err
 		}
-		return nil
 	}
+
+	return nil
 }
 
-// runBenchmarkScenario executes a single benchmark scenario
-func runBenchmarkScenario(b *testing.B, partitionData map[string][]BenchmarkItem, ordered bool) (int, error) {
-	// Create query plan and partition ranges
+func runBenchmarkScenario(b *testing.B, partitionData map[string][]BenchmarkItem, ordered bool, latencyMs int) (int, error) {
 	queryPlan := `{"partitionedQueryExecutionInfoVersion": 1, "queryInfo":{}, "queryRanges": []}`
 	partitionRanges := createPartitionKeyRanges(PartitionCount)
 
-	// Create pipeline
 	pipeline, err := azcosmoscx.NewQueryEngine().CreateQueryPipeline("SELECT * FROM c", queryPlan, partitionRanges)
 	if err != nil {
 		return 0, err
@@ -156,19 +143,16 @@ func runBenchmarkScenario(b *testing.B, partitionData map[string][]BenchmarkItem
 
 	totalItems := 0
 
-	// Run the pipeline until completion
 	for !pipeline.IsComplete() {
 		result, err := pipeline.Run()
 		if err != nil {
 			return 0, err
 		}
 
-		// Count items yielded by this turn
 		totalItems += len(result.Items)
 
-		// If there are data requests, fulfill them
 		if len(result.Requests) > 0 {
-			err = fulfillDataRequests(pipeline, result.Requests, partitionData, ordered)
+			err = fulfillDataRequests(pipeline, result.Requests, partitionData, ordered, latencyMs)
 			if err != nil {
 				return 0, err
 			}
@@ -178,8 +162,7 @@ func runBenchmarkScenario(b *testing.B, partitionData map[string][]BenchmarkItem
 	return totalItems, nil
 }
 
-// BenchmarkPipelineThroughput_Unordered_100 benchmarks unordered pipeline with 100 items per partition
-func BenchmarkPipelineThroughput_Unordered_100(b *testing.B) {
+func BenchmarkPipelineThroughput_Unordered_0ms(b *testing.B) {
 	b.ResetTimer()
 
 	itemsPerPartition := 100
@@ -194,7 +177,7 @@ func BenchmarkPipelineThroughput_Unordered_100(b *testing.B) {
 
 	totalItems := 0
 	for b.Loop() {
-		iterItems, err := runBenchmarkScenario(b, partitionData, false) // false for unordered
+		iterItems, err := runBenchmarkScenario(b, partitionData, false, 0) // 0ms latency
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -204,8 +187,7 @@ func BenchmarkPipelineThroughput_Unordered_100(b *testing.B) {
 	b.ReportMetric(float64(totalItems)/float64(b.Elapsed().Seconds()), "items/s")
 }
 
-// BenchmarkPipelineThroughput_Ordered_100 benchmarks ordered pipeline with 100 items per partition
-func BenchmarkPipelineThroughput_Ordered_100(b *testing.B) {
+func BenchmarkPipelineThroughput_Unordered_5ms(b *testing.B) {
 	b.ResetTimer()
 
 	itemsPerPartition := 100
@@ -220,7 +202,107 @@ func BenchmarkPipelineThroughput_Ordered_100(b *testing.B) {
 
 	totalItems := 0
 	for b.Loop() {
-		iterItems, err := runBenchmarkScenario(b, partitionData, true) // true for ordered
+		iterItems, err := runBenchmarkScenario(b, partitionData, false, 5) // 5ms latency
+		if err != nil {
+			b.Fatal(err)
+		}
+		totalItems += iterItems
+	}
+
+	b.ReportMetric(float64(totalItems)/float64(b.Elapsed().Seconds()), "items/s")
+}
+
+func BenchmarkPipelineThroughput_Unordered_10ms(b *testing.B) {
+	b.ResetTimer()
+
+	itemsPerPartition := 100
+	b.SetBytes(int64(PartitionCount * itemsPerPartition))
+
+	// Pre-create test data
+	partitionData := make(map[string][]BenchmarkItem)
+	for i := 0; i < PartitionCount; i++ {
+		partitionID := fmt.Sprintf("partition_%d", i)
+		partitionData[partitionID] = createPartitionData(partitionID, itemsPerPartition)
+	}
+
+	totalItems := 0
+	for b.Loop() {
+		iterItems, err := runBenchmarkScenario(b, partitionData, false, 10) // 10ms latency
+		if err != nil {
+			b.Fatal(err)
+		}
+		totalItems += iterItems
+	}
+
+	b.ReportMetric(float64(totalItems)/float64(b.Elapsed().Seconds()), "items/s")
+}
+
+func BenchmarkPipelineThroughput_Ordered_0ms(b *testing.B) {
+	b.ResetTimer()
+
+	itemsPerPartition := 100
+	b.SetBytes(int64(PartitionCount * itemsPerPartition))
+
+	// Pre-create test data
+	partitionData := make(map[string][]BenchmarkItem)
+	for i := 0; i < PartitionCount; i++ {
+		partitionID := fmt.Sprintf("partition_%d", i)
+		partitionData[partitionID] = createPartitionData(partitionID, itemsPerPartition)
+	}
+
+	totalItems := 0
+	for b.Loop() {
+		iterItems, err := runBenchmarkScenario(b, partitionData, true, 0) // 0ms latency
+		if err != nil {
+			b.Fatal(err)
+		}
+		totalItems += iterItems
+	}
+
+	b.ReportMetric(float64(totalItems)/float64(b.Elapsed().Seconds()), "items/s")
+}
+
+func BenchmarkPipelineThroughput_Ordered_5ms(b *testing.B) {
+	b.ResetTimer()
+
+	itemsPerPartition := 100
+	b.SetBytes(int64(PartitionCount * itemsPerPartition))
+
+	// Pre-create test data
+	partitionData := make(map[string][]BenchmarkItem)
+	for i := 0; i < PartitionCount; i++ {
+		partitionID := fmt.Sprintf("partition_%d", i)
+		partitionData[partitionID] = createPartitionData(partitionID, itemsPerPartition)
+	}
+
+	totalItems := 0
+	for b.Loop() {
+		iterItems, err := runBenchmarkScenario(b, partitionData, true, 5) // 5ms latency
+		if err != nil {
+			b.Fatal(err)
+		}
+		totalItems += iterItems
+	}
+
+	b.ReportMetric(float64(totalItems)/float64(b.Elapsed().Seconds()), "items/s")
+}
+
+func BenchmarkPipelineThroughput_Ordered_10ms(b *testing.B) {
+	b.ResetTimer()
+
+	itemsPerPartition := 100
+	b.SetBytes(int64(PartitionCount * itemsPerPartition))
+
+	// Pre-create test data
+	partitionData := make(map[string][]BenchmarkItem)
+	for i := 0; i < PartitionCount; i++ {
+		partitionID := fmt.Sprintf("partition_%d", i)
+		partitionData[partitionID] = createPartitionData(partitionID, itemsPerPartition)
+	}
+
+	totalItems := 0
+	for b.Loop() {
+		iterItems, err := runBenchmarkScenario(b, partitionData, true, 10) // 10ms latency
 		if err != nil {
 			b.Fatal(err)
 		}
