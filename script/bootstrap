@@ -26,18 +26,24 @@ done
 script/check-deps
 
 # Ensure pip and pipx are installed.
-printenv | grep PIP
-echo "python:"
-which python
-python -m ensurepip
-echo "pip:"
-which pip
-echo "sys.executable:"
-python -c "import sys; print(sys.executable)"
-pip install --user pipx
+if ! type pip >/dev/null 2>&1; then
+    echo "pip is not installed, installing pip..."
+    if type python >/dev/null 2>&1; then
+        python -m ensurepip
+    else
+        echo "Python3 is not installed, please install Python3 and try again."
+        exit 1
+    fi
+else
+    echo "pip is already installed"
+fi
 
-echo "pipx:"
-which pipx
+if ! type pipx >/dev/null 2>&1; then
+    python -m pip install --user pipx
+else
+    echo "pipx is already installed"
+fi
+
 pipx install maturin
 
 pipx install poetry
