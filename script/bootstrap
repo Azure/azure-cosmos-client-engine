@@ -26,7 +26,13 @@ done
 script/check-deps
 
 # Ensure pip and pipx are installed.
+echo "python:"
+which python
 python -m ensurepip
+echo "pip:"
+which pip
+echo "sys.executable:"
+python -c "import sys; print(sys.executable)"
 pip install --user pipx
 
 pipx install maturin
