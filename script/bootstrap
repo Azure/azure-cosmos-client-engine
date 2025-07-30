@@ -7,10 +7,7 @@ script_dir=$(dirname "$(readlink -f "$0")")
 cd "$script_dir/.."
 repo_root="$PWD"
 
-venv_bindir="$repo_root/.venv/bin"
-if [ "$OS" = "Windows_NT" ]; then
-    venv_bindir="$repo_root/.venv/Scripts"
-fi
+set -euo pipefail
 
 while [[ "$#" -gt 0 ]]; do
     key="$1"
@@ -26,12 +23,11 @@ while [[ "$#" -gt 0 ]]; do
     esac
 done
 
-echo "Checking dependencies we don't auto-install..."
 script/check-deps
 
 # Ensure pip and pipx are installed.
 python -m ensurepip
-pip install pipx
+pip install --user pipx
 
 pipx install maturin
 
