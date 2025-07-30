@@ -1,0 +1,126 @@
+parameters:
+  - name: IsReleaseBuild
+    type: boolean
+    default: false
+  - name: GoVersion
+    type: string
+    default: "1.24.3"
+  - name: PyVersion
+    type: string
+    default: "3.11"
+  - name: Pools
+    type: object
+
+stages:
+  - stage: Validate
+    dependsOn: []
+    jobs:
+      - job: check_headers
+        displayName: "Check headers are up-to-date"
+        pool: ${{ parameters.Pools.x86_64-linux-gnu }}
+        steps:
+          - bash: rustup show
+            displayName: "Install Rust"
+          - bash: cargo install --locked cbindgen
+            displayName: "Install cbindgen"
+          - bash: script/check-headers
+            displayName: "Check headers"
+
+      - job: query_correctness
+        strategy:
+          matrix:
+            rust:
+              language: "Rust"
+              target: "query_test_rust"
+            go:
+              language: "Go"
+              target: "query_test_go"
+        displayName: "Run ${{variables.language}} Query Correctness Tests"
+        pool: ${{ parameters.Pools.x86_64-linux-gnu }}
+        steps:
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: ${{ parameters.PyVersion }}
+            displayName: "Use Python"
+          - task: GoTool@0
+            displayName: "Install Go"
+            inputs:
+              version: ${{ parameters.GoVersion }}
+
+          - bash: rustup show
+            displayName: "Install Rust"
+
+          - bash: script/bootstrap
+            displayName: "Boostrap Repo"
+          - bash: make engine
+            displayName: "Build Client Engine"
+          - bash: |
+              script/reset-emulator
+              make $(target)
+            displayName: "Run query tests"
+
+  - stage: Build
+    dependsOn: []
+    jobs:
+      - name: x86_64-linux-gnu
+        pool: ${{ parameters.Pools.x86_64-linux-gnu }}
+        steps:
+          - template: /script/pipelines/build-job.yml
+            parameters:
+              IsReleaseBuild: ${{ parameters.IsReleaseBuild }}
+              GoVersion: ${{ parameters.GoVersion }}
+              CargoBuildTarget: x86_64-linux-gnu
+      - name: x86_64-apple-darwin
+        pool: ${{ parameters.Pools.x86_64-apple-darwin }}
+        steps:
+          - template: /script/pipelines/build-job.yml
+            parameters:
+              IsReleaseBuild: ${{ parameters.IsReleaseBuild }}
+              GoVersion: ${{ parameters.GoVersion }}
+              CargoBuildTarget: x86_64-apple-darwin
+      - name: aarch64-apple-darwin
+        pool: ${{ parameters.Pools.aarch64-apple-darwin }}
+        steps:
+          - template: /script/pipelines/build-job.yml
+            parameters:
+              RunTests: false # The job runs on an x86_64 machine, so we can't run tests.
+              IsReleaseBuild: ${{ parameters.IsReleaseBuild }}
+              GoVersion: ${{ parameters.GoVersion }}
+              CargoBuildTarget: aarch64-apple-darwin
+
+  - ${{ if eq(parameters.IsReleaseBuild, true) }}:
+      - stage: Package
+        dependsOn:
+          - Build
+        jobs:
+          - job: package
+            displayName: "Create packages"
+            pool: ${{ parameters.Pools.x86_64-linux-gnu }}
+            steps:
+              - checkout: none
+              - download: current
+                patterns: "**"
+              - bash: |
+                  # Move up to the pipeline workspace directory.
+                  # The default working directory is in the 's' subdirectory of this one.
+                  # See https://learn.microsoft.com/en-us/azure/devops/pipelines/agents/agents?view=azure-devops&tabs=yaml%2Cbrowser#agent-directory-structure for more.
+                  cd "$(Pipeline.Workspace)"
+
+                  prepare_package() {
+                    local prefix="$1"
+                    output_dir=./s/output/$prefix
+                    mkdir -p $output_dir
+                    echo "Created $output_dir"
+                    for dir in $(find . -maxdepth 1 -mindepth 1 -type d -name ${prefix}_\*); do
+                      target=$(echo $dir | cut -d'_' -f 2-)
+                      source="$dir/libcosmoscx.a"
+                      mkdir "$output_dir/$target"
+                      echo "Moving $source to $output_dir/$target"
+                      mv $source "$output_dir/$target"
+                    done
+                  }
+
+                  prepare_package "vendored"
+              - publish: output
+                displayName: "Publish packages"
+                artifact: "packages"

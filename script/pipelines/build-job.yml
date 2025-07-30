@@ -1,0 +1,66 @@
+parameters:
+  - name: IsReleaseBuild
+    type: boolean
+    default: false
+  - name: RunTests
+    type: boolean
+    default: true
+  - name: GoVersion
+    type: string
+  - name: CargoBuildTarget
+    type: string
+
+variables:
+  CARGO_BUILD_TARGET: ${{ parameters.CargoBuildTarget }}
+  CONFIGURATION: release
+  RUSTFLAGS: "-D warnings"
+
+steps:
+  - task: GoTool@0
+    displayName: "Install Go"
+    inputs:
+      version: ${{ parameters.GoVersion }}
+
+  - bash: rustup target add ${{ parameters.CargoBuildTarget }}
+    displayName: "Install Rust"
+
+  - bash: script/bootstrap
+    displayName: "Boostrap Repo"
+
+  - bash: make engine CARGO_BUILD_TARGET=${{ parameters.CargoBuildTarget }}
+    displayName: "Build Client Engine"
+
+    # Publish the artifacts now because a) we might as well have them even if the tests fail and b) 'make superclean' below will delete them
+  - ${{ if eq(parameters.ReleaseBuild, true) }}:
+      - publish: artifacts/${{ parameters.CargoBuildTarget }}/release
+        condition: eq(parameters.ReleaseBuild, true)
+        displayName: "Publish Standard Build"
+        artifact: "$(CONFIGURATION)_$(CARGO_BUILD_TARGET)"
+
+  - ${{ if eq(parameters.RunTests, true) }}:
+      - bash: make test_rust
+        displayName: "Run Rust tests"
+      - bash: |
+          go clean -cache
+          make test_go LIBRARY_MODE=shareda
+        displayName: "Run Go tests (Shared library)"
+
+  - bash: |
+      make vendor CONFIGURATION=vendored
+    displayName: "Build vendored library"
+
+  - ${{ if eq(parameters.RunTests, true) }}:
+      - bash: |
+          # We should now be able to clean the build artifacts and the tests should use the vendored copy
+          make superclean
+
+          # We can now run tests with no build tags, which should run them against the vendored copy.
+          go -C ./go/azcosmoscx test -v ./...
+        displayName: "Run Go tests (Vendored static library)"
+
+    # Published the vendored copy (for committing to the Go package) separately
+  - ${{ if eq(parameters.ReleaseBuild, true) }}:
+      - publish: go/azcosmoscx/libcosmoscx-vendor/$(CARGO_BUILD_TARGET)
+        condition: eq(parameters.ReleaseBuild, true)
+        displayName: "Publish Vendored Build"
+        artifact: "vendored_$(CARGO_BUILD_TARGET)"

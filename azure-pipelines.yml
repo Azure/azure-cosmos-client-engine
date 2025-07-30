@@ -9,6 +9,15 @@ pr:
       - release/*
 
 extends:
-  template: /script/pipeline-template.yml
+  template: /script/pipelines/pipeline-template.yml
   parameters:
-    ReleaseBuild: false
+    IsReleaseBuild: false
+    Pools:
+      x86_64-linux-gnu:
+        name: ClientEngine
+        demands:
+          - ImageOverride -equals client-engine-linux-x86_64
+      x86_64-apple-darwin:
+        vmImage: macos-latest
+      aarch64-apple-darwin:
+        vmImage: macos-latest
