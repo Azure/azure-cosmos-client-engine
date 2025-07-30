@@ -35,6 +35,8 @@ echo "sys.executable:"
 python -c "import sys; print(sys.executable)"
 pip install --user pipx
 
+echo "pipx:"
+which pipx
 pipx install maturin
 
 pipx install poetry
