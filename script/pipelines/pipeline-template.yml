@@ -72,6 +72,8 @@ stages:
         displayName: "Linux x86_64"
         pool: ${{ parameters.LinuxPool }}
         variables:
+          GO_VERSION: ${{ parameters.GoVersion }}
+          PY_VERSION: ${{ parameters.PyVersion }}
           CARGO_BUILD_TARGET: x86_64-linux-gnu
         steps:
           - template: /script/pipelines/build-job.yml
@@ -81,6 +83,8 @@ stages:
         displayName: "macOS x86_64"
         pool: ${{ parameters.MacPool }}
         variables:
+          GO_VERSION: ${{ parameters.GoVersion }}
+          PY_VERSION: ${{ parameters.PyVersion }}
           CARGO_BUILD_TARGET: x86_64-apple-darwin
         steps:
           - template: /script/pipelines/build-job.yml
@@ -90,6 +94,8 @@ stages:
         displayName: "macOS aarch64"
         pool: ${{ parameters.MacPool }}
         variables:
+          GO_VERSION: ${{ parameters.GoVersion }}
+          PY_VERSION: ${{ parameters.PyVersion }}
           CARGO_BUILD_TARGET: aarch64-apple-darwin
         steps:
           - template: /script/pipelines/build-job.yml
