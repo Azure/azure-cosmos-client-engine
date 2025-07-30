@@ -2,6 +2,9 @@ parameters:
   - name: IsReleaseBuild
     type: boolean
     default: false
+  - name: IsWindows
+    type: boolean
+    default: false
   - name: RunTests
     type: boolean
     default: true
@@ -11,6 +14,12 @@ steps:
     displayName: "Install Go"
     inputs:
       version: $(GO_VERSION)
+
+  - task: UsePythonVersion@0
+    inputs:
+      versionSpec: $(PY_VERSION)
+      addToPath: true
+    displayName: "Use Python $(PY_VERSION)"
 
   - bash: rustup target add $(CARGO_BUILD_TARGET)
     displayName: "Install Rust"

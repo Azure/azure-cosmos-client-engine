@@ -80,6 +80,7 @@ stages:
         steps:
           - template: /script/pipelines/build-job.yml
             parameters:
+              IsWindows: true
               IsReleaseBuild: ${{ parameters.IsReleaseBuild }}
 
       - job: x86_64_linux_gnu
