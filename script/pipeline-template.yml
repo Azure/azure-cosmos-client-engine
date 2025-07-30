@@ -73,12 +73,12 @@ stages:
           matrix:
             x86_64-unknown-linux-gnu:
               poolName: ClientEngine
-              poolDemands: ImageOverride -equals client-engine-linux-x86_64
+              poolDemand: ImageOverride -equals client-engine-linux-x86_64
               vmImage:
               CARGO_BUILD_TARGET: x86_64-unknown-linux-gnu
             aarch64-apple-darwin:
               poolName: Azure Pipelines
-              poolDemands: Agent.OS -equals macos
+              poolDemand: Agent.OS -equals macos
               vmImage: macos-latest
 
               # The VM we're building on is a x86_64-apple-darwin machine, so we can't run the aarch64 tests.
@@ -88,7 +88,7 @@ stages:
               CARGO_BUILD_TARGET: aarch64-apple-darwin
             x86_64-apple-darwin:
               poolName: Azure Pipelines
-              poolDemands: Agent.OS -equals macos
+              poolDemand: Agent.OS -equals macos
               vmImage: macos-latest
               CARGO_BUILD_TARGET: x86_64-apple-darwin
         displayName: "Build"
