@@ -64,7 +64,7 @@ stages:
   - stage: Build
     dependsOn: []
     jobs:
-      - name: x86_64-linux-gnu
+      - job: x86_64-linux-gnu
         pool: ${{ parameters.LinuxPool }}
         steps:
           - template: /script/pipelines/build-job.yml
@@ -72,7 +72,7 @@ stages:
               IsReleaseBuild: ${{ parameters.IsReleaseBuild }}
               GoVersion: ${{ parameters.GoVersion }}
               CargoBuildTarget: x86_64-linux-gnu
-      - name: x86_64-apple-darwin
+      - job: x86_64-apple-darwin
         pool: ${{ parameters.MacPool }}
         steps:
           - template: /script/pipelines/build-job.yml
@@ -80,7 +80,7 @@ stages:
               IsReleaseBuild: ${{ parameters.IsReleaseBuild }}
               GoVersion: ${{ parameters.GoVersion }}
               CargoBuildTarget: x86_64-apple-darwin
-      - name: aarch64-apple-darwin
+      - job: aarch64-apple-darwin
         pool: ${{ parameters.MacPool }}
         steps:
           - template: /script/pipelines/build-job.yml
