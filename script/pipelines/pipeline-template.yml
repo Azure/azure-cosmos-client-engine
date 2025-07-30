@@ -12,6 +12,8 @@ parameters:
     type: object
   - name: MacPool
     type: object
+  - name: WindowsPool
+    type: object
 
 variables:
   CONFIGURATION: release

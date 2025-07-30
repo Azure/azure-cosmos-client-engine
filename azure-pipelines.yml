@@ -18,3 +18,7 @@ extends:
         - ImageOverride -equals client-engine-linux-x86_64
     MacPool:
       vmImage: macos-latest
+    WindowsPool:
+      name: ClientEngine
+      demands:
+        - ImageOverride -equals client-engine-windows-x86_64
