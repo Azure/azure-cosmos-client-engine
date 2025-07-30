@@ -13,6 +13,10 @@ parameters:
   - name: MacPool
     type: object
 
+variables:
+  CONFIGURATION: release
+  RUSTFLAGS: "-D warnings"
+
 stages:
   - stage: Validate
     dependsOn: []
@@ -66,29 +70,29 @@ stages:
     jobs:
       - job: x86_64-linux-gnu
         pool: ${{ parameters.LinuxPool }}
+        variables:
+          CARGO_BUILD_TARGET: x86_64-linux-gnu
         steps:
           - template: /script/pipelines/build-job.yml
             parameters:
               IsReleaseBuild: ${{ parameters.IsReleaseBuild }}
-              GoVersion: ${{ parameters.GoVersion }}
-              CargoBuildTarget: x86_64-linux-gnu
       - job: x86_64-apple-darwin
         pool: ${{ parameters.MacPool }}
+        variables:
+          CARGO_BUILD_TARGET: x86_64-apple-darwin
         steps:
           - template: /script/pipelines/build-job.yml
             parameters:
               IsReleaseBuild: ${{ parameters.IsReleaseBuild }}
-              GoVersion: ${{ parameters.GoVersion }}
-              CargoBuildTarget: x86_64-apple-darwin
       - job: aarch64-apple-darwin
         pool: ${{ parameters.MacPool }}
+        variables:
+          CARGO_BUILD_TARGET: aarch64-apple-darwin
         steps:
           - template: /script/pipelines/build-job.yml
             parameters:
               RunTests: false # The job runs on an x86_64 machine, so we can't run tests.
               IsReleaseBuild: ${{ parameters.IsReleaseBuild }}
-              GoVersion: ${{ parameters.GoVersion }}
-              CargoBuildTarget: aarch64-apple-darwin
 
   - ${{ if eq(parameters.IsReleaseBuild, true) }}:
       - stage: Package

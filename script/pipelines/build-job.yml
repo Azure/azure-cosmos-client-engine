@@ -5,34 +5,25 @@ parameters:
   - name: RunTests
     type: boolean
     default: true
-  - name: GoVersion
-    type: string
-  - name: CargoBuildTarget
-    type: string
-
-variables:
-  CARGO_BUILD_TARGET: ${{ parameters.CargoBuildTarget }}
-  CONFIGURATION: release
-  RUSTFLAGS: "-D warnings"
 
 steps:
   - task: GoTool@0
     displayName: "Install Go"
     inputs:
-      version: ${{ parameters.GoVersion }}
+      version: $(GO_VERSION)
 
-  - bash: rustup target add ${{ parameters.CargoBuildTarget }}
+  - bash: rustup target add $(CARGO_BUILD_TARGET)
     displayName: "Install Rust"
 
   - bash: script/bootstrap
     displayName: "Boostrap Repo"
 
-  - bash: make engine CARGO_BUILD_TARGET=${{ parameters.CargoBuildTarget }}
+  - bash: make engine
     displayName: "Build Client Engine"
 
     # Publish the artifacts now because a) we might as well have them even if the tests fail and b) 'make superclean' below will delete them
   - ${{ if eq(parameters.ReleaseBuild, true) }}:
-      - publish: artifacts/${{ parameters.CargoBuildTarget }}/release
+      - publish: artifacts/$(CARGO_BUILD_TARGET)/release
         condition: eq(parameters.ReleaseBuild, true)
         displayName: "Publish Standard Build"
         artifact: "$(CONFIGURATION)_$(CARGO_BUILD_TARGET)"
@@ -42,7 +33,7 @@ steps:
         displayName: "Run Rust tests"
       - bash: |
           go clean -cache
-          make test_go LIBRARY_MODE=shareda
+          make test_go LIBRARY_MODE=shared
         displayName: "Run Go tests (Shared library)"
 
   - bash: |
