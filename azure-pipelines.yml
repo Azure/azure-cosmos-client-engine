@@ -1,5 +1,10 @@
 trigger: none
 
+parameters:
+  - name: ReleaseBuild
+    type: boolean
+    default: false
+
 variables:
   CONFIGURATION: release
 
@@ -112,6 +117,7 @@ stages:
 
             # Publish the artifacts now because a) we might as well have them even if the tests fail and b) 'make superclean' below will delete them
           - publish: artifacts/$(CARGO_BUILD_TARGET)/release
+            condition: eq(parameters.ReleaseBuild, true)
             displayName: "Publish Standard Build"
             artifact: "$(CONFIGURATION)_$(CARGO_BUILD_TARGET)"
 
@@ -137,10 +143,12 @@ stages:
 
             # Published the vendored copy (for committing to the Go package) separately
           - publish: go/azcosmoscx/libcosmoscx-vendor/$(CARGO_BUILD_TARGET)
+            condition: eq(parameters.ReleaseBuild, true)
             displayName: "Publish Vendored Build"
             artifact: "vendored_$(CARGO_BUILD_TARGET)"
 
   - stage: Package
+    condition: eq(parameters.ReleaseBuild, true)
     dependsOn:
       - Build
     jobs:
