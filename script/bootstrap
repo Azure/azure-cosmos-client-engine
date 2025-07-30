@@ -25,6 +25,8 @@ done
 
 script/check-deps
 
+printenv | grep "PIP"
+
 # Ensure pip and pipx are installed.
 if ! type pip >/dev/null 2>&1; then
     echo "pip is not installed, installing pip..."
