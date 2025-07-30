@@ -24,7 +24,7 @@ stages:
         pool:
           name: "ClientEngine"
           demands:
-            - ImageOverride -eq client-engine-linux-x86_64
+            - ImageOverride -equals client-engine-linux-x86_64
         steps:
           - bash: rustup show
             displayName: "Install Rust"
@@ -46,7 +46,7 @@ stages:
         pool:
           name: "ClientEngine"
           demands:
-            - ImageOverride -eq client-engine-linux-x86_64
+            - ImageOverride -equals client-engine-linux-x86_64
         steps:
           - task: UsePythonVersion@0
             inputs:
@@ -157,7 +157,7 @@ stages:
         pool:
           name: "ClientEngine"
           demands:
-            - ImageOverride -eq client-engine-linux-x86_64
+            - ImageOverride -equals client-engine-linux-x86_64
         steps:
           - checkout: none
           - download: current
