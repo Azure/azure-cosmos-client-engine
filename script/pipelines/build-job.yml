@@ -22,7 +22,7 @@ steps:
     displayName: "Build Client Engine"
 
     # Publish the artifacts now because a) we might as well have them even if the tests fail and b) 'make superclean' below will delete them
-  - ${{ if eq(parameters.ReleaseBuild, true) }}:
+  - ${{ if eq(parameters.IsReleaseBuild, true) }}:
       - publish: artifacts/$(CARGO_BUILD_TARGET)/release
         condition: eq(parameters.ReleaseBuild, true)
         displayName: "Publish Standard Build"
@@ -50,7 +50,7 @@ steps:
         displayName: "Run Go tests (Vendored static library)"
 
     # Published the vendored copy (for committing to the Go package) separately
-  - ${{ if eq(parameters.ReleaseBuild, true) }}:
+  - ${{ if eq(parameters.IsReleaseBuild, true) }}:
       - publish: go/azcosmoscx/libcosmoscx-vendor/$(CARGO_BUILD_TARGET)
         condition: eq(parameters.ReleaseBuild, true)
         displayName: "Publish Vendored Build"
