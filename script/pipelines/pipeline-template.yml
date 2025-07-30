@@ -68,7 +68,8 @@ stages:
   - stage: Build
     dependsOn: []
     jobs:
-      - job: x86_64-linux-gnu
+      - job: x86_64_linux_gnu
+        displayName: "Linux x86_64"
         pool: ${{ parameters.LinuxPool }}
         variables:
           CARGO_BUILD_TARGET: x86_64-linux-gnu
@@ -76,7 +77,8 @@ stages:
           - template: /script/pipelines/build-job.yml
             parameters:
               IsReleaseBuild: ${{ parameters.IsReleaseBuild }}
-      - job: x86_64-apple-darwin
+      - job: x86_64_apple_darwin
+        displayName: "macOS x86_64"
         pool: ${{ parameters.MacPool }}
         variables:
           CARGO_BUILD_TARGET: x86_64-apple-darwin
@@ -84,7 +86,8 @@ stages:
           - template: /script/pipelines/build-job.yml
             parameters:
               IsReleaseBuild: ${{ parameters.IsReleaseBuild }}
-      - job: aarch64-apple-darwin
+      - job: aarch64_apple_darwin
+        displayName: "macOS aarch64"
         pool: ${{ parameters.MacPool }}
         variables:
           CARGO_BUILD_TARGET: aarch64-apple-darwin
