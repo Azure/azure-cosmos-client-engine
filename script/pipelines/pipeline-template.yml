@@ -8,11 +8,9 @@ parameters:
   - name: PyVersion
     type: string
     default: "3.11"
-  - name: Pool_x86_64-linux-gnu
+  - name: LinuxPool
     type: object
-  - name: Pool_x86_64-apple-darwin
-    type: object
-  - name: Pool_aarch64-apple-darwin
+  - name: MacPool
     type: object
 
 stages:
@@ -21,8 +19,7 @@ stages:
     jobs:
       - job: check_headers
         displayName: "Check headers are up-to-date"
-        pool:
-          ${{ insert }}: ${{ parameters.Pool_x86_64-linux-gnu }}
+        pool: ${{ parameters.LinuxPool }}
         steps:
           - bash: rustup show
             displayName: "Install Rust"
@@ -41,8 +38,7 @@ stages:
               language: "Go"
               target: "query_test_go"
         displayName: "Run ${{variables.language}} Query Correctness Tests"
-        pool:
-          ${{ insert }}: ${{ parameters.Pool_x86_64-linux-gnu }}
+        pool: ${{ parameters.LinuxPool }}
         steps:
           - task: UsePythonVersion@0
             inputs:
@@ -69,8 +65,7 @@ stages:
     dependsOn: []
     jobs:
       - name: x86_64-linux-gnu
-        pool:
-          ${{ insert }}: ${{ parameters.Pool_x86_64-linux-gnu }}
+        pool: ${{ parameters.LinuxPool }}
         steps:
           - template: /script/pipelines/build-job.yml
             parameters:
@@ -78,8 +73,7 @@ stages:
               GoVersion: ${{ parameters.GoVersion }}
               CargoBuildTarget: x86_64-linux-gnu
       - name: x86_64-apple-darwin
-        pool:
-          ${{ insert }}: ${{ parameters.Pool_x86_64-apple-darwin }}
+        pool: ${{ parameters.MacPool }}
         steps:
           - template: /script/pipelines/build-job.yml
             parameters:
@@ -87,8 +81,7 @@ stages:
               GoVersion: ${{ parameters.GoVersion }}
               CargoBuildTarget: x86_64-apple-darwin
       - name: aarch64-apple-darwin
-        pool:
-          ${{ insert }}: ${{ parameters.Pool_aarch64-apple-darwin }}
+        pool: ${{ parameters.MacPool }}
         steps:
           - template: /script/pipelines/build-job.yml
             parameters:
@@ -104,8 +97,7 @@ stages:
         jobs:
           - job: package
             displayName: "Create packages"
-            pool:
-              ${{ insert }}: ${{ parameters.Pool_x86_64-linux-gnu }}
+            pool: ${{ parameters.LinuxPool }}
             steps:
               - checkout: none
               - download: current

@@ -12,11 +12,9 @@ extends:
   template: /script/pipelines/pipeline-template.yml
   parameters:
     IsReleaseBuild: false
-    Pool_x86_64-linux-gnu:
+    LinuxPool:
       name: ClientEngine
       demands:
         - ImageOverride -equals client-engine-linux-x86_64
-    Pool_x86_64-apple-darwin:
-      vmImage: macos-latest
-    Pool_aarch64-apple-darwin:
+    MacPool:
       vmImage: macos-latest
