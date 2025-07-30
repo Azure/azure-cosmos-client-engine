@@ -77,6 +77,10 @@ stages:
           GO_VERSION: ${{ parameters.GoVersion }}
           PY_VERSION: ${{ parameters.PyVersion }}
           CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
+        steps:
+          - template: /script/pipelines/build-job.yml
+            parameters:
+              IsReleaseBuild: ${{ parameters.IsReleaseBuild }}
 
       - job: x86_64_linux_gnu
         displayName: "Linux x86_64"
