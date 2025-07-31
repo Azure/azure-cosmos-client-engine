@@ -17,9 +17,9 @@ steps:
 
   - task: UsePythonVersion@0
     inputs:
-      versionSpec: $(PY_VERSION)
+      versionSpec: $(PY_PYTHON)
       addToPath: true
-    displayName: "Use Python $(PY_VERSION)"
+    displayName: "Use Python $(PY_PYTHON)"
 
   - script: rustup target add $(CARGO_BUILD_TARGET)
     displayName: "Install Rust"

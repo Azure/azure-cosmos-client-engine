@@ -14,6 +14,14 @@ Write-Host "Current Python: $pythonPath"
 $pipPath = py -c "import sys; print(sys.exec_prefix)"
 Write-Host "Current Pip: $pipPath"
 
+# Current Python Version
+$pythonVersion = py -c "import sys; print(sys.version)"
+Write-Host "Current Python Version: $pythonVersion"
+
+# List Python versions
+Write-Host "Pythons:"
+py --list
+
 Write-Host "Install pipx"
 py -m pip install --user pipx
 

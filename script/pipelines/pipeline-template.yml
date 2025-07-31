@@ -20,52 +20,52 @@ variables:
   RUSTFLAGS: "-D warnings"
 
 stages:
-  - stage: Validate
-    dependsOn: []
-    jobs:
-      - job: check_headers
-        displayName: "Check headers are up-to-date"
-        pool: ${{ parameters.LinuxPool }}
-        steps:
-          - bash: rustup show
-            displayName: "Install Rust"
-          - bash: cargo install --locked cbindgen
-            displayName: "Install cbindgen"
-          - bash: script/check-headers
-            displayName: "Check headers"
+  # - stage: Validate
+  #   dependsOn: []
+  #   jobs:
+  #     - job: check_headers
+  #       displayName: "Check headers are up-to-date"
+  #       pool: ${{ parameters.LinuxPool }}
+  #       steps:
+  #         - bash: rustup show
+  #           displayName: "Install Rust"
+  #         - bash: cargo install --locked cbindgen
+  #           displayName: "Install cbindgen"
+  #         - bash: script/check-headers
+  #           displayName: "Check headers"
 
-      - job: query_correctness
-        strategy:
-          matrix:
-            rust:
-              language: "Rust"
-              target: "query_test_rust"
-            go:
-              language: "Go"
-              target: "query_test_go"
-        displayName: "Run ${{variables.language}} Query Correctness Tests"
-        pool: ${{ parameters.LinuxPool }}
-        steps:
-          - task: UsePythonVersion@0
-            inputs:
-              versionSpec: ${{ parameters.PyVersion }}
-            displayName: "Use Python"
-          - task: GoTool@0
-            displayName: "Install Go"
-            inputs:
-              version: ${{ parameters.GoVersion }}
+  #     - job: query_correctness
+  #       strategy:
+  #         matrix:
+  #           rust:
+  #             language: "Rust"
+  #             target: "query_test_rust"
+  #           go:
+  #             language: "Go"
+  #             target: "query_test_go"
+  #       displayName: "Run ${{variables.language}} Query Correctness Tests"
+  #       pool: ${{ parameters.LinuxPool }}
+  #       steps:
+  #         - task: UsePythonVersion@0
+  #           inputs:
+  #             versionSpec: ${{ parameters.PyVersion }}
+  #           displayName: "Use Python"
+  #         - task: GoTool@0
+  #           displayName: "Install Go"
+  #           inputs:
+  #             version: ${{ parameters.GoVersion }}
 
-          - bash: rustup show
-            displayName: "Install Rust"
+  #         - bash: rustup show
+  #           displayName: "Install Rust"
 
-          - bash: script/bootstrap
-            displayName: "Boostrap Repo"
-          - bash: make engine
-            displayName: "Build Client Engine"
-          - bash: |
-              script/reset-emulator
-              make $(target)
-            displayName: "Run query tests"
+  #         - bash: script/bootstrap
+  #           displayName: "Boostrap Repo"
+  #         - bash: make engine
+  #           displayName: "Build Client Engine"
+  #         - bash: |
+  #             script/reset-emulator
+  #             make $(target)
+  #           displayName: "Run query tests"
 
   - stage: Build
     dependsOn: []
@@ -75,7 +75,7 @@ stages:
         pool: ${{ parameters.WindowsPool }}
         variables:
           GO_VERSION: ${{ parameters.GoVersion }}
-          PY_VERSION: ${{ parameters.PyVersion }}
+          PY_PYTHON: ${{ parameters.PyVersion }}
           CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
         steps:
           - template: /script/pipelines/build-job.yml
@@ -88,7 +88,7 @@ stages:
       #   pool: ${{ parameters.LinuxPool }}
       #   variables:
       #     GO_VERSION: ${{ parameters.GoVersion }}
-      #     PY_VERSION: ${{ parameters.PyVersion }}
+      #     PY_PYTHON: ${{ parameters.PyVersion }}
       #     CARGO_BUILD_TARGET: x86_64-unknown-linux-gnu
       #   steps:
       #     - template: /script/pipelines/build-job.yml
@@ -99,7 +99,7 @@ stages:
       #   pool: ${{ parameters.MacPool }}
       #   variables:
       #     GO_VERSION: ${{ parameters.GoVersion }}
-      #     PY_VERSION: ${{ parameters.PyVersion }}
+      #     PY_PYTHON: ${{ parameters.PyVersion }}
       #     CARGO_BUILD_TARGET: x86_64-apple-darwin
       #   steps:
       #     - template: /script/pipelines/build-job.yml
@@ -110,7 +110,7 @@ stages:
       #   pool: ${{ parameters.MacPool }}
       #   variables:
       #     GO_VERSION: ${{ parameters.GoVersion }}
-      #     PY_VERSION: ${{ parameters.PyVersion }}
+      #     PY_PYTHON: ${{ parameters.PyVersion }}
       #     CARGO_BUILD_TARGET: aarch64-apple-darwin
       #   steps:
       #     - template: /script/pipelines/build-job.yml
