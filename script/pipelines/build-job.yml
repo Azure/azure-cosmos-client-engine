@@ -55,7 +55,7 @@ steps:
   - bash: make engine
     displayName: "Build Client Engine"
 
-  - bash: make _print_native_libraries
+  - bash: make _print-native-libraries
     displayName: "Detect Native Libraries required by engine"
 
     # Publish the artifacts now because a) we might as well have them even if the tests fail and b) 'make superclean' below will delete them
