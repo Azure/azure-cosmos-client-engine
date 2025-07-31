@@ -9,23 +9,19 @@ $env:PYLAUNCHER_DEBUG="1"
 Write-Host "Current PATH: $env:PATH"
 
 # Current Python
-$pythonPath = py -c "import sys; print(sys.executable)"
+$pythonPath = python -c "import sys; print(sys.executable)"
 Write-Host "Current Python: $pythonPath"
 
 # Current Pip
-$pipPath = py -c "import sys; print(sys.exec_prefix)"
+$pipPath = python -c "import sys; print(sys.exec_prefix)"
 Write-Host "Current Pip: $pipPath"
 
 # Current Python Version
-$pythonVersion = py -c "import sys; print(sys.version)"
+$pythonVersion = python -c "import sys; print(sys.version)"
 Write-Host "Current Python Version: $pythonVersion"
 
-# List Python versions
-Write-Host "Pythons:"
-py --list
-
 Write-Host "Install pipx"
-py -m pip install pipx
+python -m pip install pipx
 
 Write-Host "Installing Python build tools..."
 pipx install maturin
