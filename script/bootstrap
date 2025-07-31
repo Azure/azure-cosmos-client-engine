@@ -7,12 +7,16 @@ script_dir=$(dirname "$(readlink -f "$0")")
 cd "$script_dir/.."
 repo_root="$PWD"
 
-set -euo pipefail
+venv_bindir="$repo_root/.venv/bin"
+if [ "$OS" = "Windows_NT" ]; then
+    venv_bindir="$repo_root/.venv/Scripts"
+fi
 
 while [[ "$#" -gt 0 ]]; do
     key="$1"
     shift
-    case "$key" in -h|--help) 
+    case "$key" in 
+        -h|--help) 
             grep '^#/' <"$0" | cut -c4-
             exit 0
             ;;
@@ -23,39 +27,23 @@ while [[ "$#" -gt 0 ]]; do
     esac
 done
 
+echo "Checking dependencies we don't auto-install..."
 script/check-deps
 
-printenv | grep "PIP"
-
-# Ensure pip and pipx are installed.
-if ! type pip >/dev/null 2>&1; then
-    echo "pip is not installed, installing pip..."
-    if type python >/dev/null 2>&1; then
-        python -m ensurepip
-    else
-        echo "Python3 is not installed, please install Python3 and try again."
-        exit 1
-    fi
-else
-    echo "pip is already installed"
-fi
-
-if ! type pipx >/dev/null 2>&1; then
-    python -m pip install --user pipx
-else
-    echo "pipx is already installed"
-fi
-
+echo "Installing Maturin..."
 pipx install maturin
 
+echo "Installing Poetry..."
 pipx install poetry
 poetry config virtualenvs.in-project true
 
 echo "Installing cbindgen..."
 cargo install --locked cbindgen@0.29.0
 
+echo "Activating virtualenv..."
 eval "$(poetry -C ./python env activate)"
 
+echo "Installing Python dependencies..."
 poetry -C ./python install
 
 echo "Installing addlicense..."

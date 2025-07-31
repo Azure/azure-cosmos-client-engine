@@ -21,11 +21,15 @@ steps:
       addToPath: true
     displayName: "Use Python $(PY_VERSION)"
 
-  - bash: rustup target add $(CARGO_BUILD_TARGET)
+  - script: rustup target add $(CARGO_BUILD_TARGET)
     displayName: "Install Rust"
 
-  - bash: script/bootstrap
-    displayName: "Boostrap Repo"
+  - ${{ if eq(parameters.IsWindows, true) }}:
+      - powershell: script/bootstrap.ps1
+        displayName: "Boostrap Repo"
+    ${{ else }}:
+      - bash: script/bootstrap
+        displayName: "Boostrap Repo"
 
   - bash: make engine
     displayName: "Build Client Engine"
