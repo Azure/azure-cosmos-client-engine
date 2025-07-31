@@ -3,6 +3,9 @@ $RepoRoot = Split-Path $PSScriptRoot -Parent
 # Check for dependencies we don't automatically install
 & "$RepoRoot/script/check-deps.ps1"
 
+Write-Host "Install pipx"
+pip install --user pipx
+
 Write-Host "Installing Python build tools..."
 pipx install maturin
 pipx install poetry
