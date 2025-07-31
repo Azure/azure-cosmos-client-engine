@@ -87,6 +87,19 @@ stages:
               RunGoTests: false 
               VendorForGo: false
 
+      - job: x86_64_pc_windows_gnu
+        displayName: "Windows x86_64 GNU"
+        pool: ${{ parameters.WindowsPool }}
+        variables:
+          GO_VERSION: ${{ parameters.GoVersion }}
+          PY_PYTHON: ${{ parameters.PyVersion }}
+          CARGO_BUILD_TARGET: x86_64-pc-windows-gnu
+        steps:
+          - template: /script/pipelines/build-job.yml
+            parameters:
+              IsWindows: true
+              IsReleaseBuild: ${{ parameters.IsReleaseBuild }}
+
       # - job: x86_64_linux_gnu
       #   displayName: "Linux x86_64"
       #   pool: ${{ parameters.LinuxPool }}
