@@ -27,7 +27,7 @@ steps:
   - ${{ if eq(parameters.IsWindows, true) }}:
       - powershell: script/bootstrap.ps1
         displayName: "Boostrap Repo"
-    ${{ else }}:
+  - ${{ if eq(parameters.IsWindows, false) }}:
       - bash: script/bootstrap
         displayName: "Boostrap Repo"
 
