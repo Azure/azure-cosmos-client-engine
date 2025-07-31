@@ -139,7 +139,6 @@ engine_c: #/ Builds the C API for the engine, producing the shared and static li
 	ls -l $(target_dir)
 	cp $(target_dir)/$(shared_lib_filename) $(artifacts_dir)/lib/$(shared_lib_filename)
 	cp $(target_dir)/$(static_lib_filename) $(artifacts_dir)/lib/$(static_lib_filename)
-	nm -g ./go/azcosmoscx/libcosmoscx-vendor/x86_64-unknown-linux-gnu/libcosmoscx.a | grep -E " _?cosmoscx_" | cut -d ' ' -f 3 > $(artifacts_dir)/lib/cosmoscx-symbols.txt
 	script/helpers/update-dylib-name $(artifacts_dir)/lib/$(shared_lib_filename)
 	script/helpers/write-pkg-config.sh $(artifacts_dir) $(root_dir)/include
 

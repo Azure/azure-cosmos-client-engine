@@ -5,7 +5,13 @@ parameters:
   - name: IsWindows
     type: boolean
     default: false
-  - name: RunTests
+  - name: RunRustTests
+    type: boolean
+    default: true
+  - name: RunGoTests
+    type: boolean
+    default: true
+  - name: VendorForGo
     type: boolean
     default: true
 
@@ -41,19 +47,22 @@ steps:
         displayName: "Publish Standard Build"
         artifact: "$(CONFIGURATION)_$(CARGO_BUILD_TARGET)"
 
-  - ${{ if eq(parameters.RunTests, true) }}:
+  - ${{ if eq(parameters.RunRustTests, true) }}:
       - bash: make test_rust
         displayName: "Run Rust tests"
+
+  - ${{ if eq(parameters.RunGoTests, true) }}:
       - bash: |
           go clean -cache
           make test_go LIBRARY_MODE=shared
         displayName: "Run Go tests (Shared library)"
 
-  - bash: |
-      make vendor CONFIGURATION=vendored
-    displayName: "Build vendored library"
+  - ${{ if eq(parameters.VendorForGo, true) }}:
+    - bash: |
+        make vendor CONFIGURATION=vendored
+      displayName: "Build vendored library"
 
-  - ${{ if eq(parameters.RunTests, true) }}:
+  - ${{ if eq(parameters.RunGoTests, true) }}:
       - bash: |
           # We should now be able to clean the build artifacts and the tests should use the vendored copy
           make superclean
@@ -63,7 +72,7 @@ steps:
         displayName: "Run Go tests (Vendored static library)"
 
     # Published the vendored copy (for committing to the Go package) separately
-  - ${{ if eq(parameters.IsReleaseBuild, true) }}:
+  - ${{ if and(eq(parameters.VendorForGo, true), eq(parameters.IsReleaseBuild, true)) }}:
       - publish: go/azcosmoscx/libcosmoscx-vendor/$(CARGO_BUILD_TARGET)
         condition: eq(parameters.ReleaseBuild, true)
         displayName: "Publish Vendored Build"

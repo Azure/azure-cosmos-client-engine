@@ -83,6 +83,10 @@ stages:
               IsWindows: true
               IsReleaseBuild: ${{ parameters.IsReleaseBuild }}
 
+              # Go doesn't support MSVC-built libraries, we'll test it in the x86_64-pc-windows-gnu build
+              RunGoTests: false 
+              VendorForGo: false
+
       # - job: x86_64_linux_gnu
       #   displayName: "Linux x86_64"
       #   pool: ${{ parameters.LinuxPool }}
