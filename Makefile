@@ -63,7 +63,7 @@ ifeq ($(TARGET_OS),windows)
 	PATH := $(artifacts_dir)/lib:$(PATH)
 	ifeq ($(TARGET_TOOLCHAIN), gnu)
 		shared_lib_filename := $(shared_lib_name).dll
-		import_lib_filename := $(shared_lib_name).dll.a
+		import_lib_filename := lib$(shared_lib_name).dll.a
 		static_lib_filename := lib$(shared_lib_name).a
 	else
 		shared_lib_filename := $(shared_lib_name).dll
