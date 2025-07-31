@@ -63,9 +63,11 @@ ifeq ($(TARGET_OS),windows)
 	PATH := $(artifacts_dir)/lib:$(PATH)
 	ifeq ($(TARGET_TOOLCHAIN), gnu)
 		shared_lib_filename := $(shared_lib_name).dll
+		import_lib_filename := $(shared_lib_name).dll.a
 		static_lib_filename := lib$(shared_lib_name).a
 	else
 		shared_lib_filename := $(shared_lib_name).dll
+		import_lib_filename := $(shared_lib_name).dll.lib
 		static_lib_filename := $(shared_lib_name).lib
 	endif
 else ifeq ($(TARGET_OS),macos)
@@ -150,6 +152,7 @@ engine_c: #/ Builds the C API for the engine, producing the shared and static li
 	ls -l $(target_dir)
 	cp $(target_dir)/$(shared_lib_filename) $(artifacts_dir)/lib/$(shared_lib_filename)
 	cp $(target_dir)/$(static_lib_filename) $(artifacts_dir)/lib/$(static_lib_filename)
+	[ -n "$(import_lib_filename)" ] && cp $(target_dir)/$(import_lib_filename) $(artifacts_dir)/lib/$(import_lib_filename)
 	script/helpers/update-dylib-name $(artifacts_dir)/lib/$(shared_lib_filename)
 	script/helpers/write-pkg-config.sh $(artifacts_dir) $(root_dir)/include
 
