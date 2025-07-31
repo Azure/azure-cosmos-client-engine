@@ -1,10 +1,10 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-//go:build dynamic && !windows
+//go:build dynamic && windows
 
 package azcosmoscx
 
-// #cgo pkg-config: cosmoscx
+// #cgo LDFLAGS: -lcosmoscx
 // #include <cosmoscx.h>
 import "C"
