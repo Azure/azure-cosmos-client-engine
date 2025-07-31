@@ -15,12 +15,11 @@ steps:
     inputs:
       version: $(GO_VERSION)
 
-  - ${{ if eq(parameters.IsWindows, false) }}:
-    - task: UsePythonVersion@0
-      inputs:
-        versionSpec: $(PY_PYTHON)
-        addToPath: true
-      displayName: "Use Python $(PY_PYTHON)"
+  - task: UsePythonVersion@0
+    inputs:
+      versionSpec: $(PY_PYTHON)
+      addToPath: true
+    displayName: "Use Python $(PY_PYTHON)"
 
   - script: rustup target add $(CARGO_BUILD_TARGET)
     displayName: "Install Rust"

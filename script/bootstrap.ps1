@@ -1,7 +1,5 @@
 $RepoRoot = Split-Path $PSScriptRoot -Parent
 
-$env:PYLAUNCHER_DEBUG="1"
-
 # Check for dependencies we don't automatically install
 & "$RepoRoot/script/check-deps.ps1"
 
@@ -24,8 +22,8 @@ Write-Host "Install pipx"
 python -m pip install pipx
 
 Write-Host "Installing Python build tools..."
-pipx install maturin
-pipx install poetry
+pipx install --python $env:PY_PYTHON maturin
+pipx install --python $env:PY_PYTHON poetry
 poetry config virtualenvs.in-project true
 
 Write-Host "Installing Rust dependencies..."
