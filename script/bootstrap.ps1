@@ -8,13 +8,14 @@ pip install maturin
 pip install poetry
 poetry config virtualenvs.in-project true
 
-Write-Host "Env info:"
-poetry env info
-Write-Host (poetry -C ./python env activate)
-
 Write-Host "Installing Python dependencies..."
-Invoke-Expression (poetry -C ./python env activate)
-poetry -C ./python install
+Push-Location $RepoRoot/python
+try {
+    Invoke-Expression (poetry -C ./python env activate)
+    poetry install
+} finally { 
+    Pop-Location
+}
 
 Write-Host "Installing Rust dependencies..."
 cargo install --locked cbindgen@0.29.0

@@ -37,14 +37,16 @@ echo "Installing Poetry..."
 pipx install poetry
 poetry config virtualenvs.in-project true
 
-echo "Installing cbindgen..."
-cargo install --locked cbindgen@0.29.0
-
 echo "Activating virtualenv..."
-eval "$(poetry -C ./python env activate)"
+cd ./python
+eval "$(poetry env activate)"
 
 echo "Installing Python dependencies..."
-poetry -C ./python install
+poetry install
+cd "$repo_root"
+
+echo "Installing cbindgen..."
+cargo install --locked cbindgen@0.29.0
 
 echo "Installing addlicense..."
 go install github.com/google/addlicense@v1.1.1
