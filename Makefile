@@ -77,6 +77,7 @@ else
 	strip_args := --strip-debug
 endif
 
+# Configure pkg-config on macOS and Linux to find the artifacts directory.
 PKG_CONFIG_PATH := $(artifacts_dir):$(PKG_CONFIG_PATH)
 
 export PATH
@@ -92,8 +93,18 @@ endif
 
 ifeq ($(LIBRARY_MODE),shared)
 	GOTAGS := dynamic,$(GOTAGS)
-	LD_LIBRARY_PATH := $(artifacts_dir)/lib:$(LD_LIBRARY_PATH)
-	DYLD_LIBRARY_PATH := $(artifacts_dir)/lib:$(DYLD_LIBRARY_PATH)
+	ifeq ($(TARGET_OS),windows)
+		# On Windows, we use the PATH environment variable to find the shared library.
+		# And we need to set the CGO_LDFLAGS to point to the artifacts directory, because Windows doesn't use pkg-config.
+		PATH := $(artifacts_dir)/lib:$(PATH)
+		CGO_LDFLAGS := -L$(artifacts_dir)/lib
+	else ifeq ($(TARGET_OS),macos)
+		# On macOS, we use DYLD_LIBRARY_PATH to find the shared library.
+		DYLD_LIBRARY_PATH := $(artifacts_dir)/lib:$(DYLD_LIBRARY_PATH)
+	else
+		# On Linux, we use LD_LIBRARY_PATH to find the shared library.
+		LD_LIBRARY_PATH := $(artifacts_dir)/lib:$(LD_LIBRARY_PATH)
+	endif
 endif
 
 export LD_LIBRARY_PATH
