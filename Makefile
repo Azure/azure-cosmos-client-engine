@@ -82,9 +82,6 @@ endif
 # Configure pkg-config on macOS and Linux to find the artifacts directory.
 PKG_CONFIG_PATH := $(artifacts_dir):$(PKG_CONFIG_PATH)
 
-export PATH
-export PKG_CONFIG_PATH
-
 # Cargo calls the 'debug' configuration 'dev', yet it still builds to a 'debug' directory in the target directory.
 ifeq ($(CONFIGURATION),debug)
 	cargo_profile = dev
@@ -98,7 +95,6 @@ ifeq ($(LIBRARY_MODE),shared)
 	ifeq ($(TARGET_OS),windows)
 		# On Windows, we use the PATH environment variable to find the shared library.
 		# And we need to set the CGO_LDFLAGS to point to the artifacts directory, because Windows doesn't use pkg-config.
-		PATH := $(artifacts_dir)/lib:$(PATH)
 		CGO_LDFLAGS := -L$(artifacts_dir)/lib
 	else ifeq ($(TARGET_OS),macos)
 		# On macOS, we use DYLD_LIBRARY_PATH to find the shared library.
@@ -109,8 +105,11 @@ ifeq ($(LIBRARY_MODE),shared)
 	endif
 endif
 
+export PATH
+export PKG_CONFIG_PATH
 export LD_LIBRARY_PATH
 export DYLD_LIBRARY_PATH
+export CGO_LDFLAGS
 
 # Default target, don't put any targets above this one.
 .PHONY: all
