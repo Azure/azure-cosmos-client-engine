@@ -11,7 +11,7 @@ poetry config virtualenvs.in-project true
 Write-Host "Installing Python dependencies..."
 Push-Location $RepoRoot/python
 try {
-    Invoke-Expression (poetry -C ./python env activate)
+    Invoke-Expression (poetry env activate)
     poetry install
 } finally { 
     Pop-Location
