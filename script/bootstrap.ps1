@@ -1,5 +1,7 @@
 $RepoRoot = Split-Path $PSScriptRoot -Parent
 
+$env:PYLAUNCHER_DEBUG="1"
+
 # Check for dependencies we don't automatically install
 & "$RepoRoot/script/check-deps.ps1"
 
@@ -23,7 +25,7 @@ Write-Host "Pythons:"
 py --list
 
 Write-Host "Install pipx"
-py -m pip install --user pipx
+py -m pip install pipx
 
 Write-Host "Installing Python build tools..."
 pipx install maturin

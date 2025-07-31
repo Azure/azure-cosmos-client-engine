@@ -26,10 +26,10 @@ steps:
 
   - ${{ if eq(parameters.IsWindows, true) }}:
       - powershell: script/bootstrap.ps1
-        displayName: "Boostrap Repo"
+        displayName: "Bootstrap Repo"
   - ${{ if eq(parameters.IsWindows, false) }}:
       - bash: script/bootstrap
-        displayName: "Boostrap Repo"
+        displayName: "Bootstrap Repo"
 
   - bash: make engine
     displayName: "Build Client Engine"
