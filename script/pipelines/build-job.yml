@@ -30,6 +30,21 @@ steps:
   - script: rustup target add $(CARGO_BUILD_TARGET)
     displayName: "Install Rust"
 
+  - task: Cache@2
+    inputs:
+      key: '"cargo-registry" | "$(Agent.OS)" | Cargo.lock'
+      ${{ if eq(parameters.IsWindows, true )}}:
+        path: $(UserProfile)/.cargo/registry
+      ${{ if eq(parameters.IsWindows, false )}}:
+        path: $(HOME)/.cargo/registry
+    displayName: "Restore Cargo Registry Cache"
+
+  - task: Cache@2
+    inputs:
+      key: '"cargo" | "$(Agent.OS)" | Cargo.lock'
+      path: $(Build.SourcesDirectory)/target
+    displayName: "Restore Cargo Build Cache"
+
   - ${{ if eq(parameters.IsWindows, true) }}:
       - powershell: script/bootstrap.ps1
         displayName: "Bootstrap Repo"
@@ -39,6 +54,9 @@ steps:
 
   - bash: make engine
     displayName: "Build Client Engine"
+
+  - bash: make _print_native_libraries
+    displayName: "Detect Native Libraries required by engine"
 
     # Publish the artifacts now because a) we might as well have them even if the tests fail and b) 'make superclean' below will delete them
   - ${{ if eq(parameters.IsReleaseBuild, true) }}:
