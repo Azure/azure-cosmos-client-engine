@@ -4,7 +4,7 @@ $RepoRoot = Split-Path $PSScriptRoot -Parent
 & "$RepoRoot/script/check-deps.ps1"
 
 Write-Host "Install pipx"
-pip install --user pipx
+py -m pip install --user pipx
 
 Write-Host "Installing Python build tools..."
 pipx install maturin
