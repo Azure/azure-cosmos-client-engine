@@ -16,6 +16,16 @@ parameters:
     default: true
 
 steps:
+  - ${{ if eq(parameters.IsWindows, true )}}:
+    - script: |
+        choco install --noprogress msys2
+        echo "##vso[task.prependpath]C:\tools\msys64\usr\bin\"
+      displayName: "Install MSYS2"
+    - script: |
+        pacman -Sy
+        pacman --no-confirm -S msys2-w32api-runtime
+      displayName: "Install MSYS2 Tools from Pacman"
+
   - task: GoTool@0
     displayName: "Install Go"
     inputs:
