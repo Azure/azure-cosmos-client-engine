@@ -20,8 +20,11 @@ SYMS_FILE="$DIRNAME/$NAME.syms"
 # Detect OS and set tools
 case "$OSTYPE" in
   msys*|cygwin*|win32*)
-    OBJCOPY="x86_64-w64-mingw32-objcopy"
-    AR="x86_64-w64-mingw32-ar"
+    # For now, don't strip on Windows.
+    echo "❌ Stripping binaries is not currently supported on Windows."
+    exit 0
+    # OBJCOPY="x86_64-w64-mingw32-objcopy"
+    # AR="x86_64-w64-mingw32-ar"
     ;;
   darwin*)
     OBJCOPY="gobjcopy" # Requires GNU binutils installed via Homebrew

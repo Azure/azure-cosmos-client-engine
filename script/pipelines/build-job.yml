@@ -48,9 +48,6 @@ steps:
   - ${{ if eq(parameters.IsWindows, true) }}:
       - powershell: script/bootstrap.ps1
         displayName: "Bootstrap Repo"
-      - bash: |
-          pacman -S mingw-w64-x86_64-binutils
-        displayName: "Install GNU/Windows-specific dependencies"
   - ${{ if eq(parameters.IsWindows, false) }}:
       - bash: script/bootstrap
         displayName: "Bootstrap Repo"
