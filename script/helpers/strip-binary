@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Input validation
+if [[ $# -ne 1 ]]; then
+  echo "Usage: $0 <path-to-library.a>"
+  exit 1
+fi
+
+INPUT_ARCHIVE="$1"
+BASENAME=$(basename "$INPUT_ARCHIVE")
+DIRNAME=$(dirname "$INPUT_ARCHIVE")
+NAME="${BASENAME%.a}"
+
+STRIPPED_ARCHIVE="$DIRNAME/$NAME.a"
+FULL_ARCHIVE="$DIRNAME/$NAME.full.a"
+DEBUG_ARCHIVE="$DIRNAME/$NAME.debug.a"
+SYMS_FILE="$DIRNAME/$NAME.syms"
+
+# Detect OS and set tools
+case "$OSTYPE" in
+  msys*|cygwin*|win32*)
+    OBJCOPY="x86_64-w64-mingw32-objcopy"
+    AR="x86_64-w64-mingw32-ar"
+    ;;
+  darwin*)
+    OBJCOPY="gobjcopy" # Requires GNU binutils installed via Homebrew
+    AR="ar"
+    ;;
+  linux*)
+    OBJCOPY="objcopy"
+    AR="ar"
+    ;;
+  *)
+    echo "❌ Unsupported OS: $OSTYPE"
+    exit 1
+    ;;
+esac
+
+# Check tools
+command -v "$OBJCOPY" >/dev/null || { echo "❌ Missing objcopy: $OBJCOPY"; exit 1; }
+command -v "$AR" >/dev/null || { echo "❌ Missing ar: $AR"; exit 1; }
+
+# Backup original archive
+cp "$INPUT_ARCHIVE" "$FULL_ARCHIVE"
+echo "📦 Backed up original archive to: $FULL_ARCHIVE"
+
+# Create temp directories
+WORKDIR=$(mktemp -d)
+ORIGDIR="$WORKDIR/orig"
+mkdir -p "$ORIGDIR"
+DEBUGDIR="$WORKDIR/debug"
+mkdir -p "$DEBUGDIR"
+
+# Extract object files
+cd "$ORIGDIR"
+"$AR" x "$FULL_ARCHIVE"
+
+# Process each object
+for obj in *.o; do
+  "$OBJCOPY" --only-keep-debug "$obj" "$DEBUGDIR/$obj"
+  "$OBJCOPY" --strip-debug "$obj"
+  "$OBJCOPY" --add-gnu-debuglink="$DEBUGDIR/$obj" "$obj"
+done
+
+# Repack stripped archive (overwrite original)
+"$AR" rcs "$STRIPPED_ARCHIVE" *.o
+
+# Repack debug archive
+cd "$DEBUGDIR"
+"$AR" rcs "$DEBUG_ARCHIVE" *.o
+
+# Cleanup
+rm -rf "$WORKDIR"
+
+# Generate symbol listing from stripped archive
+echo "📄 Generating symbol list: $SYMS_FILE"
+nm -g --defined-only "$STRIPPED_ARCHIVE" > "$SYMS_FILE" || {
+  echo "⚠️ Warning: nm failed to list symbols from $STRIPPED_ARCHIVE"
+}
+
+
+echo "✅ Done:"
+echo "  - Stripped archive: $STRIPPED_ARCHIVE"
+echo "  - Full backup:      $FULL_ARCHIVE"
+echo "  - Debug archive:    $DEBUG_ARCHIVE"
+echo "  - Symbol list:      $SYMS_FILE"

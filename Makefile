@@ -151,7 +151,9 @@ engine_c: #/ Builds the C API for the engine, producing the shared and static li
 	ls -l $(target_dir)
 	cp $(target_dir)/$(shared_lib_filename) $(artifacts_dir)/lib/$(shared_lib_filename)
 	cp $(target_dir)/$(static_lib_filename) $(artifacts_dir)/lib/$(static_lib_filename)
-	[ -n "$(import_lib_filename)" ] && cp $(target_dir)/$(import_lib_filename) $(artifacts_dir)/lib/$(import_lib_filename)
+	@if [ -n "$(import_lib_filename)" ]; then \
+		cp $(target_dir)/$(import_lib_filename) $(artifacts_dir)/lib/$(import_lib_filename); \
+	fi
 	script/helpers/update-dylib-name $(artifacts_dir)/lib/$(shared_lib_filename)
 	script/helpers/write-pkg-config.sh $(artifacts_dir) $(root_dir)/include
 
@@ -228,8 +230,8 @@ show_pkg_config: #/ Shows the pkg-config settings for the library under the curr
 .PHONY: vendor
 vendor: engine_c #/ Updates the vendored copy of the library
 	mkdir -p $(root_dir)/go/azcosmoscx/libcosmoscx-vendor/$(CARGO_BUILD_TARGET)
+	script/helpers/strip-binary $(artifacts_dir)/lib/$(static_lib_filename)
 	cp $(artifacts_dir)/lib/$(static_lib_filename) $(root_dir)/go/azcosmoscx/libcosmoscx-vendor/$(CARGO_BUILD_TARGET)/$(static_lib_filename)
-	strip $(strip_args) $(root_dir)/go/azcosmoscx/libcosmoscx-vendor/$(CARGO_BUILD_TARGET)/$(static_lib_filename)
 
 .PHONY: baselines
 baselines: #/ Updates query result baselines using the emulator and the .NET client.
