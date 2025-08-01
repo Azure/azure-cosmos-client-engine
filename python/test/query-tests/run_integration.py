@@ -47,12 +47,12 @@ def _run_with_resources(
     client = CosmosClient(url=TestConfig.host, credential=TestConfig.masterKey)
     db = client.create_database_if_not_exists(id=unique_name)
     try:
-        for container in test_data[CONTAINERS]:
+        for container_def in test_data[CONTAINERS]:
         
-            pk_paths: list[str] = container[PARTITION_KEY][PATHS]
+            pk_paths: list[str] = container_def[PARTITION_KEY][PATHS]
             pk = PartitionKey(path=pk_paths[0])  # single-path only
             container = db.create_container_if_not_exists(
-                id=container[ID],
+                id=container_def[ID],
                 partition_key=pk,
                 offer_throughput=40000
             )
