@@ -55,13 +55,15 @@ vendor: engine_c
 test: test_rust test_go
 
 test_rust:
-  cargo test --profile {{ cargo_profile }} --package "azure_data_cosmos_engine" --package cosmoscx --all-features
+  # We don't use '--all-features' because the 'python_conversions' feature depends on libpython, which is not available unless we're building with maturin.
+  cargo test --profile {{ cargo_profile }} --package "azure_data_cosmos_engine" --package cosmoscx
   cargo doc --profile {{ cargo_profile }} --no-deps --workspace
 
 test_python:
   poetry -C ./python run python -m pytest -rP .
 
 test_go:
+  Write-Host "PKG_CONFIG_PATH = $env:PKG_CONFIG_PATH"
   go -C ./go/azcosmoscx clean -testcache
   go -C ./go/azcosmoscx test -tags {{ go_tags }} -v ./...
 
