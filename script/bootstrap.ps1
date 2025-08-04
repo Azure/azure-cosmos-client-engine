@@ -1,5 +1,11 @@
 $RepoRoot = Split-Path $PSScriptRoot -Parent
 
+if (-not $IsWindows) {
+    # Poetry uses `SHELL` to determine the shell to use for activate.
+    # Set it to PowerShell if not already set.
+    $env:SHELL = "pwsh"
+}
+
 # Check for dependencies we don't automatically install
 & "$RepoRoot/script/check-deps.ps1"
 
