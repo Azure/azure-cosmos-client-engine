@@ -43,7 +43,7 @@ engine_c:
   Copy-Item {{target_dir}}/{{static_lib_filename}} {{artifacts_dir}}/lib/{{static_lib_filename}}
   {{ _copy_import_command }}
   & script/helpers/update-dylib-name.ps1 -TargetOS {{target_os}} -DylibPath {{target_dir}}/{{shared_lib_filename}}
-  & script/helpers/write-pkg-config.ps1 -Prefix {{artifacts_dir}}/lib -Includedir {{artifacts_dir}}/include
+  & script/helpers/write-pkg-config.ps1 -Prefix {{artifacts_dir}} -Includedir {{artifacts_dir}}/include
 
 _print-native-libraries: #/ (Internal) Prints the native libraries that will be used by
 	cargo rustc --package "cosmoscx" --profile {{cargo_profile}} -- --print native-static-libs

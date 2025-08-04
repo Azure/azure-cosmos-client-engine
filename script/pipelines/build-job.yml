@@ -66,7 +66,7 @@ steps:
         displayName: "Run Rust tests"
 
   - ${{ if eq(parameters.RunGoTests, true) }}:
-      - script: just test_go LIBRARY_MODE=shared
+      - script: just go_library_mode=shared test_go
         displayName: "Run Go tests (Shared library)"
 
   - ${{ if eq(parameters.VendorForGo, true) }}:
