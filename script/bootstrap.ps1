@@ -11,9 +11,10 @@ poetry config virtualenvs.in-project true
 Write-Host "Installing Python dependencies..."
 poetry -C "./python" install
 
-Write-Host "Installing Rust dependencies..."
-cargo install --locked cbindgen@0.29.0
-cargo install --locked just@1.42.4
+$hostTarget = ((rustc -vV | Select-String "host: ") -split ':')[1].Trim()
+Write-Host "Installing Rust dependencies using host target '$hostTarget' ..."
+cargo install --target "$hostTarget" --locked cbindgen@0.29.0
+cargo install --target "$hostTarget" --locked just@1.42.4
 
 Write-Host "Installing addlicense..."
 go install github.com/google/addlicense@v1.1.1
