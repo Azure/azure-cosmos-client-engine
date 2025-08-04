@@ -45,12 +45,8 @@ steps:
       path: $(Build.SourcesDirectory)/target
     displayName: "Restore Cargo Build Cache"
 
-  - ${{ if eq(parameters.IsWindows, true) }}:
-      - powershell: script/bootstrap.ps1
-        displayName: "Bootstrap Repo"
-  - ${{ if eq(parameters.IsWindows, false) }}:
-      - script: script/bootstrap
-        displayName: "Bootstrap Repo"
+  - powershell: script/bootstrap.ps1
+    displayName: "Bootstrap Repo"
 
   - script: just engine
     displayName: "Build Client Engine"

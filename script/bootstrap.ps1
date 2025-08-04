@@ -13,12 +13,14 @@ Push-Location $RepoRoot/python
 try {
     Invoke-Expression (poetry env activate)
     poetry install
-} finally { 
+}
+finally { 
     Pop-Location
 }
 
 Write-Host "Installing Rust dependencies..."
 cargo install --locked cbindgen@0.29.0
+cargo install --locked just@1.42.4
 
 Write-Host "Installing addlicense..."
 go install github.com/google/addlicense@v1.1.1
