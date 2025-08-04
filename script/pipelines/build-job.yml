@@ -76,7 +76,7 @@ steps:
   - ${{ if eq(parameters.RunGoTests, true) }}:
       - script: |
           # We should now be able to clean the build artifacts and the tests should use the vendored copy
-          just superclean
+          rm -Rf ./artifacts
 
           # We can now run tests with no build tags, which should run them against the vendored copy.
           go -C ./go/azcosmoscx test -v ./...

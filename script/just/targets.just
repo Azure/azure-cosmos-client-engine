@@ -1,5 +1,5 @@
 host_target := `((rustc -vV | Select-String "host: ") -split ':')[1].Trim()`
-build_target := host_target
+build_target := env("CARGO_BUILD_TARGET", host_target)
 
 # Decode the target
 target_os := if build_target =~ ".*-unknown-linux-.*" {
