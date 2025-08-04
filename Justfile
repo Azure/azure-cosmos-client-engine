@@ -83,3 +83,6 @@ clean:
 superclean: clean
   rm -rf {{ artifacts_root }}
   rm -rf {{ target_root }}
+
+baselines:
+  dotnet run --project ./baselines/baseline-generator/baseline-generator.csproj -- ./baselines/queries
