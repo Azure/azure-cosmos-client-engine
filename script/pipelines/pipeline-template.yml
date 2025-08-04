@@ -27,13 +27,13 @@ stages:
         displayName: "Analyze and Test"
         pool: ${{ parameters.LinuxPool }}
         steps:
-          - shell: rustup show
+          - script: rustup show
             displayName: "Install Rust"
-          - shell: cargo install --locked cbindgen
+          - script: cargo install --locked cbindgen
             displayName: "Install cbindgen"
           - pwsh: script/check-headers.ps1
             displayName: "Check headers"
-          - pwsh: just check
+          - script: just check
             displayName: "Check formatting and license headers"
 
   #     - job: query_correctness
