@@ -1,11 +1,5 @@
 $RepoRoot = Split-Path $PSScriptRoot -Parent
 
-if (-not $IsWindows) {
-    # Poetry uses `SHELL` to determine the shell to use for activate.
-    # Set it to PowerShell if not already set.
-    $env:SHELL = "pwsh"
-}
-
 # Check for dependencies we don't automatically install
 & "$RepoRoot/script/check-deps.ps1"
 
@@ -17,7 +11,12 @@ poetry config virtualenvs.in-project true
 Write-Host "Installing Python dependencies..."
 Push-Location $RepoRoot/python
 try {
-    Invoke-Expression (poetry env activate)
+    # Poetry does a bad job detecting PowerShell on macOS for some reason.
+    # So we'll just find the path and do it ourselves.
+    $venvPath = (poetry env info --path)
+    $activateScript = Join-Path $venvPath "bin/activate.ps1"
+    . $activateScript
+
     poetry install
 }
 finally { 

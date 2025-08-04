@@ -6,7 +6,7 @@ shebang := if os() == 'windows' {
 }
 
 set shell := ["pwsh", "-c"]
-set windows-shell := ["pwsh", "-NoLogo", "-NoCommand"]
+set windows-shell := ["pwsh", "-NoLogo", "-Command"]
 
 # NOTE: Just automatically sets the working directory to the location of the Justfile, so we can always assume we're at the repo root.
 
