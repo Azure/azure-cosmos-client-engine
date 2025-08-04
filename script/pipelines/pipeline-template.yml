@@ -20,19 +20,21 @@ variables:
   RUSTFLAGS: "-D warnings"
 
 stages:
-  # - stage: Validate
-  #   dependsOn: []
-  #   jobs:
-  #     - job: check_headers
-  #       displayName: "Check headers are up-to-date"
-  #       pool: ${{ parameters.LinuxPool }}
-  #       steps:
-  #         - bash: rustup show
-  #           displayName: "Install Rust"
-  #         - bash: cargo install --locked cbindgen
-  #           displayName: "Install cbindgen"
-  #         - bash: script/check-headers
-  #           displayName: "Check headers"
+  - stage: Validate
+    dependsOn: []
+    jobs:
+      - job: analyze
+        displayName: "Analyze and Test"
+        pool: ${{ parameters.LinuxPool }}
+        steps:
+          - shell: rustup show
+            displayName: "Install Rust"
+          - shell: cargo install --locked cbindgen
+            displayName: "Install cbindgen"
+          - pwsh: script/check-headers.ps1
+            displayName: "Check headers"
+          - pwsh: just check
+            displayName: "Check formatting and license headers"
 
   #     - job: query_correctness
   #       strategy:

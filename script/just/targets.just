@@ -52,7 +52,12 @@ static_lib_extension := if target_os == "windows" {
     ".a" 
 }
 
-import_lib_prefix := ""
+import_lib_prefix := if target_toolchain == "msvc" {
+    ""
+} else {
+    "lib"
+}
+
 import_lib_extension := if target_os == "windows" {
     if target_toolchain == "gnu" {
         ".dll.a"

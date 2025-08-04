@@ -1,3 +1,4 @@
+#!/usr/bin/env pwsh
 $RepoRoot = Split-Path $PSScriptRoot -Parent
 
 # Check for dependencies we don't automatically install

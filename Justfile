@@ -91,3 +91,20 @@ superclean: clean
 
 baselines:
   dotnet run --project ./baselines/baseline-generator/baseline-generator.csproj -- ./baselines/queries
+
+check: (_fmt "check")
+
+fix: (_fmt "fix")
+
+_fmt fix:
+  cargo fmt --all {{ if fix == "fix" { "" } else { "--check" } }}
+  addlicense {{ if fix == "fix" { "" } else { "-check" } }} \
+    -f "./script/licenseheader.tpl" \
+    -ignore '**/*.yml' \
+    -ignore '**/obj/**' \
+    -ignore 'include/*.h' \
+    -ignore 'target/**' \
+    -ignore 'script/**' \
+    -ignore 'artifacts/**' \
+    -ignore 'python/.venv/**' \
+    .

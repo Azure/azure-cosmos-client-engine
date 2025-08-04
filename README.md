@@ -28,6 +28,7 @@ However, we only test and produce builds for the following platforms:
 ## Setting up your development environment
 
 The preferred development environment for this repository is a Linux environment, which includes Windows Subsystem for Linux (WSL) version 2.
+However, Windows is supported as well, though primarily for building Windows binaries.
 This repo has full support for GitHub Codespaces and VS Code Dev Containers, and we recommend using those for development, as they will ensure you have an environment that has all the necessary dependencies installed.
 
 ### Manual Setup
@@ -37,9 +38,10 @@ If you are unable to use a Codespace or Dev Container, you will need to install 
 * Rust 1.80.0 or later
 * Go 1.23 or later
 * Python 3.13 or later (do not create a virtual environment manually, as the bootstrap script will do this for you)
-* GNU Make (usually available on Linux distributions)
+* PowerShell 7 or later on ALL PLATFORMS (our build scripts use PowerShell, even on non-Windows platforms)
+* [Just](https://github.com/casey/just) command runner
 
-Once you have those dependencies, run `script/bootstrap` to check your dependencies, install additional dependencies (such as [Maturin](https://maturin.rs), for building Python modules), and set up the dev environment.
+Once you have those dependencies, run `script/bootstrap.ps1` to check your dependencies, install additional dependencies (such as [Maturin](https://maturin.rs), for building Python modules), and set up the dev environment.
 
 ## Reviewing API docs
 
