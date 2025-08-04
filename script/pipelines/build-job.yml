@@ -16,16 +16,6 @@ parameters:
     default: true
 
 steps:
-  - ${{ if eq(parameters.IsWindows, true )}}:
-    - script: |
-        choco install --noprogress msys2
-        echo "##vso[task.prependpath]C:\tools\msys64\usr\bin\"
-      displayName: "Install MSYS2"
-    - script: |
-        pacman -Sy
-        pacman --no-confirm -S msys2-w32api-runtime
-      displayName: "Install MSYS2 Tools from Pacman"
-
   - task: GoTool@0
     displayName: "Install Go"
     inputs:
@@ -59,13 +49,13 @@ steps:
       - powershell: script/bootstrap.ps1
         displayName: "Bootstrap Repo"
   - ${{ if eq(parameters.IsWindows, false) }}:
-      - bash: script/bootstrap
+      - shell: script/bootstrap
         displayName: "Bootstrap Repo"
 
-  - bash: make engine
+  - shell: just engine
     displayName: "Build Client Engine"
 
-  - bash: make _print-native-libraries
+  - shell: just _print-native-libraries
     displayName: "Detect Native Libraries required by engine"
 
     # Publish the artifacts now because a) we might as well have them even if the tests fail and b) 'make superclean' below will delete them
@@ -76,24 +66,21 @@ steps:
         artifact: "$(CONFIGURATION)_$(CARGO_BUILD_TARGET)"
 
   - ${{ if eq(parameters.RunRustTests, true) }}:
-      - bash: make test_rust
+      - shell: just test_rust
         displayName: "Run Rust tests"
 
   - ${{ if eq(parameters.RunGoTests, true) }}:
-      - bash: |
-          go clean -cache
-          make test_go LIBRARY_MODE=shared
+      - shell: just test_go LIBRARY_MODE=shared
         displayName: "Run Go tests (Shared library)"
 
   - ${{ if eq(parameters.VendorForGo, true) }}:
-    - bash: |
-        make vendor CONFIGURATION=vendored
+    - shell: just configuration=vendored vendor 
       displayName: "Build vendored library"
 
   - ${{ if eq(parameters.RunGoTests, true) }}:
-      - bash: |
+      - script: |
           # We should now be able to clean the build artifacts and the tests should use the vendored copy
-          make superclean
+          just superclean
 
           # We can now run tests with no build tags, which should run them against the vendored copy.
           go -C ./go/azcosmoscx test -v ./...

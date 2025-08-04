@@ -45,6 +45,9 @@ engine_c:
   & script/helpers/update-dylib-name.ps1 -TargetOS {{target_os}} -DylibPath {{target_dir}}/{{shared_lib_filename}}
   & script/helpers/write-pkg-config.ps1 -Prefix {{artifacts_dir}}/lib -Includedir {{artifacts_dir}}/include
 
+_print-native-libraries: #/ (Internal) Prints the native libraries that will be used by
+	cargo rustc --package "cosmoscx" --profile {{cargo_profile}} -- --print native-static-libs
+
 vendor: engine_c
   if(-not (Test-Path ./go/azcosmoscx/libcosmoscx-vendor/{{ build_target }})) { New-Item -Type Directory ./go/azcosmoscx/libcosmoscx-vendor/{{ build_target }} }
   Copy-Item {{artifacts_dir}}/lib/{{static_lib_filename}} ./go/azcosmoscx/libcosmoscx-vendor/{{ build_target }}
