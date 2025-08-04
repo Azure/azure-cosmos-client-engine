@@ -49,13 +49,13 @@ steps:
       - powershell: script/bootstrap.ps1
         displayName: "Bootstrap Repo"
   - ${{ if eq(parameters.IsWindows, false) }}:
-      - shell: script/bootstrap
+      - script: script/bootstrap
         displayName: "Bootstrap Repo"
 
-  - shell: just engine
+  - script: just engine
     displayName: "Build Client Engine"
 
-  - shell: just _print-native-libraries
+  - script: just _print-native-libraries
     displayName: "Detect Native Libraries required by engine"
 
     # Publish the artifacts now because a) we might as well have them even if the tests fail and b) 'make superclean' below will delete them
@@ -66,15 +66,15 @@ steps:
         artifact: "$(CONFIGURATION)_$(CARGO_BUILD_TARGET)"
 
   - ${{ if eq(parameters.RunRustTests, true) }}:
-      - shell: just test_rust
+      - script: just test_rust
         displayName: "Run Rust tests"
 
   - ${{ if eq(parameters.RunGoTests, true) }}:
-      - shell: just test_go LIBRARY_MODE=shared
+      - script: just test_go LIBRARY_MODE=shared
         displayName: "Run Go tests (Shared library)"
 
   - ${{ if eq(parameters.VendorForGo, true) }}:
-    - shell: just configuration=vendored vendor 
+    - script: just configuration=vendored vendor 
       displayName: "Build vendored library"
 
   - ${{ if eq(parameters.RunGoTests, true) }}:
