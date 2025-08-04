@@ -9,19 +9,7 @@ pip install poetry
 poetry config virtualenvs.in-project true
 
 Write-Host "Installing Python dependencies..."
-Push-Location $RepoRoot/python
-try {
-    # Poetry does a bad job detecting PowerShell on macOS for some reason.
-    # So we'll just find the path and do it ourselves.
-    $venvPath = (poetry env info --path)
-    $activateScript = Join-Path $venvPath "bin/activate.ps1"
-    . $activateScript
-
-    poetry install
-}
-finally { 
-    Pop-Location
-}
+poetry -C "./python" install
 
 Write-Host "Installing Rust dependencies..."
 cargo install --locked cbindgen@0.29.0
