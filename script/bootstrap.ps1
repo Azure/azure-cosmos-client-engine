@@ -20,6 +20,11 @@ cargo install --target "$hostTarget" --locked just@1.42.4
 Write-Host "Installing addlicense..."
 go install github.com/google/addlicense@v1.1.1
 
+if (![string]::IsNullOrEmpty($env:BUILD_BUILDID)) {
+    # We're in a CI environment, so put the GOBIN on the system path
+    Write-Host "##vso[task.prependpath]$env:GOPATH/bin"
+}
+
 if ($IsWindows) {
     # Check for msys and install the msys runtime if available
     if (Test-Path "C:\mingw64\usr\bin\pacman.exe") {
