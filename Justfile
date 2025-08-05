@@ -63,7 +63,6 @@ test_python:
   poetry -C ./python run python -m pytest -rP .
 
 test_go:
-  Write-Host "PKG_CONFIG_PATH = $env:PKG_CONFIG_PATH"
   go -C ./go/azcosmoscx clean -testcache
   go -C ./go/azcosmoscx test -tags {{ go_tags }} -v ./...
 
