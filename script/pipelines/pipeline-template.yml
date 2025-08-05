@@ -40,6 +40,8 @@ stages:
         pool: ${{ parameters.WindowsPool }}
         steps:
           - template: prep-agent.yml
+            parameters:
+              HostIsWindows: true
 
           - template: emulator-setup.yml
 
@@ -59,7 +61,7 @@ stages:
           - template: /script/pipelines/build-job.yml
             parameters:
               RustTarget: x86_64-pc-windows-msvc
-              IsWindows: true
+              HostIsWindows: true
               PublishArtifacts: ${{ parameters.IsReleaseBuild }}
 
               # Go doesn't support MSVC-built libraries, we'll test it in the x86_64-pc-windows-gnu build
@@ -73,7 +75,7 @@ stages:
           - template: /script/pipelines/build-job.yml
             parameters:
               RustTarget: x86_64-pc-windows-gnu
-              IsWindows: true
+              HostIsWindows: true
               PublishArtifacts: ${{ parameters.IsReleaseBuild }}
 
       - job: x86_64_linux_gnu

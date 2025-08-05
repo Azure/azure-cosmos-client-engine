@@ -4,7 +4,7 @@ parameters:
   - name: PublishArtifacts
     type: boolean
     default: false
-  - name: IsWindows
+  - name: HostIsWindows
     type: boolean
     default: false
   - name: RunRustTests
@@ -21,6 +21,7 @@ steps:
   - template: prep-agent.yml
     parameters:
       RustTarget: ${{ parameters.RustTarget }}
+      HostIsWindows: ${{ parameters.HostIsWindows }}
       CargoCache: true
 
   - script: just engine
