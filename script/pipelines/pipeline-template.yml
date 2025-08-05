@@ -27,10 +27,19 @@ stages:
         displayName: "Analyze and Test"
         pool: ${{ parameters.LinuxPool }}
         steps:
+          - task: GoTool@0
+            displayName: "Install Go"
+            inputs:
+              version: $(GO_VERSION)
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: $(PY_PYTHON)
+              addToPath: true
+            displayName: "Use Python $(PY_PYTHON)"
           - script: rustup show
             displayName: "Install Rust"
-          - script: cargo install --locked cbindgen
-            displayName: "Install cbindgen"
+          - powershell: script/bootstrap.ps1
+            displayName: "Bootstrap Repo"
           - pwsh: script/check-headers.ps1
             displayName: "Check headers"
           - script: just check

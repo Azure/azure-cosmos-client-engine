@@ -47,3 +47,15 @@ export LD_LIBRARY_PATH := if os() == "linux" {
 } else {
   env("LD_LIBRARY_PATH", "")
 }
+
+# "&&" doesn't work as you'd hope in Just, so we have to do nested ifs.
+# See https://github.com/casey/just/issues/2411
+export CGO_LDFLAGS := if target_os == "windows" {
+  if go_library_mode == "shared" {
+    "-L" +artifacts_dir / "lib"
+  } else {
+    ""
+  }
+} else {
+  ""
+}
