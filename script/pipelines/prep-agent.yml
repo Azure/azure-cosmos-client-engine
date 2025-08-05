@@ -21,6 +21,10 @@ steps:
       addToPath: true
     displayName: "Use Python $(PY_VERSION)"
 
+  - ${{ if eq(parameters.HostIsWindows, false) }}:
+      - script: brew install zig
+        displayName: "Install Zig CC compiler"
+
   - ${{ if ne(parameters.RustTarget, '') }}:
     - script: rustup target add ${{ parameters.RustTarget }}
       displayName: "Install Rust Target ${{ parameters.RustTarget }}"
