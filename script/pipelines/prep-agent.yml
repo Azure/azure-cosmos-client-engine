@@ -18,13 +18,12 @@ steps:
       addToPath: true
     displayName: "Use Python $(PY_VERSION)"
 
-  - ${{ if ne(parameters.RustTarget, "") }}:
+  - ${{ if ne(parameters.RustTarget, '') }}:
     - script: rustup target add ${{ parameters.RustTarget }}
       displayName: "Install Rust Target ${{ parameters.RustTarget }}"
     - pwsh: |
         Write-Host "##vso[task.setvariable variable=CARGO_BUILD_TARGET]${{ parameters.RustTarget }}"
       displayName: "Initialize Variables"
-  - ${{ if eq(parameters.RustTarget, "") }}:
 
   - ${{ if eq(parameters.CargoCache, true) }}:
     - task: Cache@2
