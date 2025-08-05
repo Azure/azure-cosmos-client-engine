@@ -1,5 +1,7 @@
 parameters:
-  - name: IsReleaseBuild
+  - name: RustTarget
+    type: string
+  - name: PublishArtifacts
     type: boolean
     default: false
   - name: IsWindows
@@ -16,37 +18,10 @@ parameters:
     default: true
 
 steps:
-  - task: GoTool@0
-    displayName: "Install Go"
-    inputs:
-      version: $(GO_VERSION)
-
-  - task: UsePythonVersion@0
-    inputs:
-      versionSpec: $(PY_PYTHON)
-      addToPath: true
-    displayName: "Use Python $(PY_PYTHON)"
-
-  - script: rustup target add $(CARGO_BUILD_TARGET)
-    displayName: "Install Rust"
-
-  - task: Cache@2
-    inputs:
-      key: '"cargo-registry" | "$(Agent.OS)" | Cargo.lock'
-      ${{ if eq(parameters.IsWindows, true )}}:
-        path: $(UserProfile)/.cargo/registry
-      ${{ if eq(parameters.IsWindows, false )}}:
-        path: $(HOME)/.cargo/registry
-    displayName: "Restore Cargo Registry Cache"
-
-  - task: Cache@2
-    inputs:
-      key: '"cargo" | "$(Agent.OS)" | Cargo.lock'
-      path: $(Build.SourcesDirectory)/target
-    displayName: "Restore Cargo Build Cache"
-
-  - powershell: script/bootstrap.ps1
-    displayName: "Bootstrap Repo"
+  - template: prep-agent.yml
+    parameters:
+      RustTarget: ${{ parameters.RustTarget }}
+      CargoCache: true
 
   - script: just engine
     displayName: "Build Client Engine"
@@ -55,7 +30,7 @@ steps:
     displayName: "Detect Native Libraries required by engine"
 
     # Publish the artifacts now because a) we might as well have them even if the tests fail and b) 'make superclean' below will delete them
-  - ${{ if eq(parameters.IsReleaseBuild, true) }}:
+  - ${{ if eq(parameters.PublishArtifacts, true) }}:
       - publish: artifacts/$(CARGO_BUILD_TARGET)/release
         condition: eq(parameters.ReleaseBuild, true)
         displayName: "Publish Standard Build"
@@ -83,7 +58,7 @@ steps:
         displayName: "Run Go tests (Vendored static library)"
 
     # Published the vendored copy (for committing to the Go package) separately
-  - ${{ if and(eq(parameters.VendorForGo, true), eq(parameters.IsReleaseBuild, true)) }}:
+  - ${{ if and(eq(parameters.VendorForGo, true), eq(parameters.PublishArtifacts, true)) }}:
       - publish: go/azcosmoscx/libcosmoscx-vendor/$(CARGO_BUILD_TARGET)
         condition: eq(parameters.ReleaseBuild, true)
         displayName: "Publish Vendored Build"

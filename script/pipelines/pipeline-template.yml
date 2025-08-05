@@ -2,12 +2,6 @@ parameters:
   - name: IsReleaseBuild
     type: boolean
     default: false
-  - name: GoVersion
-    type: string
-    default: "1.24.3"
-  - name: PyVersion
-    type: string
-    default: "3.11"
   - name: LinuxPool
     type: object
   - name: MacPool
@@ -27,56 +21,33 @@ stages:
         displayName: "Analyze and Test"
         pool: ${{ parameters.LinuxPool }}
         steps:
-          - task: GoTool@0
-            displayName: "Install Go"
-            inputs:
-              version: ${{ parameters.GoVersion }}
-          - task: UsePythonVersion@0
-            inputs:
-              versionSpec: ${{ parameters.PyVersion }}
-              addToPath: true
-            displayName: "Use Python ${{ parameters.PyVersion }}"
-          - script: rustup show
-            displayName: "Install Rust"
-          - powershell: script/bootstrap.ps1
-            displayName: "Bootstrap Repo"
+          - template: prep-agent.yml
           - pwsh: script/check-headers.ps1
             displayName: "Check headers"
           - script: just check
             displayName: "Check formatting and license headers"
 
-  #     - job: query_correctness
-  #       strategy:
-  #         matrix:
-  #           rust:
-  #             language: "Rust"
-  #             target: "query_test_rust"
-  #           go:
-  #             language: "Go"
-  #             target: "query_test_go"
-  #       displayName: "Run ${{variables.language}} Query Correctness Tests"
-  #       pool: ${{ parameters.LinuxPool }}
-  #       steps:
-  #         - task: UsePythonVersion@0
-  #           inputs:
-  #             versionSpec: ${{ parameters.PyVersion }}
-  #           displayName: "Use Python"
-  #         - task: GoTool@0
-  #           displayName: "Install Go"
-  #           inputs:
-  #             version: ${{ parameters.GoVersion }}
+      - job: query_correctness
+        strategy:
+          matrix:
+            rust:
+              language: "Rust"
+              target: "query_test_rust"
+            go:
+              language: "Go"
+              target: "query_test_go"
+        displayName: "Run ${{variables.language}} Query Correctness Tests"
+        pool: ${{ parameters.WindowsPool }}
+        steps:
+          - template: prep-agent.yml
 
-  #         - bash: rustup show
-  #           displayName: "Install Rust"
+          - template: emulator-setup.yml
 
-  #         - bash: script/bootstrap
-  #           displayName: "Boostrap Repo"
-  #         - bash: make engine
-  #           displayName: "Build Client Engine"
-  #         - bash: |
-  #             script/reset-emulator
-  #             make $(target)
-  #           displayName: "Run query tests"
+          - shell: just engine
+            displayName: "Build Client Engine"
+
+          - shell: just $(target)
+            displayName: "Run query tests"
 
   - stage: Build
     dependsOn: []
@@ -84,15 +55,12 @@ stages:
       - job: x86_64_pc_windows_msvc
         displayName: "Windows x86_64 MSVC"
         pool: ${{ parameters.WindowsPool }}
-        variables:
-          GO_VERSION: ${{ parameters.GoVersion }}
-          PY_PYTHON: ${{ parameters.PyVersion }}
-          CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
         steps:
           - template: /script/pipelines/build-job.yml
             parameters:
+              RustTarget: x86_64-pc-windows-msvc
               IsWindows: true
-              IsReleaseBuild: ${{ parameters.IsReleaseBuild }}
+              PublishArtifacts: ${{ parameters.IsReleaseBuild }}
 
               # Go doesn't support MSVC-built libraries, we'll test it in the x86_64-pc-windows-gnu build
               RunGoTests: false 
@@ -101,51 +69,39 @@ stages:
       - job: x86_64_pc_windows_gnu
         displayName: "Windows x86_64 GNU"
         pool: ${{ parameters.WindowsPool }}
-        variables:
-          GO_VERSION: ${{ parameters.GoVersion }}
-          PY_PYTHON: ${{ parameters.PyVersion }}
-          CARGO_BUILD_TARGET: x86_64-pc-windows-gnu
         steps:
           - template: /script/pipelines/build-job.yml
             parameters:
+              RustTarget: x86_64-pc-windows-gnu
               IsWindows: true
-              IsReleaseBuild: ${{ parameters.IsReleaseBuild }}
+              PublishArtifacts: ${{ parameters.IsReleaseBuild }}
 
       - job: x86_64_linux_gnu
         displayName: "Linux x86_64"
         pool: ${{ parameters.LinuxPool }}
-        variables:
-          GO_VERSION: ${{ parameters.GoVersion }}
-          PY_PYTHON: ${{ parameters.PyVersion }}
-          CARGO_BUILD_TARGET: x86_64-unknown-linux-gnu
         steps:
           - template: /script/pipelines/build-job.yml
             parameters:
-              IsReleaseBuild: ${{ parameters.IsReleaseBuild }}
+              RustTarget: x86_64-unknown-linux-gnu
+              PublishArtifacts: ${{ parameters.IsReleaseBuild }}
 
       - job: x86_64_apple_darwin
         displayName: "macOS x86_64"
         pool: ${{ parameters.MacPool }}
-        variables:
-          GO_VERSION: ${{ parameters.GoVersion }}
-          PY_PYTHON: ${{ parameters.PyVersion }}
-          CARGO_BUILD_TARGET: x86_64-apple-darwin
         steps:
           - template: /script/pipelines/build-job.yml
             parameters:
-              IsReleaseBuild: ${{ parameters.IsReleaseBuild }}
+              RustTarget: x86_64-apple-darwin
+              PublishArtifacts: ${{ parameters.IsReleaseBuild }}
 
       - job: aarch64_apple_darwin
         displayName: "macOS aarch64"
         pool: ${{ parameters.MacPool }}
-        variables:
-          GO_VERSION: ${{ parameters.GoVersion }}
-          PY_PYTHON: ${{ parameters.PyVersion }}
-          CARGO_BUILD_TARGET: aarch64-apple-darwin
         steps:
           - template: /script/pipelines/build-job.yml
             parameters:
-              IsReleaseBuild: ${{ parameters.IsReleaseBuild }}
+              RustTarget: aarch64-apple-darwin
+              PublishArtifacts: ${{ parameters.IsReleaseBuild }}
 
               # The job runs on an x86_64 machine, so we can't run tests.
               RunGoTests: false 
