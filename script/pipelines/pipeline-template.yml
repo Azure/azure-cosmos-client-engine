@@ -14,6 +14,7 @@ variables:
   RUSTFLAGS: "-D warnings"
   GO_VERSION: "1.24.3"
   PY_VERSION: "3.11"
+  EMULATORMSIURL: https://aka.ms/cosmosdb-emulator
 
 stages:
   - stage: Validate
