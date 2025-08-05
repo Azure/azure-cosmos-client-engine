@@ -108,3 +108,6 @@ _fmt fix:
     -ignore 'artifacts/**' \
     -ignore 'python/.venv/**' \
     .
+
+print-native-libs:
+  cargo rustc --package "cosmoscx" --profile {{ cargo_profile }} -- --print native-static-libs

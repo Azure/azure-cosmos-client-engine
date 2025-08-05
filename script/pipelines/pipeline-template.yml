@@ -30,12 +30,12 @@ stages:
           - task: GoTool@0
             displayName: "Install Go"
             inputs:
-              version: $(GO_VERSION)
+              version: ${{ parameters.GoVersion }}
           - task: UsePythonVersion@0
             inputs:
-              versionSpec: $(PY_PYTHON)
+              versionSpec: ${{ parameters.PyVersion }}
               addToPath: true
-            displayName: "Use Python $(PY_PYTHON)"
+            displayName: "Use Python ${{ parameters.PyVersion }}"
           - script: rustup show
             displayName: "Install Rust"
           - powershell: script/bootstrap.ps1

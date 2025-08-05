@@ -16,6 +16,9 @@ import_lib_filename := if target_os == "windows" { import_lib_prefix + lib_name 
 export CARGO_BUILD_TARGET := build_target
 export PKG_CONFIG_PATH := artifacts_dir
 
+# We don't want to use the winapi crates' bundled import libraries, because we're building a library to be consumed in other non-Rust toolchains.
+export WINAPI_NO_BUNDLED_LIBRARIES := "true"
+
 go_tags := (if go_library_mode == "shared" {
   "dynamic,"
 } else {

@@ -20,7 +20,7 @@ target_arch := if build_target =~ "x86_64-.*" {
     error("Unrecognized target: " + build_target)
 }
 
-target_toolchain := if build_target =~ ".*-gnu" {
+target_env := if build_target =~ ".*-gnu" {
     "gnu"
 } else if build_target =~ ".*-msvc" {
     "msvc"
@@ -34,7 +34,7 @@ target_toolchain := if build_target =~ ".*-gnu" {
 shared_lib_prefix := if target_os == "windows" { "" } else { "lib" }
 shared_lib_extension := if target_os == "windows" { ".dll" } else if target_os == "macos" { ".dylib" } else { ".so" }
 static_lib_prefix := if target_os == "windows" { 
-    if target_toolchain == "gnu" {
+    if target_env == "gnu" {
         "lib"
     } else {
         "" 
@@ -43,7 +43,7 @@ static_lib_prefix := if target_os == "windows" {
     "lib" 
 }
 static_lib_extension := if target_os == "windows" {
-    if target_toolchain == "gnu" {
+    if target_env == "gnu" {
         ".a"
     } else {
         ".lib"
@@ -52,14 +52,14 @@ static_lib_extension := if target_os == "windows" {
     ".a" 
 }
 
-import_lib_prefix := if target_toolchain == "msvc" {
+import_lib_prefix := if target_env == "msvc" {
     ""
 } else {
     "lib"
 }
 
 import_lib_extension := if target_os == "windows" {
-    if target_toolchain == "gnu" {
+    if target_env == "gnu" {
         ".dll.a"
     } else {
         ".dll.lib"

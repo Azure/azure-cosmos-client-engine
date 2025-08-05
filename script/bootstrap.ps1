@@ -19,3 +19,15 @@ cargo install --target "$hostTarget" --locked just@1.42.4
 
 Write-Host "Installing addlicense..."
 go install github.com/google/addlicense@v1.1.1
+
+if ($IsWindows) {
+    # Check for msys and install the msys runtime if available
+    if (Test-Path "C:\mingw64\usr\bin\pacman.exe") {
+        Write-Host "Installing MSYS2 runtime for GNU builds..."
+        & "C:\mingw64\usr\bin\pacman.exe" -Syu --noconfirm
+        & "C:\mingw64\usr\bin\pacman.exe" -S --noconfirm msys2-w32api-runtime
+    }
+    else {
+        Write-Host "Unable to find MSYS Pacman executable. Skipping MSYS2 runtime installation."
+    }
+}
