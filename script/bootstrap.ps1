@@ -18,6 +18,8 @@ cargo install --target "$hostTarget" --locked cbindgen@0.29.0
 cargo install --target "$hostTarget" --locked just@1.42.4
 
 Write-Host "Installing addlicense..."
+Write-Host "Go env:"
+go env
 go install github.com/google/addlicense@v1.1.1
 
 if (-not [string]::IsNullOrEmpty($env:BUILD_BUILDID)) {
