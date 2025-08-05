@@ -43,10 +43,10 @@ stages:
 
           - template: emulator-setup.yml
 
-          - shell: just engine
+          - script: just engine
             displayName: "Build Client Engine"
 
-          - shell: just $(target)
+          - script: just $(target)
             displayName: "Run query tests"
 
   - stage: Build
