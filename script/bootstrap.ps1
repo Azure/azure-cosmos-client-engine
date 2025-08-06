@@ -23,6 +23,11 @@ Write-Host "Go env"
 go env
 Write-Host "Addlicense path"
 Get-Command addlicense -ErrorAction Continue
+if ($IsLinux) {
+    Get-ChildItem /home/cloudtest/go/bin
+}
+Write-Host "PATH"
+$env:PATH
 
 if (-not [string]::IsNullOrEmpty($env:BUILD_BUILDID)) {
     # We're in a CI environment, so put the GOBIN on the system path

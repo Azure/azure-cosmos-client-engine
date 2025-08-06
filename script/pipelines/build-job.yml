@@ -13,9 +13,6 @@ parameters:
   - name: RunGoTests
     type: boolean
     default: true
-  - name: BuildPython
-    type: boolean
-    default: true
   - name: VendorForGo
     type: boolean
     default: true
@@ -30,10 +27,6 @@ steps:
   - script: just engine
     displayName: "Build Client Engine"
 
-  - ${{ if eq(parameters.BuildPython, true) }}:
-    - script: just engine_python
-      displayName: "Build Python Extension Module"
-
   - script: just _print-native-libraries
     displayName: "Detect Native Libraries required by engine"
 
@@ -47,10 +40,6 @@ steps:
   - ${{ if eq(parameters.RunRustTests, true) }}:
     - script: just test_rust
       displayName: "Run Rust tests"
-
-  - ${{ if eq(parameters.BuildPython, true) }}:
-    - script: just test_python
-      displayName: "Run Python tests"
 
   - ${{ if eq(parameters.RunGoTests, true) }}:
       - script: just go_library_mode=shared test_go
