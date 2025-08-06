@@ -36,11 +36,11 @@ stages:
             rust:
               language: "Rust"
               target: "query_test_rust"
-              CARGO_BUILD_TARGET=x86_64-pc-windows-msvc
+              CARGO_BUILD_TARGET: x86_64-pc-windows-msvc
             go:
               language: "Go"
               target: "query_test_go"
-              CARGO_BUILD_TARGET=x86_64-pc-windows-gnu # Go requires the GNU build
+              CARGO_BUILD_TARGET: x86_64-pc-windows-gnu # Go requires the GNU build
         displayName: "Run ${{variables.language}} Query Correctness Tests"
         pool: ${{ parameters.WindowsPool }}
         steps:
