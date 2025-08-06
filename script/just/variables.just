@@ -1,6 +1,6 @@
 target_root := justfile_directory() / "target"
 artifacts_root := justfile_directory() / "artifacts"
-configuration := "debug"
+configuration := env("CONFIGURATION", "debug")
 target_dir := target_root / build_target / configuration
 artifacts_dir := artifacts_root / build_target / configuration
 cargo_profile := if configuration == "debug" { "dev" } else { configuration }
@@ -26,7 +26,7 @@ go_tags := (if go_library_mode == "shared" {
 }) + (if configuration == "vendored" {
   ""
 } else if configuration == "debug" {
-  "debug,"
+  "debug,azcosmoscx_local,"
 } else {
   "azcosmoscx_local,"
 })
