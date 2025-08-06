@@ -13,6 +13,9 @@ parameters:
   - name: RunGoTests
     type: boolean
     default: true
+  - name: BuildPython
+    type: boolean
+    default: true
   - name: VendorForGo
     type: boolean
     default: true
@@ -27,19 +30,27 @@ steps:
   - script: just engine
     displayName: "Build Client Engine"
 
+  - ${{ if eq(parameters.BuildPython, true) }}:
+    - script: just engine_python
+      displayName: "Build Python Extension Module"
+
   - script: just _print-native-libraries
     displayName: "Detect Native Libraries required by engine"
 
     # Publish the artifacts now because a) we might as well have them even if the tests fail and b) 'make superclean' below will delete them
   - ${{ if eq(parameters.PublishArtifacts, true) }}:
-      - publish: artifacts/$(CARGO_BUILD_TARGET)/release
-        condition: eq(parameters.ReleaseBuild, true)
-        displayName: "Publish Standard Build"
-        artifact: "$(CONFIGURATION)_$(CARGO_BUILD_TARGET)"
+    - publish: artifacts/$(CARGO_BUILD_TARGET)/release
+      condition: eq(parameters.ReleaseBuild, true)
+      displayName: "Publish Standard Build"
+      artifact: "$(CONFIGURATION)_$(CARGO_BUILD_TARGET)"
 
   - ${{ if eq(parameters.RunRustTests, true) }}:
-      - script: just test_rust
-        displayName: "Run Rust tests"
+    - script: just test_rust
+      displayName: "Run Rust tests"
+
+  - ${{ if eq(parameters.BuildPython, true) }}:
+    - script: just test_python
+      displayName: "Run Python tests"
 
   - ${{ if eq(parameters.RunGoTests, true) }}:
       - script: just go_library_mode=shared test_go

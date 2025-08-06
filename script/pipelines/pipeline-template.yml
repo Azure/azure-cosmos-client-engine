@@ -78,6 +78,7 @@ stages:
           - template: /script/pipelines/build-job.yml
             parameters:
               RustTarget: x86_64-pc-windows-gnu
+              BuildPython: false
               HostIsWindows: true
               PublishArtifacts: ${{ parameters.IsReleaseBuild }}
 
@@ -111,6 +112,9 @@ stages:
               # The job runs on an x86_64 machine, so we can't run tests.
               RunGoTests: false 
               RunRustTests: false 
+
+              # Also, building the python module would require setting up cross compilation, which we're not doing yet.
+              BuildPython: false
 
   - ${{ if eq(parameters.IsReleaseBuild, true) }}:
       - stage: Package
