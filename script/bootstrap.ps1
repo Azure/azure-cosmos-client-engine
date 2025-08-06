@@ -28,11 +28,16 @@ if ($IsLinux) {
 }
 Write-Host "PATH"
 $env:PATH
+Write-HOST "GOPATH"
+$env:GOPATH
 
 if (-not [string]::IsNullOrEmpty($env:BUILD_BUILDID)) {
     # We're in a CI environment, so put the GOBIN on the system path
-    Write-Host "##vso[task.prependpath]$env:GOPATH/bin"
+    $gopath = (go env GOPATH)
+    Write-Host "##vso[task.prependpath]$gopath/bin"
 }
+
+Get-Command addlicense -ErrorAction Continue
 
 if ($IsWindows) {
     # Check for msys and install the msys runtime if available
