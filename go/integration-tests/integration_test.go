@@ -306,9 +306,8 @@ func runIntegrationTest(t *testing.T, querySetPath string) {
 	// Find the integration test baseline file
 	wd, err := os.Getwd()
 	require.NoError(t, err)
-	t.Errorf("Working directory: %s", wd)
 
-	fullPath := path.Join(wd, querySetPath)
+	fullPath := path.Join(path.Dir(path.Dir(wd)), "baselines", "queries", querySetPath)
 	require.FileExists(t, fullPath)
 
 	queryContext, err := LoadQueryContext(context.Background(), fullPath)
