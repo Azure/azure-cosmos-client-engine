@@ -4,12 +4,9 @@
 package integrationtests
 
 import (
-	"path"
 	"testing"
 )
 
-const querySetRoot = path.Join("..", "..", "baselines", "queries")
-
 func TestOrderBy(t *testing.T) {
-	runIntegrationTest(t, "../../baselines/queries/order_by.json")
+	runIntegrationTest(t, "order_by.json")
 }
