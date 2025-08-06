@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-//go:build azcosmoscx_local && !dynamic && windows && arm64
+//go:build azcosmoscx_local && !dynamic && windows && amd64
 
 package azcosmoscx
 

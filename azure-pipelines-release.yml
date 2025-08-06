@@ -5,12 +5,12 @@ extends:
   parameters:
     IsReleaseBuild: true
     LinuxPool:
-      name: ClientEngine
+      name: SDK-RustClientEngine
       demands:
         - ImageOverride -equals client-engine-linux-x86_64
     MacPool:
       vmImage: macos-15
     WindowsPool:
-      name: ClientEngine
+      name: SDK-RustClientEngine
       demands:
         - ImageOverride -equals client-engine-windows-x86_64
