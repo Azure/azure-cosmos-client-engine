@@ -19,25 +19,11 @@ cargo install --target "$hostTarget" --locked just@1.42.4
 
 Write-Host "Installing addlicense..."
 go install github.com/google/addlicense@v1.1.1
-Write-Host "Go env"
-go env
-Write-Host "Addlicense path"
-Get-Command addlicense -ErrorAction Continue
-if ($IsLinux) {
-    Get-ChildItem /home/cloudtest/go/bin
-}
-Write-Host "PATH"
-$env:PATH
-Write-HOST "GOPATH"
-$env:GOPATH
-
 if (-not [string]::IsNullOrEmpty($env:BUILD_BUILDID)) {
     # We're in a CI environment, so put the GOBIN on the system path
     $gopath = (go env GOPATH)
     Write-Host "##vso[task.prependpath]$gopath/bin"
 }
-
-Get-Command addlicense -ErrorAction Continue
 
 if ($IsWindows) {
     # Check for msys and install the msys runtime if available
