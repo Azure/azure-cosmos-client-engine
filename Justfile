@@ -21,13 +21,13 @@ headers: _generate_headers
 _generate_headers:
   cbindgen --quiet --config cbindgen.toml --crate "cosmoscx" --output {{ header_path }}
 
-engine: engine_rust engine_python engine_c
+engine: engine_rust engine_c
 
 engine_rust:
   cargo build --package "azure_data_cosmos_engine" --profile {{ cargo_profile }}
 
 engine_python:
-  poetry -C ./python run maturin develop --profile {{ cargo_profile }} --target {{ build_target }} --zig
+  poetry -C ./python run maturin develop --profile {{ cargo_profile }} --target {{ build_target }}
 
 _copy_import_command := if import_lib_filename != "" {
   "Copy-Item " + target_dir / import_lib_filename + " " + artifacts_dir / "lib" / import_lib_filename
