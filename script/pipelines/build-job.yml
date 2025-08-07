@@ -33,7 +33,6 @@ steps:
     # Publish the artifacts now because a) we might as well have them even if the tests fail and b) 'make superclean' below will delete them
   - ${{ if eq(parameters.PublishArtifacts, true) }}:
     - publish: artifacts/$(CARGO_BUILD_TARGET)/release
-      condition: eq(parameters.PublishArtifacts, true)
       displayName: "Publish Standard Build"
       artifact: "$(CONFIGURATION)_$(CARGO_BUILD_TARGET)"
 
@@ -61,6 +60,5 @@ steps:
     # Published the vendored copy (for committing to the Go package) separately
   - ${{ if and(eq(parameters.VendorForGo, true), eq(parameters.PublishArtifacts, true)) }}:
       - publish: go/azcosmoscx/libcosmoscx-vendor/$(CARGO_BUILD_TARGET)
-        condition: eq(parameters.PublishArtifacts, true)
         displayName: "Publish Vendored Build"
         artifact: "vendored_$(CARGO_BUILD_TARGET)"
