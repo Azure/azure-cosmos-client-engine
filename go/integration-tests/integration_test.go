@@ -304,10 +304,7 @@ func runIntegrationTest(t *testing.T, querySetPath string) {
 	key := getenvOrDefault("AZURE_COSMOS_KEY", "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==")
 
 	// Find the integration test baseline file
-	wd, err := os.Getwd()
-	require.NoError(t, err)
-
-	fullPath := path.Join(wd, "..", "..", "baselines", "queries", querySetPath)
+	fullPath := path.Join("..", "..", "baselines", "queries", querySetPath)
 	t.Errorf("Full path to query set: %s", fullPath)
 	require.FileExists(t, fullPath)
 
