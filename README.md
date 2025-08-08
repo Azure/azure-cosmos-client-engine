@@ -20,10 +20,11 @@ The engine itself is intended to be largely cross-platform and work on any platf
 However, we only test and produce builds for the following platforms:
 
 * `x86_64-unknown-linux-gnu` - Linux (GNU libc) x86_64
+* `x86_64-apple-darwin` - macOS x86_64
 * `aarch64-apple-darwin` - macOS ARM64
-* `x86_64-pc-windows-msvc` - Windows (MSVC ABI) x86_64.
-  * **NOTE**: We do not currently support the Go bindings on this platform
 * `x86_64-pc-windows-gnu` - Windows (GNU ABI and libc) x86_64.
+* `x86_64-pc-windows-msvc` - Windows (MSVC ABI and Windows CRT) x86_64.
+  * **NOTE**: We do not support the Go bindings on this platform, because Go does not support the MSVC ABI for cgo.
 
 ## Setting up your development environment
 
