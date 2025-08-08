@@ -24,7 +24,7 @@ if (-not (Test-Command "maturin")) {
     pip install maturin
 }
 if (-not (Test-Command "poetry")) {
-    pip install maturin
+    pip install poetry
 }
 poetry config virtualenvs.in-project true
 
