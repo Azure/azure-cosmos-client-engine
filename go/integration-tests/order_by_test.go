@@ -8,5 +8,5 @@ import (
 )
 
 func TestOrderBy(t *testing.T) {
-	runIntegrationTest(t, "../../baselines/queries/order_by.json")
+	runIntegrationTest(t, "order_by.json")
 }

@@ -1,6 +1,6 @@
 module github.com/Azure/azure-cosmos-client-engine/go/sample
 
-go 1.23.6
+go 1.23.5
 
 replace (
 	github.com/Azure/azure-cosmos-client-engine/go/azcosmoscx => ../azcosmoscx

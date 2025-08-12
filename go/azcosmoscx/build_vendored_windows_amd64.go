@@ -5,6 +5,6 @@
 
 package azcosmoscx
 
-// #cgo LDFLAGS: ${SRCDIR}/libcosmoscx-vendor/x86_64-pc-windows-gnu/libcosmoscx.a -lkernel32 -ladvapi32 -lntdll -luserenv -lws2_32 -ldbghelp
+// #cgo LDFLAGS: ${SRCDIR}/libcosmoscx-vendor/x86_64-pc-windows-gnu/libcosmoscx.a -lgdi32 -lkernel32 -lmsimg32 -lopengl32 -lwinspool -lkernel32 -lntdll -luserenv -lws2_32 -ldbghelp
 // #include <cosmoscx.h>
 import "C"

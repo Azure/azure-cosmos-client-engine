@@ -2,10 +2,7 @@ module github.com/Azure/azure-cosmos-client-engine/go/integration-tests
 
 go 1.23.6
 
-replace (
-	github.com/Azure/azure-cosmos-client-engine/go/azcosmoscx => ../azcosmoscx
-	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos => ../../../azure-sdk-for-go/sdk/data/azcosmos
-)
+replace github.com/Azure/azure-cosmos-client-engine/go/azcosmoscx => ../azcosmoscx
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.17.1

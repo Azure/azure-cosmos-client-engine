@@ -1,0 +1,65 @@
+parameters:
+  - name: RustTarget
+    type: string
+  - name: PublishArtifacts
+    type: boolean
+    default: false
+  - name: HostIsWindows
+    type: boolean
+    default: false
+  - name: RunRustTests
+    type: boolean
+    default: true
+  - name: RunGoTests
+    type: boolean
+    default: true
+  - name: VendorForGo
+    type: boolean
+    default: true
+
+steps:
+  - template: prep-agent.yml
+    parameters:
+      RustTarget: ${{ parameters.RustTarget }}
+      HostIsWindows: ${{ parameters.HostIsWindows }}
+      CargoCache: true
+
+  - script: just engine
+    displayName: "Build Client Engine"
+
+  - script: just print-native-libraries
+    displayName: "Detect Native Libraries required by engine"
+
+    # Publish the artifacts now because a) we might as well have them even if the tests fail and b) 'make superclean' below will delete them
+  - ${{ if eq(parameters.PublishArtifacts, true) }}:
+    - publish: artifacts/$(CARGO_BUILD_TARGET)/release
+      displayName: "Publish Standard Build"
+      artifact: "$(CONFIGURATION)_$(CARGO_BUILD_TARGET)"
+
+  - ${{ if eq(parameters.RunRustTests, true) }}:
+    - script: just test_rust
+      displayName: "Run Rust tests"
+
+  - ${{ if eq(parameters.RunGoTests, true) }}:
+      - script: just go_library_mode=shared test_go
+        displayName: "Run Go tests (Shared library)"
+
+  - ${{ if eq(parameters.VendorForGo, true) }}:
+    - script: just configuration=vendored vendor 
+      displayName: "Build vendored library"
+
+  - ${{ if eq(parameters.RunGoTests, true) }}:
+      - script: |
+          # We should now be able to clean the build artifacts and the tests should use the vendored copy
+          rm -Rf ./artifacts
+
+
+          # We can now run tests with no build tags, which should run them against the vendored copy.
+          go -C ./go/azcosmoscx test -v ./...
+        displayName: "Run Go tests (Vendored static library)"
+
+    # Published the vendored copy (for committing to the Go package) separately
+  - ${{ if and(eq(parameters.VendorForGo, true), eq(parameters.PublishArtifacts, true)) }}:
+      - publish: go/azcosmoscx/libcosmoscx-vendor/$(CARGO_BUILD_TARGET)
+        displayName: "Publish Vendored Build"
+        artifact: "vendored_$(CARGO_BUILD_TARGET)"

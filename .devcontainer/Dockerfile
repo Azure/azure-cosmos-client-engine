@@ -12,4 +12,6 @@ RUN rustup toolchain install nightly
 RUN cargo install --locked \
     cbindgen \
     cargo-watch \
-    http-server
+    http-server \
+    just \
+    maturin
