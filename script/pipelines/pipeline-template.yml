@@ -26,7 +26,7 @@ stages:
       - ${{ if eq(parameters.IsReleaseBuild, true) }}:
           - job: validate_release_parameters
             displayName: "Validate Release Parameters"
-            vmImage: ubuntu-latest
+            pool: ${{ parameters.LinuxPool }}
             steps:
               - bash: |
                   go_release_version="${{ parameters.GoReleaseVersion }}"
@@ -185,7 +185,7 @@ stages:
         jobs:
           - job: publish_go
             displayName: "Publish Go Wrapper"
-            vmImage: ubuntu-latest
+            pool: ${{ parameters.LinuxPool }}
             steps:
               - checkout: self
                 fetchTags: true
