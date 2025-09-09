@@ -1,5 +1,10 @@
 trigger: none
 
+parameters:
+  - name: GoReleaseVersion
+    displayName: The version of the Go wrapper package
+    type: string
+
 extends:
   template: /script/pipelines/pipeline-template.yml
   parameters:
