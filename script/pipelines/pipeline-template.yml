@@ -2,6 +2,9 @@ parameters:
   - name: IsReleaseBuild
     type: boolean
     default: false
+  - name: GoReleaseVersion
+    type: string
+    default: ""
   - name: LinuxPool
     type: object
   - name: MacPool
@@ -17,8 +20,32 @@ variables:
   EMULATORMSIURL: https://aka.ms/cosmosdb-emulator
 
 stages:
-  - stage: Validate
+  - stage: Prepare
     dependsOn: []
+    jobs:
+      - ${{ if eq(parameters.IsReleaseBuild, true) }}:
+          - job: validate_release_parameters
+            displayName: "Validate Release Parameters"
+            pool: ubuntu-latest
+            steps:
+              - bash: |
+                  go_release_version="${{ parameters.GoReleaseVersion }}"
+                  if [[ -z "$go_release_version" ]]; then
+                    echo "GoReleaseVersion must be provided for release builds."
+                    exit 1
+                  fi
+
+                  # Confirm that the version is a semver and in the `0.x` major version.
+                  if [[ ! "$go_release_version" =~ ^0.[0-9]+\.[0-9]+$ ]]; then
+                    echo "Invalid GoReleaseVersion: '$go_release_version'. Expected format 0.x.y (e.g. 1.2.3)."
+                    exit 1
+                  fi
+
+                  echo "GoReleaseVersion '$go_release_version' is valid."
+
+  - stage: Validate
+    dependsOn:
+      - Prepare
     jobs:
       - job: analyze
         displayName: "Analyze and Test"
@@ -57,7 +84,8 @@ stages:
             displayName: "Run query tests"
 
   - stage: Build
-    dependsOn: []
+    dependsOn:
+      - Prepare
     jobs:
       - job: x86_64_pc_windows_msvc
         displayName: "Windows x86_64 MSVC"
@@ -151,15 +179,47 @@ stages:
                 displayName: "Publish packages"
                 artifact: "packages"
 
-      # - stage: publish
-      #   dependsOn:
-      #     - Package
-      #   jobs:
-      #     - job: publish_go
-      #       displayName: "Publish Go Wrapper"
-      #       pool: ${{ parameters.LinuxPool }}
-      #       steps:
-      #         - download: current
-      #           patterns: "packages/vendored/**"
-      #         - bash: |
-      #             git checkout -b release-staging/
+      - stage: publish
+        dependsOn:
+          - Package
+        jobs:
+          - job: publish_go
+            displayName: "Publish Go Wrapper"
+            pool: ${{ parameters.LinuxPool }}
+            steps:
+              - checkout: self
+                fetchTags: true
+              - download: current
+                patterns: "packages/vendored/**"
+              - bash: |
+                  tag_name="go/azcosmoscx/v${{ parameters.GoReleaseVersion }}"
+                  branch_name="azp-release-staging/${{ parameters.GoReleaseVersion }}"
+
+                  echo "Preparing Go wrapper release tag '$tag_name'"
+                  if git rev-parse -q --verify "refs/tags/$tag_name" >/dev/null; then
+                    echo "Error: Git tag '$tag_name' already exists. Aborting release."
+                    exit 1
+                  fi
+
+                  git checkout -b "$branch_name"
+
+                  src_dir="$(Pipeline.Workspace)/packages/vendored"
+                  dest_dir="./go/azcosmoscx/libcosmoscx-vendor"
+
+                  echo "Creating destination directory '$dest_dir'"
+                  mkdir -p "$dest_dir"
+
+                  # Ensure there is at least one subdirectory to copy
+                  if ! find "$src_dir" -maxdepth 1 -mindepth 1 -type d -print -quit >/dev/null 2>&1; then
+                    echo "No subdirectories found in '$src_dir' to copy."
+                    exit 1
+                  fi
+
+                  echo "Copying subdirectories from '$src_dir' into '$dest_dir' (subdirs become direct children)"
+                  # rsync copies the contents of src_dir into dest_dir, making each top-level subdirectory a direct child
+                  rsync -a --chmod=ugo=rwX "$src_dir"/ "$dest_dir"/
+
+                  echo "Copy complete."
+
+                  tree ./go/azcosmoscx
+                displayName: "Place vendored binaries"
