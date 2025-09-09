@@ -70,7 +70,7 @@ stages:
               PublishArtifacts: ${{ parameters.IsReleaseBuild }}
 
               # Go doesn't support MSVC-built libraries, we'll test it in the x86_64-pc-windows-gnu build
-              RunGoTests: false 
+              RunGoTests: false
               VendorForGo: false
 
       - job: x86_64_pc_windows_gnu
@@ -111,8 +111,8 @@ stages:
               PublishArtifacts: ${{ parameters.IsReleaseBuild }}
 
               # The job runs on an x86_64 machine, so we can't run tests.
-              RunGoTests: false 
-              RunRustTests: false 
+              RunGoTests: false
+              RunRustTests: false
 
   - ${{ if eq(parameters.IsReleaseBuild, true) }}:
       - stage: Package
@@ -150,3 +150,16 @@ stages:
               - publish: output
                 displayName: "Publish packages"
                 artifact: "packages"
+
+      # - stage: publish
+      #   dependsOn:
+      #     - Package
+      #   jobs:
+      #     - job: publish_go
+      #       displayName: "Publish Go Wrapper"
+      #       pool: ${{ parameters.LinuxPool }}
+      #       steps:
+      #         - download: current
+      #           patterns: "packages/vendored/**"
+      #         - bash: |
+      #             git checkout -b release-staging/
