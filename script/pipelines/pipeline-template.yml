@@ -190,7 +190,12 @@ stages:
               - checkout: self
                 fetchTags: true
               - download: current
-                patterns: "packages/vendored/**"
+                artifact: packages
+                patterns: "**"
+              - bash: |
+                  cd "$(Pipeline.Workspace)"
+                  tree
+                displayName: "[DEBUG] Show artifacts"
               - bash: |
                   tag_name="go/azcosmoscx/v${{ parameters.GoReleaseVersion }}"
                   branch_name="azp-release-staging/${{ parameters.GoReleaseVersion }}"
