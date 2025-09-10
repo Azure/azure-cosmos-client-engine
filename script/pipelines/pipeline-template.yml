@@ -179,7 +179,7 @@ stages:
                 displayName: "Publish packages"
                 artifact: "packages"
 
-      - stage: publish
+      - stage: Publish
         dependsOn:
           - Package
         jobs:
