@@ -193,10 +193,6 @@ stages:
                 artifact: packages
                 patterns: "**"
               - bash: |
-                  cd "$(Pipeline.Workspace)"
-                  tree
-                displayName: "[DEBUG] Show artifacts"
-              - bash: |
                   tag_name="go/azcosmoscx/v${{ parameters.GoReleaseVersion }}"
                   branch_name="azp-release-staging/${{ parameters.GoReleaseVersion }}"
 
@@ -225,6 +221,9 @@ stages:
                   rsync -a --chmod=ugo=rwX "$src_dir"/ "$dest_dir"/
 
                   echo "Copy complete."
-
-                  tree ./go/azcosmoscx
                 displayName: "Place vendored binaries"
+              - bash: |
+                  branch_name="azp-release-staging/${{ parameters.GoReleaseVersion }}"
+                  git commit -m"Updating vendored binaries to ${{ parameters.GoReleaseVersion }}"
+                  git push origin $branch_name
+                displayName: Commit to release staging branch
