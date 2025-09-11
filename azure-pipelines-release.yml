@@ -1,15 +1,9 @@
 trigger: none
 
-parameters:
-  - name: GoReleaseVersion
-    displayName: Go Release Version ('x.y.z', no 'v' or other prefix)
-    type: string
-
 extends:
   template: /script/pipelines/pipeline-template.yml
   parameters:
     IsReleaseBuild: true
-    GoReleaseVersion: ${{ parameters.GoReleaseVersion }}
     LinuxPool:
       name: SDK-RustClientEngine
       demands:
