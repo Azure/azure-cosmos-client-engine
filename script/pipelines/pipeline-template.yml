@@ -189,6 +189,7 @@ stages:
             steps:
               - checkout: self
                 fetchTags: true
+                persistCredentials: true
               - download: current
                 artifact: packages
                 patterns: "**"
@@ -225,6 +226,6 @@ stages:
               - bash: |
                   branch_name="azp-release-staging/${{ parameters.GoReleaseVersion }}"
                   git add go/azcosmoscx/libcosmoscx-vendor
-                  git commit -m"Updating vendored binaries to ${{ parameters.GoReleaseVersion }}"
+                  git commit --author="Azure CosmosDB Team <bot@example.com>" -m"Updating vendored binaries to ${{ parameters.GoReleaseVersion }}"
                   git push origin $branch_name
                 displayName: Commit to release staging branch
