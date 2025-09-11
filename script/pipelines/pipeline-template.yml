@@ -224,6 +224,7 @@ stages:
                 displayName: "Place vendored binaries"
               - bash: |
                   branch_name="azp-release-staging/${{ parameters.GoReleaseVersion }}"
+                  git add go/azcosmoscx/libcosmoscx-vendor
                   git commit -m"Updating vendored binaries to ${{ parameters.GoReleaseVersion }}"
                   git push origin $branch_name
                 displayName: Commit to release staging branch
