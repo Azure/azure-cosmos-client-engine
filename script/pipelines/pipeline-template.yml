@@ -151,7 +151,7 @@ stages:
                 displayName: "Publish packages"
                 artifact: "packages"
 
-      - stage: Publish
+      - stage: Stage
         dependsOn:
           - Package
         jobs:
@@ -206,15 +206,3 @@ stages:
                   git commit -m"Updating vendored binaries to $(ReleaseVersion)"
                   git push origin $(ReleaseBranch)
                 displayName: Commit to release staging branch
-              - task: ManualValidation@0
-                timeoutInMinutes: 1440 # 1 day
-                inputs:
-                  # For now, just notify Ashley, but we'll send this to a group soon.
-                  notifyUsers: |
-                    ashleyst@microsoft.com
-                  instructions: "Validate the staged release and continue the pipeline to release version $(ReleaseVersion) of the Go Client Engine package."
-                  onTimeout: "reject"
-              - bash: |
-                  git tag $(ReleaseTag)
-                  git push origin $(ReleaseTag)
-                displayName: "Push $(ReleaseVersion) release tag"
