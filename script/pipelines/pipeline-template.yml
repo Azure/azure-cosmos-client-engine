@@ -154,6 +154,7 @@ stages:
       - stage: Stage
         dependsOn:
           - Package
+          - Validate
         jobs:
           - job: publish_go
             displayName: "Publish Go Wrapper"
