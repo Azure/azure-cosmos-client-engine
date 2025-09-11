@@ -226,6 +226,23 @@ stages:
               - bash: |
                   branch_name="azp-release-staging/${{ parameters.GoReleaseVersion }}"
                   git add go/azcosmoscx/libcosmoscx-vendor
-                  git commit --author="Azure CosmosDB Team <bot@example.com>" -m"Updating vendored binaries to ${{ parameters.GoReleaseVersion }}"
+                  git config --global user.name "Azure Pipelines"
+                  git config --global user.email "bot@example.com"
+                  git commit -m"Updating vendored binaries to ${{ parameters.GoReleaseVersion }}"
                   git push origin $branch_name
                 displayName: Commit to release staging branch
+              - task: ManualValidation@0
+                timeoutInMinutes: 1440 # 1 day
+                inputs:
+                  # For now, just notify Ashley, but we'll send this to a group soon.
+                  notifyUsers: |
+                    ashleyst@microsoft.com
+                  instructions: "Validate the staged release and continue the pipeline to release version ${{ parameters.GoReleaseVersion }} of the Go Client Engine package."
+                  onTimeout: "reject"
+              - bash: |
+                  tag_name="go/azcosmoscx/v${{ parameters.GoReleaseVersion }}"
+
+                  # Release binaries
+                  git tag $tag_name
+                  git push origin $tag_name
+                displayName: "Push ${{ parameters.GoReleaseVersion }} release tag"
