@@ -2,9 +2,6 @@ parameters:
   - name: IsReleaseBuild
     type: boolean
     default: false
-  - name: GoReleaseVersion
-    type: string
-    default: ""
   - name: LinuxPool
     type: object
   - name: MacPool
@@ -194,16 +191,20 @@ stages:
                 artifact: packages
                 patterns: "**"
               - bash: |
-                  tag_name="go/azcosmoscx/v${{ parameters.GoReleaseVersion }}"
-                  branch_name="azp-release-staging/${{ parameters.GoReleaseVersion }}"
-
-                  echo "Preparing Go wrapper release tag '$tag_name'"
-                  if git rev-parse -q --verify "refs/tags/$tag_name" >/dev/null; then
-                    echo "Error: Git tag '$tag_name' already exists. Aborting release."
+                  version=cargo metadata --format-version 1 | jq -r '.packages[] | select(.name == "cosmoscx") | .version'
+                  tag_name="go/azcosmoscx/v$version"
+                  branch_name="azp-release-staging/v$version"
+                  echo "##vso[task.setvariable variable=ReleaseVersion]$version"
+                  echo "##vso[task.setvariable variable=ReleaseTag]$tag_name"
+                  echo "##vso[task.setvariable variable=ReleaseBranch]$branch_name"
+              - bash: |
+                  echo "Preparing Go wrapper release tag '$(ReleaseTag)'"
+                  if git rev-parse -q --verify "refs/tags/$(ReleaseTag)" >/dev/null; then
+                    echo "Error: Git tag '$(ReleaseTag)' already exists. Aborting release."
                     exit 1
                   fi
 
-                  git checkout -b "$branch_name"
+                  git checkout -b "$(ReleaseBranch)"
 
                   src_dir="$(Pipeline.Workspace)/packages/vendored"
                   dest_dir="./go/azcosmoscx/libcosmoscx-vendor"
@@ -224,12 +225,11 @@ stages:
                   echo "Copy complete."
                 displayName: "Place vendored binaries"
               - bash: |
-                  branch_name="azp-release-staging/${{ parameters.GoReleaseVersion }}"
                   git add go/azcosmoscx/libcosmoscx-vendor
                   git config --global user.name "Azure Pipelines"
                   git config --global user.email "bot@example.com"
-                  git commit -m"Updating vendored binaries to ${{ parameters.GoReleaseVersion }}"
-                  git push origin $branch_name
+                  git commit -m"Updating vendored binaries to $(ReleaseVersion)"
+                  git push origin $(ReleaseBranch)
                 displayName: Commit to release staging branch
               - task: ManualValidation@0
                 timeoutInMinutes: 1440 # 1 day
@@ -237,12 +237,9 @@ stages:
                   # For now, just notify Ashley, but we'll send this to a group soon.
                   notifyUsers: |
                     ashleyst@microsoft.com
-                  instructions: "Validate the staged release and continue the pipeline to release version ${{ parameters.GoReleaseVersion }} of the Go Client Engine package."
+                  instructions: "Validate the staged release and continue the pipeline to release version $(ReleaseVersion) of the Go Client Engine package."
                   onTimeout: "reject"
               - bash: |
-                  tag_name="go/azcosmoscx/v${{ parameters.GoReleaseVersion }}"
-
-                  # Release binaries
-                  git tag $tag_name
-                  git push origin $tag_name
-                displayName: "Push ${{ parameters.GoReleaseVersion }} release tag"
+                  git tag $(ReleaseTag)
+                  git push origin $(ReleaseTag)
+                displayName: "Push $(ReleaseVersion) release tag"
