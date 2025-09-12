@@ -87,7 +87,7 @@ stages:
               RustTarget: x86_64-pc-windows-gnu
               HostIsWindows: true
               PublishArtifacts: ${{ parameters.IsReleaseBuild }}
-              UseMicrosoftToolchain: ${{ parameters.UseMicrosoftToolchain }}
+              UseMicrosoftToolchain: false # There is no internal x86_64-pc-windows-gnu toolchain
 
       - job: x86_64_linux_gnu
         displayName: "Linux x86_64"
