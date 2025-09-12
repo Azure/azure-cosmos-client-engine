@@ -26,15 +26,17 @@ steps:
 
   - ${{ if ne(parameters.RustTarget, '') }}:
       - ${{ if eq(parameters.UseMicrosoftToolchain, true) }}:
+          - script: |
+              mv .cargo/config.toml .cargo/public.config.toml
+              mv .cargo/microsoft-internal.config.toml .cargo/config.toml
+              mv rust-toolchain.toml rust-toolchain.public.toml
+              mv rust-toolchain.internal.toml rust-toolchain.toml
+            displayName: "Activating Microsoft internal build configurations"
           - task: RustInstaller@1
             displayName: "Install Microsoft Rust Toolchain for target ${{ parameters.RustTarget }}"
             inputs:
               toolchainFeed: https://pkgs.dev.azure.com/msdata/CosmosDB/_packaging/RustToolSet/nuget/v3/index.json
               additionalTargets: ${{ parameters.RustTarget }}
-          - script: |
-              mv .cargo/config.toml .cargo/public.config.toml
-              mv .cargo/microsoft-internal.config.toml .cargo/config.toml
-            displayName: "Activating Microsoft internal build Cargo config"
           - task: CargoAuthenticate@0
             inputs:
               configFile: ".cargo/config.toml"
