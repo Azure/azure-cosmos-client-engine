@@ -32,17 +32,15 @@ steps:
               mv rust-toolchain.toml rust-toolchain.public.toml
               mv rust-toolchain.internal.toml rust-toolchain.toml
             displayName: "Activating Microsoft internal build configurations"
+          - task: CargoAuthenticate@0
+            inputs:
+              configFile: ".cargo/config.toml"
+            displayName: "Authenticating with internal Cargo feed"
           - task: RustInstaller@1
             displayName: "Install Microsoft Rust Toolchain for target ${{ parameters.RustTarget }}"
             inputs:
               toolchainFeed: https://pkgs.dev.azure.com/msdata/CosmosDB/_packaging/RustToolSet/nuget/v3/index.json
               additionalTargets: ${{ parameters.RustTarget }}
-          - task: CargoAuthenticate@0
-            inputs:
-              configFile: ".cargo/config.toml"
-            displayName: "Authenticating with internal Cargo feed"
-          - script: msrustup toolchain install --target ${{ parameters.RustTarget }} ms-stable
-            displayName: "Installing stable Microsoft internal Rust toolchain for ${{ parameters.RustTarget }}"
       - ${{ if eq(parameters.UseMicrosoftToolchain, false) }}:
           - script: rustup target add ${{ parameters.RustTarget }}
             displayName: "Install Rust Target ${{ parameters.RustTarget }}"
