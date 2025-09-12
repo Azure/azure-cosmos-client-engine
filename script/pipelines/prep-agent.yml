@@ -11,6 +11,9 @@ parameters:
   - name: UseMicrosoftToolChain
     type: boolean
     default: false
+  - name: IsReleaseBuild
+    type: boolean
+    default: false
 
 steps:
   - task: GoTool@0
@@ -25,19 +28,20 @@ steps:
     displayName: "Use Python $(PY_VERSION)"
 
   - ${{ if ne(parameters.RustTarget, '') }}:
-      - script: |
-          mv .cargo/config.toml .cargo/public.config.toml
-          mv .cargo/microsoft-internal.config.toml .cargo/config.toml
-        displayName: "Activating Microsoft internal Cargo feed"
+      - ${{ if eq(parameters.IsReleaseBuild, true) }}:
+          - script: |
+              mv .cargo/config.toml .cargo/public.config.toml
+              mv .cargo/microsoft-internal.config.toml .cargo/config.toml
+            displayName: "Activating Microsoft internal Cargo feed"
+          - task: CargoAuthenticate@0
+            inputs:
+              configFile: ".cargo/config.toml"
+            displayName: "Authenticating with internal Cargo feed"
       - ${{ if eq(parameters.UseMicrosoftToolchain, true) }}:
           - script: |
               mv rust-toolchain.toml rust-toolchain.public.toml
               mv rust-toolchain.internal.toml rust-toolchain.toml
             displayName: "Activating Microsoft internal toolchain"
-          - task: CargoAuthenticate@0
-            inputs:
-              configFile: ".cargo/config.toml"
-            displayName: "Authenticating with internal Cargo feed"
           - task: RustInstaller@1
             displayName: "Install Microsoft Rust Toolchain for target ${{ parameters.RustTarget }}"
             inputs:
