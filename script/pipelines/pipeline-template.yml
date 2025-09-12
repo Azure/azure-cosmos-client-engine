@@ -50,6 +50,7 @@ stages:
           - template: prep-agent.yml
             parameters:
               HostIsWindows: true
+              UseMicrosoftToolchain: ${{ parameters.UseMicrosoftToolchain }}
 
           - template: emulator-setup.yml
 
