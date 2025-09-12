@@ -4,6 +4,7 @@ extends:
   template: /script/pipelines/pipeline-template.yml
   parameters:
     IsReleaseBuild: true
+    UseMicrosoftToolchain: true
     LinuxPool:
       name: SDK-RustClientEngine
       demands:

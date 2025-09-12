@@ -8,6 +8,9 @@ parameters:
   - name: CargoCache
     type: boolean
     default: false
+  - name: UseMicrosoftToolChain
+    type: boolean
+    default: false
 
 steps:
   - task: GoTool@0
@@ -22,26 +25,41 @@ steps:
     displayName: "Use Python $(PY_VERSION)"
 
   - ${{ if ne(parameters.RustTarget, '') }}:
-    - script: rustup target add ${{ parameters.RustTarget }}
-      displayName: "Install Rust Target ${{ parameters.RustTarget }}"
-    - pwsh: |
-        Write-Host "##vso[task.setvariable variable=CARGO_BUILD_TARGET]${{ parameters.RustTarget }}"
-      displayName: "Initialize Variables"
+      - ${{ if eq(parameters.UseMicrosoftToolchain, true) }}:
+          - task: RustInstaller@1
+            displayName: "Install Microsoft Rust Toolchain for target ${{ parameters.RustTarget }}"
+            inputs:
+              additionalTargets: ${{ parameters.RustTarget }}
+          - script: |
+              mv .cargo/config.toml .cargo/public.config.toml
+              mv .cargo/microsoft-internal.config.toml .cargo/config.toml
+            displayName: "Activating Microsoft internal build Cargo config"
+          - task: CargoAuthenticate@0
+            inputs:
+              configFile: ".cargo/config.toml"
+          - script: msrustup toolchain install --target ${{ parameters.RustTarget }} ms-stable
+            displayName: "Installing stable Microsoft internal Rust toolchain for ${{ parameters.RustTarget }}"
+      - ${{ if eq(parameters.UseMicrosoftToolchain, false) }}:
+          - script: rustup target add ${{ parameters.RustTarget }}
+            displayName: "Install Rust Target ${{ parameters.RustTarget }}"
+      - pwsh: |
+          Write-Host "##vso[task.setvariable variable=CARGO_BUILD_TARGET]${{ parameters.RustTarget }}"
+        displayName: "Initialize Variables"
 
   - ${{ if eq(parameters.CargoCache, true) }}:
-    - task: Cache@2
-      inputs:
-        key: '"cargo-registry" | "${{ parameters.RustTarget }}" | Cargo.lock'
-        ${{ if eq(parameters.HostIsWindows, true )}}:
-          path: $(UserProfile)/.cargo/registry
-        ${{ if eq(parameters.HostIsWindows, false )}}:
-          path: $(HOME)/.cargo/registry
-      displayName: "Restore Cargo Registry Cache"
-    - task: Cache@2
-      inputs:
-        key: '"cargo" | "${{ parameters.RustTarget }}" | Cargo.lock'
-        path: $(Build.SourcesDirectory)/target
-      displayName: "Restore Cargo Build Cache"
+      - task: Cache@2
+        inputs:
+          key: '"cargo-registry" | "${{ parameters.RustTarget }}" | Cargo.lock'
+          ${{ if eq(parameters.HostIsWindows, true )}}:
+            path: $(UserProfile)/.cargo/registry
+          ${{ if eq(parameters.HostIsWindows, false )}}:
+            path: $(HOME)/.cargo/registry
+        displayName: "Restore Cargo Registry Cache"
+      - task: Cache@2
+        inputs:
+          key: '"cargo" | "${{ parameters.RustTarget }}" | Cargo.lock'
+          path: $(Build.SourcesDirectory)/target
+        displayName: "Restore Cargo Build Cache"
 
   - powershell: script/bootstrap.ps1
     displayName: "Bootstrap Repo"
