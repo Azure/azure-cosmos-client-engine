@@ -28,6 +28,8 @@ stages:
         pool: ${{ parameters.LinuxPool }}
         steps:
           - template: prep-agent.yml
+            parameters:
+              IsReleaseBuild: ${{ parameters.IsReleaseBuild }}
           - pwsh: script/check-headers.ps1
             displayName: "Check headers"
           - script: just check
@@ -50,6 +52,7 @@ stages:
           - template: prep-agent.yml
             parameters:
               HostIsWindows: true
+              IsReleaseBuild: ${{ parameters.IsReleaseBuild }}
               UseMicrosoftToolchain: ${{ parameters.UseMicrosoftToolchain }}
 
           - template: emulator-setup.yml
