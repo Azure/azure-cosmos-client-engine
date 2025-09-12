@@ -16,12 +16,16 @@ parameters:
   - name: VendorForGo
     type: boolean
     default: true
+  - name: UseMicrosoftToolChain
+    type: boolean
+    default: false
 
 steps:
   - template: prep-agent.yml
     parameters:
       RustTarget: ${{ parameters.RustTarget }}
       HostIsWindows: ${{ parameters.HostIsWindows }}
+      UseMicrosoftToolchain: ${{ parameters.UseMicrosoftToolchain }}
       CargoCache: true
 
   - script: just engine
@@ -32,21 +36,21 @@ steps:
 
     # Publish the artifacts now because a) we might as well have them even if the tests fail and b) 'make superclean' below will delete them
   - ${{ if eq(parameters.PublishArtifacts, true) }}:
-    - publish: artifacts/$(CARGO_BUILD_TARGET)/release
-      displayName: "Publish Standard Build"
-      artifact: "$(CONFIGURATION)_$(CARGO_BUILD_TARGET)"
+      - publish: artifacts/$(CARGO_BUILD_TARGET)/release
+        displayName: "Publish Standard Build"
+        artifact: "$(CONFIGURATION)_$(CARGO_BUILD_TARGET)"
 
   - ${{ if eq(parameters.RunRustTests, true) }}:
-    - script: just test_rust
-      displayName: "Run Rust tests"
+      - script: just test_rust
+        displayName: "Run Rust tests"
 
   - ${{ if eq(parameters.RunGoTests, true) }}:
       - script: just go_library_mode=shared test_go
         displayName: "Run Go tests (Shared library)"
 
   - ${{ if eq(parameters.VendorForGo, true) }}:
-    - script: just configuration=vendored vendor 
-      displayName: "Build vendored library"
+      - script: just configuration=vendored vendor
+        displayName: "Build vendored library"
 
   - ${{ if eq(parameters.RunGoTests, true) }}:
       - script: |

@@ -34,10 +34,10 @@ poetry -C "./python" install
 $hostTarget = ((rustc -vV | Select-String "host: ") -split ':')[1].Trim()
 Write-Host "Installing Rust dependencies using host target '$hostTarget' ..."
 if (-not (Test-Command "cbindgen")) {
-    cargo install --target "$hostTarget" --locked cbindgen@0.29.0
+    cargo install --target "$hostTarget" --locked cbindgen@0.29.0 --config .cargo/config.toml
 }
 if (-not (Test-Command "just")) {
-    cargo install --target "$hostTarget" --locked just@1.42.4
+    cargo install --target "$hostTarget" --locked just@1.42.4 --config .cargo/config.toml
 }
 
 Write-Host "Installing addlicense..."
