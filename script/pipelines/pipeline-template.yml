@@ -217,5 +217,7 @@ stages:
                   git config --global user.name "Azure Pipelines"
                   git config --global user.email "bot@example.com"
                   git commit -m"Updating vendored binaries to $(ReleaseVersion)"
-                  git push origin $(ReleaseBranch)
+
+                  # It's OK to force push here. Any time we're running this pipeline, we want to replace any bits in the release branch with the new ones.
+                  git push --force origin $(ReleaseBranch)
                 displayName: Commit to release staging branch
