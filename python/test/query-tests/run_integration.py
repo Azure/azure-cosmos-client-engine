@@ -9,6 +9,7 @@ from azure.cosmos import CosmosClient, PartitionKey, ContainerProxy
 
 from typing import Callable, Dict, TypedDict, Any, List, Tuple, Set
 
+import azure_cosmoscx
 from test.test_config import TestConfig
 
 CONTAINERS = "containers"
@@ -44,7 +45,7 @@ def _run_with_resources(
         fn: Callable[[ContainerProxy], None],
         unique_name: str
 ) -> None:
-    client = CosmosClient(url=TestConfig.host, credential=TestConfig.masterKey)
+    client = CosmosClient(url=TestConfig.host, credential=TestConfig.masterKey, query_engine=azure_cosmoscx.QueryEngine())
     db = client.create_database_if_not_exists(id=unique_name)
     try:
         for container_def in test_data[CONTAINERS]:
