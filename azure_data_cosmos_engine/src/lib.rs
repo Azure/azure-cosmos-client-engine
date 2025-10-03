@@ -11,11 +11,16 @@ macro_rules! make_cstr {
 }
 
 mod error;
+mod hash;
+mod murmur_hash;
 
 pub(crate) use error::Result;
 pub use error::{Error, ErrorKind};
 
 pub mod query;
+
+// Re-export partition key hashing APIs for FFI consumers.
+pub use hash::{get_hashed_partition_key_string, PartitionKeyKind, PartitionKeyValue};
 
 /// The version of the Cosmos Client Engine, exposed as a [`CStr`](std::ffi::CStr) so that it can easily be exposed by C-based FFI as well consumed by Rust (via [`CStr::to_str`](std::ffi::CStr::to_str).
 pub static VERSION: &std::ffi::CStr = make_cstr!(env!("CARGO_PKG_VERSION"));
