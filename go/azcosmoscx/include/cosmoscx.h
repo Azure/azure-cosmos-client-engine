@@ -265,6 +265,27 @@ typedef struct CosmosCxFfiResult_PipelineResult {
 } CosmosCxFfiResult_PipelineResult;
 
 /**
+ * A result type for FFI functions.
+ *
+ * An `FfiResult` is returned from a function that both returns a value AND can fail.
+ *
+ * The C representation of this struct is:
+ *
+ * ```
+ * struct {
+ *   intptr_t code; // The result code, which will be '0' if the operation succeeded
+ *   const void *value; // A pointer to the returned value, which will be `nullptr`/`0` if the operation failed.
+ * };
+ * ```
+ *
+ * The data pointed to by the `value` pointer is OWNED BY THE ENGINE and must be freed by calling the appropriate free function, depending on the data.
+ */
+typedef struct CosmosCxFfiResult_OwnedString {
+  CosmosCxResultCode code;
+  const CosmosCxOwnedString *value;
+} CosmosCxFfiResult_OwnedString;
+
+/**
  * Returns the version of the Cosmos Client Engine in use.
  */
 const char *cosmoscx_version(void);
@@ -345,3 +366,17 @@ CosmosCxResultCode cosmoscx_v0_query_pipeline_provide_data(struct CosmosCxPipeli
                                                            CosmosCxStr pkrange_id,
                                                            CosmosCxStr data,
                                                            CosmosCxStr continuation);
+
+/**
+ * Computes an effective partition key string for the provided JSON representation.
+ *
+ * Parameters:
+ * - `partition_key_json`: JSON representing either a single value (e.g. `"abc"`) or an array (e.g. `["abc", 5]`).
+ * - `version`: 1 for V1, 2 for V2.
+ * - `kind`: 0 for Hash, 1 for MultiHash.
+ *
+ * Returns: An engine-owned UTF-8 string (hex) that must be freed with `cosmoscx_v0_partition_key_free_string`.
+ */
+struct CosmosCxFfiResult_OwnedString cosmoscx_v0_partition_key_effective(CosmosCxStr partition_key_json,
+                                                                         uint8_t version,
+                                                                         uint8_t kind);
