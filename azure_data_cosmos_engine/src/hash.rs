@@ -39,7 +39,7 @@ pub enum PartitionKeyKind {
     MultiHash,
 }
 
-/// Returns a hex string representation of a partition key value. 
+/// Returns a hex string representation of a partition key value.
 pub fn get_hashed_partition_key_string(
     pk_value: &[PartitionKeyValue],
     kind: Option<PartitionKeyKind>,
@@ -67,8 +67,8 @@ pub fn get_hashed_partition_key_string(
                 panic!("MultiHash partitioning only supports version 2");
             }
             get_effective_partition_key_for_multi_hash_partitioning_v2(pk_value)
-        },
-        _ => to_hex_encoded_binary_string(pk_value)
+        }
+        _ => to_hex_encoded_binary_string(pk_value),
     }
 }
 
@@ -87,7 +87,9 @@ fn get_effective_partition_key_for_hash_partitioning_v2(pk_value: &[PartitionKey
 }
 
 /// Multi-hash V2: compute per-component hash similarly and concatenate uppercase hex segments.
-fn get_effective_partition_key_for_multi_hash_partitioning_v2(pk_value: &[PartitionKeyValue]) -> String {
+fn get_effective_partition_key_for_multi_hash_partitioning_v2(
+    pk_value: &[PartitionKeyValue],
+) -> String {
     let mut pieces: Vec<String> = Vec::new();
     for comp in pk_value {
         let mut ms: Vec<u8> = Vec::new();
@@ -105,9 +107,13 @@ fn get_effective_partition_key_for_multi_hash_partitioning_v2(pk_value: &[Partit
 fn truncate_for_v1_hashing(value: &PartitionKeyValue) -> PartitionKeyValue {
     match value {
         PartitionKeyValue::String(s) => {
-            if s.len() > 100 { PartitionKeyValue::String(s[..100].to_string()) } else { PartitionKeyValue::String(s.clone()) }
+            if s.len() > 100 {
+                PartitionKeyValue::String(s[..100].to_string())
+            } else {
+                PartitionKeyValue::String(s.clone())
+            }
         }
-        _ => value.clone()
+        _ => value.clone(),
     }
 }
 
@@ -176,12 +182,16 @@ fn write_for_binary_encoding_v1(value: &PartitionKeyValue, writer: &mut Vec<u8>)
             writer.push(PartitionKeyComponent::NUMBER);
             let mut payload = encode_double_as_uint64(*n);
             // First 8 bits
-            writer.push(((payload >> 56)) as u8);
+            writer.push((payload >> 56) as u8);
             payload <<= 8;
             let mut first = true;
             let mut byte_to_write: u8 = 0;
             while payload != 0 {
-                if !first { writer.push(byte_to_write); } else { first = false; }
+                if !first {
+                    writer.push(byte_to_write);
+                } else {
+                    first = false;
+                }
                 byte_to_write = ((payload >> 56) as u8) | 0x01; // set continuation bit
                 payload <<= 7; // consume 7 bits (since we used 7 data bits + 1 flag)
             }
@@ -191,12 +201,18 @@ fn write_for_binary_encoding_v1(value: &PartitionKeyValue, writer: &mut Vec<u8>)
             writer.push(PartitionKeyComponent::STRING);
             let utf8 = s.as_bytes();
             let short = utf8.len() <= MAX_STRING_BYTES_TO_APPEND;
-            let write_len = if short { utf8.len() } else { MAX_STRING_BYTES_TO_APPEND + 1 }; // +1 sentinel when long
+            let write_len = if short {
+                utf8.len()
+            } else {
+                MAX_STRING_BYTES_TO_APPEND + 1
+            }; // +1 sentinel when long
             for i in 0..write_len {
                 let b = utf8[i].wrapping_add(1); // unconditional +1
                 writer.push(b);
             }
-            if short { writer.push(0x00); }
+            if short {
+                writer.push(0x00);
+            }
         }
         PartitionKeyValue::Undefined => writer.push(PartitionKeyComponent::UNDEFINED),
         PartitionKeyValue::Null => writer.push(PartitionKeyComponent::NULL),
@@ -250,12 +266,16 @@ fn write_for_binary_encoding(value: &PartitionKeyValue, writer: &mut Vec<u8>) {
             writer.push(PartitionKeyComponent::NUMBER);
             // use IEEE754 little-endian double representation
             writer.extend_from_slice(&n.to_le_bytes());
-        },
+        }
         PartitionKeyValue::String(s) => {
             writer.push(PartitionKeyComponent::STRING);
             let utf8 = s.as_bytes();
             let short_string = utf8.len() <= MAX_STRING_BYTES_TO_APPEND;
-            let write_len = if short_string { utf8.len() } else { MAX_STRING_BYTES_TO_APPEND + 1 };
+            let write_len = if short_string {
+                utf8.len()
+            } else {
+                MAX_STRING_BYTES_TO_APPEND + 1
+            };
             for i in 0..write_len {
                 let mut b = utf8[i];
                 if b < 0xFF {
@@ -301,14 +321,19 @@ mod tests {
 
     #[test]
     fn test_infinity_pk() {
-        let result = get_hashed_partition_key_string(&[PartitionKeyValue::Infinity], Some(PartitionKeyKind::Hash), Some(0));
+        let result = get_hashed_partition_key_string(
+            &[PartitionKeyValue::Infinity],
+            Some(PartitionKeyKind::Hash),
+            Some(0),
+        );
         assert_eq!(result, MAX_EXCLUSIVE_EFFECTIVE_PARTITION_KEY);
     }
 
     #[test]
     fn test_single_string_hash_v2() {
         let comp = PartitionKeyValue::String("customer42".to_string());
-        let result = get_hashed_partition_key_string(&[comp], Some(PartitionKeyKind::Hash), Some(2));
+        let result =
+            get_hashed_partition_key_string(&[comp], Some(PartitionKeyKind::Hash), Some(2));
         // result should be a hex string of length 32 (16 bytes * 2 chars)
         assert_eq!(result.len(), 32);
     }
@@ -318,38 +343,135 @@ mod tests {
         // Each entry represents a single-component partition key and the expected
         // effective partition key hash (uppercase hex) for V2 hash partitioning.
         let thousand_a = "a".repeat(1024);
-        
+
         // Expected values taken from Java SDK tests.
         let cases: Vec<(PartitionKeyValue, &str)> = vec![
-            (PartitionKeyValue::String(String::from("")), "32E9366E637A71B4E710384B2F4970A0"),
-            (PartitionKeyValue::String(String::from("partitionKey")), "013AEFCF77FA271571CF665A58C933F1"),
-            (PartitionKeyValue::String(thousand_a), "332BDF5512AE49615F32C7D98C2DB86C"),
+            (
+                PartitionKeyValue::String(String::from("")),
+                "32E9366E637A71B4E710384B2F4970A0",
+            ),
+            (
+                PartitionKeyValue::String(String::from("partitionKey")),
+                "013AEFCF77FA271571CF665A58C933F1",
+            ),
+            (
+                PartitionKeyValue::String(thousand_a),
+                "332BDF5512AE49615F32C7D98C2DB86C",
+            ),
             (PartitionKeyValue::Null, "378867E4430E67857ACE5C908374FE16"),
-            (PartitionKeyValue::Undefined, "11622DAA78F835834610ABE56EFF5CB5"),
-            (PartitionKeyValue::Bool(true), "0E711127C5B5A8E4726AC6DD306A3E59"),
-            (PartitionKeyValue::Bool(false), "2FE1BE91E90A3439635E0E9E37361EF2"),
-            (PartitionKeyValue::Number(-128f64), "01DAEDABF913540367FE219B2AD06148"), // Java Byte.MIN_VALUE
-            (PartitionKeyValue::Number(127f64), "0C507ACAC853ECA7977BF4CEFB562A25"),  // Java Byte.MAX_VALUE
-            (PartitionKeyValue::Number(i64::MIN as f64), "23D5C6395512BDFEAFADAD15328AD2BB"),
-            (PartitionKeyValue::Number(i64::MAX as f64), "2EDB959178DFCCA18983F89384D1629B"),
-            (PartitionKeyValue::Number(i32::MIN as f64), "0B1660D5233C3171725B30D4A5F4CC1F"),
-            (PartitionKeyValue::Number(i32::MAX as f64), "2D9349D64712AEB5EB1406E2F0BE2725"),
-            (PartitionKeyValue::Number(f64::from_bits(0x1)), "0E6CBA63A280927DE485DEF865800139"), // Java Double.MIN_VALUE
-            (PartitionKeyValue::Number(f64::MAX), "31424D996457102634591FF245DBCC4D"),
-            (PartitionKeyValue::Number(5.0), "19C08621B135968252FB34B4CF66F811"),
-            (PartitionKeyValue::Number(5.12312419050912359123), "0EF2E2D82460884AF0F6440BE4F726A8"),
-            (PartitionKeyValue::String(String::from("redmond")), "22E342F38A486A088463DFF7838A5963"),
+            (
+                PartitionKeyValue::Undefined,
+                "11622DAA78F835834610ABE56EFF5CB5",
+            ),
+            (
+                PartitionKeyValue::Bool(true),
+                "0E711127C5B5A8E4726AC6DD306A3E59",
+            ),
+            (
+                PartitionKeyValue::Bool(false),
+                "2FE1BE91E90A3439635E0E9E37361EF2",
+            ),
+            (
+                PartitionKeyValue::Number(-128f64),
+                "01DAEDABF913540367FE219B2AD06148",
+            ), // Java Byte.MIN_VALUE
+            (
+                PartitionKeyValue::Number(127f64),
+                "0C507ACAC853ECA7977BF4CEFB562A25",
+            ), // Java Byte.MAX_VALUE
+            (
+                PartitionKeyValue::Number(i64::MIN as f64),
+                "23D5C6395512BDFEAFADAD15328AD2BB",
+            ),
+            (
+                PartitionKeyValue::Number(i64::MAX as f64),
+                "2EDB959178DFCCA18983F89384D1629B",
+            ),
+            (
+                PartitionKeyValue::Number(i32::MIN as f64),
+                "0B1660D5233C3171725B30D4A5F4CC1F",
+            ),
+            (
+                PartitionKeyValue::Number(i32::MAX as f64),
+                "2D9349D64712AEB5EB1406E2F0BE2725",
+            ),
+            (
+                PartitionKeyValue::Number(f64::from_bits(0x1)),
+                "0E6CBA63A280927DE485DEF865800139",
+            ), // Java Double.MIN_VALUE
+            (
+                PartitionKeyValue::Number(f64::MAX),
+                "31424D996457102634591FF245DBCC4D",
+            ),
+            (
+                PartitionKeyValue::Number(5.0),
+                "19C08621B135968252FB34B4CF66F811",
+            ),
+            (
+                PartitionKeyValue::Number(5.12312419050912359123),
+                "0EF2E2D82460884AF0F6440BE4F726A8",
+            ),
+            (
+                PartitionKeyValue::String(String::from("redmond")),
+                "22E342F38A486A088463DFF7838A5963",
+            ),
         ];
 
         for (component, expected) in cases {
-            let actual = get_hashed_partition_key_string(&[component], Some(PartitionKeyKind::Hash), Some(2));
+            let actual = get_hashed_partition_key_string(
+                &[component],
+                Some(PartitionKeyKind::Hash),
+                Some(2),
+            );
             assert_eq!(actual, expected, "Mismatch for component hash");
         }
     }
 
     #[test]
+    fn test_effective_partition_key_hpk() {
+        // expected results come from python sdk
+        let cases = vec![
+            (
+                vec![
+                    PartitionKeyValue::String(String::from(
+                        "title_player_account!9E711EFBD3BBB492",
+                    )),
+                    PartitionKeyValue::String(String::from("Title-B60C1")),
+                ],
+                "2306FDF78C35ED4FD1C5835B075FC0B0248E1F58635558D12708326234F93A21",
+            ),
+            (
+                vec![PartitionKeyValue::String(String::from(
+                    "title_player_account!9E711EFBD3BBB499",
+                ))],
+                "378CCD42FC556DDDE688B05DC178BB92",
+            ),
+            (
+                vec![PartitionKeyValue::Bool(false), PartitionKeyValue::Null],
+                "2FE1BE91E90A3439635E0E9E37361EF2378867E4430E67857ACE5C908374FE16",
+            ),
+            // debugging currently
+            // (
+            //     vec![
+            //         PartitionKeyValue::Number(1234 as f64),
+            //         PartitionKeyValue::Undefined,
+            //     ],
+            //     "266B73B33A7065810B7D2A2938F85E80378867E4430E67857ACE5C908374FE16",
+            // ),
+        ];
+
+        for (components, expected) in cases {
+            let actual = get_hashed_partition_key_string(
+                &components,
+                Some(PartitionKeyKind::MultiHash),
+                Some(2),
+            );
+            assert_eq!(actual, expected, "Mismatch for multi-hash composite key");
+        }
+    }
+
+    #[test]
     fn test_effective_partition_key_hash_v2_multiple_keys() {
-        
         let component: Vec<PartitionKeyValue> = vec![
             PartitionKeyValue::Number(5.0),
             PartitionKeyValue::String(String::from("redmond")),
@@ -358,7 +480,8 @@ mod tests {
         ];
         let expected = "3032DECBE2AB1768D8E0AEDEA35881DF";
 
-        let actual = get_hashed_partition_key_string(&component, Some(PartitionKeyKind::Hash), Some(2));
+        let actual =
+            get_hashed_partition_key_string(&component, Some(PartitionKeyKind::Hash), Some(2));
         assert_eq!(actual, expected, "Mismatch for component hash");
     }
 
@@ -387,12 +510,22 @@ mod tests {
         ];
 
         for (component, expected) in cases {
-            let actual = get_hashed_partition_key_string(&[component.clone()], Some(PartitionKeyKind::Hash), Some(1));
-            assert_eq!(actual, expected, "Mismatch for V1 component hash (enable test after implementation)");
+            let actual = get_hashed_partition_key_string(
+                &[component.clone()],
+                Some(PartitionKeyKind::Hash),
+                Some(1),
+            );
+            assert_eq!(
+                actual, expected,
+                "Mismatch for V1 component hash (enable test after implementation)"
+            );
             // unspecified version defaults to V1
-            let actual = get_hashed_partition_key_string(&[component], Some(PartitionKeyKind::Hash), None);
-            assert_eq!(actual, expected, "Mismatch for V1 component hash (enable test after implementation)");
+            let actual =
+                get_hashed_partition_key_string(&[component], Some(PartitionKeyKind::Hash), None);
+            assert_eq!(
+                actual, expected,
+                "Mismatch for V1 component hash (enable test after implementation)"
+            );
         }
     }
-
 }

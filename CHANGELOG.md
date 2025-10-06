@@ -4,7 +4,7 @@
 
 ### Features Added
 
-* Added ability to get effective partition key string from a partition key value. - []()
+* Added ability to get effective partition key string from a partition key value. - [PR 39](https://github.com/Azure/azure-cosmos-client-engine/pull/39)
 
 ### Breaking Changes
 

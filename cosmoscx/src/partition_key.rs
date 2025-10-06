@@ -4,10 +4,10 @@
 //! FFI functions for computing effective partition key (EPK) strings.
 //! These wrap the hashing logic in `azure_data_cosmos_engine::hash` and expose a C ABI.
 
+use azure_data_cosmos_engine::ErrorKind;
 use azure_data_cosmos_engine::{
     get_hashed_partition_key_string, PartitionKeyKind, PartitionKeyValue,
 };
-use azure_data_cosmos_engine::ErrorKind;
 use serde_json::Value;
 
 use crate::{
@@ -16,32 +16,40 @@ use crate::{
 };
 
 /// Parses a JSON value into a vector of `PartitionKeyValue`s accepted by the hashing function.
-fn parse_partition_key_components(v: Value) -> Result<Vec<PartitionKeyValue>, azure_data_cosmos_engine::Error> {
+fn parse_partition_key_components(
+    v: Value,
+) -> Result<Vec<PartitionKeyValue>, azure_data_cosmos_engine::Error> {
     fn convert(val: &Value) -> Result<PartitionKeyValue, azure_data_cosmos_engine::Error> {
         Ok(match val {
             Value::Null => PartitionKeyValue::Null,
             Value::Bool(b) => PartitionKeyValue::Bool(*b),
-            Value::Number(n) => PartitionKeyValue::Number(n.as_f64().ok_or_else(|| ErrorKind::DeserializationError.with_message("invalid number"))?),
-            Value::String(s) => {
-                // TODO: Fix 
-                // i don't think this is right the string Infinity would be a different partition key than Infinity 
-                if s == "Infinity" { PartitionKeyValue::Infinity } else { PartitionKeyValue::String(s.clone()) }
+            Value::Number(n) => {
+                PartitionKeyValue::Number(n.as_f64().ok_or_else(|| {
+                    ErrorKind::DeserializationError.with_message("invalid number")
+                })?)
             }
+            Value::String(s) => PartitionKeyValue::String(s.clone()),
             Value::Object(map) => {
                 // Only the empty JSON object is allowed and means Undefined / Missing PK component
                 if map.is_empty() {
                     PartitionKeyValue::Undefined
                 } else {
-                    return Err(ErrorKind::DeserializationError.with_message("non-empty object not allowed in partition key"));
+                    return Err(ErrorKind::DeserializationError
+                        .with_message("non-empty object not allowed in partition key"));
                 }
             }
             Value::Array(_) => {
-                return Err(ErrorKind::DeserializationError.with_message("nested arrays not allowed in partition key"));
+                return Err(ErrorKind::DeserializationError
+                    .with_message("nested arrays not allowed in partition key"));
             }
         })
     }
 
     match v {
+        Value::String(ref s) if s == "Infinity" => {
+            // Special case: top-level "Infinity" represents the boundary value
+            Ok(vec![PartitionKeyValue::Infinity])
+        }
         Value::Array(arr) => {
             let mut out = Vec::with_capacity(arr.len());
             for item in arr.iter() {
@@ -54,7 +62,11 @@ fn parse_partition_key_components(v: Value) -> Result<Vec<PartitionKeyValue>, az
     }
 }
 
-fn inner_compute<'a>(json: Str<'a>, version: u8, kind: u8) -> Result<Box<OwnedString>, azure_data_cosmos_engine::Error> {
+fn inner_compute<'a>(
+    json: Str<'a>,
+    version: u8,
+    kind: u8,
+) -> Result<Box<OwnedString>, azure_data_cosmos_engine::Error> {
     let json_str = unsafe { json.as_str().not_null()? };
     // Empty string not allowed (would imply none)
     if json_str.is_empty() {
@@ -67,11 +79,16 @@ fn inner_compute<'a>(json: Str<'a>, version: u8, kind: u8) -> Result<Box<OwnedSt
     let pk_kind = match kind {
         0 => PartitionKeyKind::Hash,
         1 => PartitionKeyKind::MultiHash,
-        _ => return Err(ErrorKind::DeserializationError.with_message("invalid partition key kind (expected 0 Hash, 1 MultiHash)")),
+        _ => {
+            return Err(ErrorKind::DeserializationError
+                .with_message("invalid partition key kind (expected 0 Hash, 1 MultiHash)"))
+        }
     };
 
     if pk_kind == PartitionKeyKind::MultiHash && version != 2 {
-        return Err(ErrorKind::DeserializationError.with_message("MultiHash only supports version 2"));
+        return Err(
+            ErrorKind::DeserializationError.with_message("MultiHash only supports version 2")
+        );
     }
 
     let epk = get_hashed_partition_key_string(&components, Some(pk_kind), Some(version));
@@ -94,4 +111,3 @@ pub extern "C" fn cosmoscx_v0_partition_key_effective<'a>(
 ) -> FfiResult<OwnedString> {
     inner_compute(partition_key_json, version, kind).into()
 }
-

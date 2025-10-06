@@ -11,10 +11,10 @@
 use azure_data_cosmos_engine::query::SUPPORTED_FEATURES;
 
 pub mod diag;
+pub mod partition_key;
 pub mod pipeline;
 pub mod result;
 pub mod slice;
-pub mod partition_key;
 
 unsafe fn free<T>(ptr: *mut T) {
     // SAFETY: We have to trust that the caller is giving us a valid pipeline result from calling "run"

@@ -35,9 +35,13 @@ use std::convert::TryInto;
 
 // Helper accessors for 128-bit values encoded in native `u128`.
 #[inline]
-fn low64(v: u128) -> u64 { v as u64 }
+fn low64(v: u128) -> u64 {
+    v as u64
+}
 #[inline]
-fn high64(v: u128) -> u64 { (v >> 64) as u64 }
+fn high64(v: u128) -> u64 {
+    (v >> 64) as u64
+}
 
 /// Rotate left 64-bit.
 #[inline]
@@ -172,7 +176,7 @@ pub fn murmurhash3_128(span: &[u8], seed: u128) -> u128 {
     ((h2 as u128) << 64) | (h1 as u128)
 }
 
-/// MurmurHash3 32-bit implementation 
+/// MurmurHash3 32-bit implementation
 pub fn murmurhash3_32(data: &[u8], seed: u32) -> u32 {
     let c1: u32 = 0xcc9e2d51;
     let c2: u32 = 0x1b873593;
@@ -237,7 +241,7 @@ mod tests {
         let seed: u128 = 0;
         let h = murmurhash3_128(&mut ba_vec, seed);
         let _u128 = h;
-        // known results 
+        // known results
         assert_eq!(low64(h), 16628891264555680919);
         assert_eq!(high64(h), 12953474369317462);
     }
@@ -249,12 +253,12 @@ mod tests {
         let seed: u128 = 0;
         let h = murmurhash3_128(bytes, seed);
         let _u128 = h;
-        // known results 
+        // known results
         assert_eq!(low64(h), 2792699143512860960);
         assert_eq!(high64(h), 15069672278200047189);
     }
 
-        #[test]
+    #[test]
     fn test_murmurhash3_32_float() {
         let value: f64 = 374.0;
         let ba_le: [u8; 8] = value.to_le_bytes();
@@ -262,7 +266,7 @@ mod tests {
         let seed: u32 = 0;
         let h = murmurhash3_32(&mut ba_vec, seed);
         let _u32 = h;
-        // known results 
+        // known results
         assert_eq!(h, 3717946798);
     }
 
@@ -273,7 +277,7 @@ mod tests {
         let seed: u32 = 0;
         let h = murmurhash3_32(bytes, seed);
         let _u32 = h;
-        // known results 
+        // known results
         assert_eq!(h, 1099701186);
     }
 }
