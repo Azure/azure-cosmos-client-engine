@@ -1,0 +1,46 @@
+{
+    "name": "hybrid",
+    "testData": "../testdata/hybridTestData.json",
+    "queries": [
+        {
+            "name": "top_10_by_fulltext_rank",
+            "query": "SELECT TOP 10 c.index, c.title FROM c WHERE FullTextContains(c.title, 'John') OR FullTextContains(c.text, 'John') ORDER BY RANK FullTextScore(c.title, 'John')",
+            "container": "FullText"
+        },
+        {
+            "name": "offset_limit",
+            "query": "SELECT c.index, c.title FROM c WHERE FullTextContains(c.title, 'John') OR FullTextContains(c.text, 'John') ORDER BY RANK FullTextScore(c.title, 'John') OFFSET 1 LIMIT 5",
+            "container": "FullText"
+        },
+        {
+            "name": "top_20_rrf",
+            "query": "SELECT TOP 20 c.index, c.title FROM c WHERE FullTextContains(c.title, 'John') OR FullTextContains(c.text, 'John') OR FullTextContains(c.text, 'United States') ORDER BY RANK RRF(FullTextScore(c.title, 'John'), FullTextScore(c.text, 'United States'))",
+            "container": "FullText"
+        },
+        {
+            "name": "top_10_rrf",
+            "query": "SELECT TOP 10 c.index, c.title FROM c WHERE FullTextContains(c.title, 'John') OR FullTextContains(c.text, 'John') OR FullTextContains(c.text, 'United States') ORDER BY RANK RRF(FullTextScore(c.title, 'John'), FullTextScore(c.text, 'United States'))",
+            "container": "FullText"
+        },
+        {
+            "name": "offset_limit_rrf",
+            "query": "SELECT c.index, c.title FROM c WHERE FullTextContains(c.title, 'John') OR FullTextContains(c.text, 'John') OR FullTextContains(c.text, 'United States') ORDER BY RANK RRF(FullTextScore(c.title, 'John'), FullTextScore(c.text, 'United States')) OFFSET 5 LIMIT 10",
+            "container": "FullText"
+        },
+        {
+            "name": "order_by_rrf_unfiltered",
+            "query": "SELECT TOP 10 c.index, c.title FROM c ORDER BY RANK RRF(FullTextScore(c.title, 'John'), FullTextScore(c.text, 'United States'))",
+            "container": "FullText"
+        },
+        {
+            "name": "offset_limit_rrf_unfiltered",
+            "query": "SELECT c.index, c.title FROM c ORDER BY RANK RRF(FullTextScore(c.title, 'John'), FullTextScore(c.text, 'United States')) OFFSET 0 LIMIT 13",
+            "container": "FullText"
+        },
+        {
+            "name": "offset_limit_rrf_ft_with_vector",
+            "query": "SELECT c.index, c.title FROM c ORDER BY RANK RRF(FullTextScore(c.text, 'United States'), VectorDistance(c.vector, @testData_searchVector)) OFFSET 0 LIMIT 10",
+            "container": "FullText"
+        }
+    ]
+}
