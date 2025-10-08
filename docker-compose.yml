@@ -9,18 +9,13 @@ services:
     container_name: cosmos-emulator
     ports:
       - "8081:8081"
+      - "8900:8900"
       - "10250:10250"
       - "10251:10251"
       - "10252:10252"
       - "10253:10253"
       - "10254:10254"
+      - "10255:10255"
+      - "10350:10350"
     environment:
-      AZURE_COSMOS_EMULATOR_PARTITION_COUNT: 40
-      AZURE_COSMOS_EMULATOR_ENABLE_DATA_PERSISTENCE: "true"
-    volumes:
-      - type: bind
-        source: .local/cosmos-emulator-data
-        target: /tmp/cosmos/appdata
-volumes:
-  cosmos-emulator-data:
-    driver: local
+      AZURE_COSMOS_EMULATOR_ARGS: "/enablepreview /EnableFabricLogs"

@@ -71,9 +71,8 @@ public class TestData
 public class BaselineGenerator
 {
     const int ThroughputForTwoPartitions = 12_000;
-    public static async Task GenerateBaselineAsync(string endpoint, string key, string baselineFile, IEnumerable<string>? queryNames = null)
+    public static async Task GenerateBaselineAsync(CosmosClient client, string baselineFile, IEnumerable<string>? queryNames = null, string? databaseName = null, bool containersExist = false)
     {
-        // Load the file
         var containingDirectory = Path.GetDirectoryName(baselineFile);
         if (containingDirectory == null)
         {
@@ -89,7 +88,6 @@ public class BaselineGenerator
             return;
         }
 
-        // Load test data
         var testDataPath = querySet.TestData;
         var fullTestDataPath = Path.Combine(containingDirectory, testDataPath);
         var testDataJson = await File.ReadAllTextAsync(fullTestDataPath);
@@ -100,25 +98,34 @@ public class BaselineGenerator
             return;
         }
 
-        // Connect to Cosmos DB
-        var options = endpoint == "https://localhost:8081" ? new CosmosClientOptions
+        bool weCreatedDatabase = false;
+        if (string.IsNullOrEmpty(databaseName))
         {
-            ServerCertificateCustomValidationCallback = (cert, chain, errors) =>
-            {
-                // Accept all certificates, when using the emulator
-                return true;
-            }
-        } : new CosmosClientOptions();
-        var client = new CosmosClient(endpoint, key, options);
-        var uniqueName = $"baseline_{querySet.Name}_{Guid.NewGuid():N}";
+            databaseName = $"baseline_{querySet.Name}_{Guid.NewGuid():N}";
+            weCreatedDatabase = true;
+        }
 
-        // Create a new database and container
         Console.WriteLine("Running query set: " + querySet.Name);
-        Console.WriteLine($"- Creating database: {uniqueName}");
-        var database = (await client.CreateDatabaseIfNotExistsAsync(uniqueName, throughput: ThroughputForTwoPartitions)).Database;
+        Console.WriteLine($"- Using database: {databaseName}");
+        var database = (await client.CreateDatabaseIfNotExistsAsync(databaseName, throughput: ThroughputForTwoPartitions)).Database;
         try
         {
-            var containers = await CreateTestContainersAsync(database, testData);
+            Dictionary<string, Container> containers;
+            if (containersExist)
+            {
+                Console.WriteLine($"- Assuming containers already exist, skipping creation.");
+                containers = new Dictionary<string, Container>();
+                foreach (var containerProperties in testData.Containers)
+                {
+                    var container = database.GetContainer(containerProperties.Id);
+                    containers.Add(containerProperties.Id, container);
+                }
+            }
+            else
+            {
+                Console.WriteLine($"- Creating containers and inserting test data.");
+                containers = await CreateTestContainersAsync(database, testData);
+            }
 
             foreach (var querySpec in querySet.Queries)
             {
@@ -138,8 +145,11 @@ public class BaselineGenerator
         }
         finally
         {
-            Console.WriteLine($"Deleting database: {uniqueName}");
-            await database.DeleteAsync();
+            if (weCreatedDatabase)
+            {
+                Console.WriteLine($"Deleting database: {databaseName}");
+                await database.DeleteAsync();
+            }
         }
     }
 
@@ -158,6 +168,14 @@ public class BaselineGenerator
                 await container.CreateItemAsync(item);
             }
             containers.Add(containerProperties.Id, container);
+
+            // Validate the feed ranges
+            var feedRanges = await container.GetFeedRangesAsync();
+            Console.WriteLine($"-- Container {containerProperties.Id} has {feedRanges.Count} feed ranges.");
+            if (feedRanges.Count < 2)
+            {
+                Console.Error.WriteLine($"Warning: Container {containerProperties.Id} has less than 2 feed ranges, it may not be properly partitioned.");
+            }
         }
         return containers;
     }
