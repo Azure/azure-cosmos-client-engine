@@ -12,6 +12,14 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#define CosmosCxCOSMOSCX_PARTITION_KEY_KIND_HASH 0
+
+#define CosmosCxCOSMOSCX_PARTITION_KEY_KIND_MULTI_HASH 1
+
+#define CosmosCxCOSMOSCX_PARTITION_KEY_VERSION_V1 1
+
+#define CosmosCxCOSMOSCX_PARTITION_KEY_VERSION_V2 2
+
 /**
  * A result code for FFI functions, which indicates the success or failure of the operation.
  *

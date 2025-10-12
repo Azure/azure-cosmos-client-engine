@@ -9,18 +9,15 @@ const MAX_STRING_BYTES_TO_APPEND: usize = 100;
 const MIN_INCLUSIVE_EFFECTIVE_PARTITION_KEY: &str = "";
 const MAX_EXCLUSIVE_EFFECTIVE_PARTITION_KEY: &str = "FF";
 
-// Group partition key component marker bytes behind a simple "object".
-// This makes it easy to find and extend markers, while still providing
-struct PartitionKeyComponent;
-
-impl PartitionKeyComponent {
-    const UNDEFINED: u8 = 0x00;
-    const NULL: u8 = 0x01;
-    const BOOL_FALSE: u8 = 0x02;
-    const BOOL_TRUE: u8 = 0x03;
-    const NUMBER: u8 = 0x05;
-    const STRING: u8 = 0x08;
-    const INFINITY: u8 = 0xFF;
+/// Contains all allowed markers for component marker types.  
+mod component {
+    pub const UNDEFINED: u8 = 0x00;
+    pub const NULL: u8 = 0x01;
+    pub const BOOL_FALSE: u8 = 0x02;
+    pub const BOOL_TRUE: u8 = 0x03;
+    pub const NUMBER: u8 = 0x05;
+    pub const STRING: u8 = 0x08;
+    pub const INFINITY: u8 = 0xFF;
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -53,14 +50,16 @@ pub fn get_hashed_partition_key_string(
     }
 
     match kind {
-        Some(PartitionKeyKind::Hash) => match version {
-            Some(1) => get_effective_partition_key_for_hash_partitioning_v1(pk_value),
-            Some(2) => get_effective_partition_key_for_hash_partitioning_v2(pk_value),
-            _ => {
-                // Default to V1 behavior. Old containers can use v1 but not have a version specified.
-                get_effective_partition_key_for_hash_partitioning_v1(pk_value)
+        Some(PartitionKeyKind::Hash) => {
+            let version = version.unwrap_or(1);
+            match version {
+                1 => get_effective_partition_key_for_hash_partitioning_v1(pk_value),
+                2 => get_effective_partition_key_for_hash_partitioning_v2(pk_value),
+                _ => {
+                    panic!("Hash partitioning only supports version 1 or 2");
+                }
             }
-        },
+        }
         // hpk only supports V2
         Some(PartitionKeyKind::MultiHash) => {
             if version != Some(2) {
@@ -123,15 +122,14 @@ fn truncate_for_v1_hashing(value: &PartitionKeyValue) -> PartitionKeyValue {
 fn get_effective_partition_key_for_hash_partitioning_v1(pk_value: &[PartitionKeyValue]) -> String {
     // Truncate string components for hashing path first
     let mut truncated: Vec<PartitionKeyValue> = Vec::with_capacity(pk_value.len());
+    let mut hashing_bytes: Vec<u8> = Vec::new();
     for v in pk_value {
-        truncated.push(truncate_for_v1_hashing(v));
+        let truncated_value = truncate_for_v1_hashing(v);
+        truncated.push(truncated_value.clone());
+        // Build hashing buffer using V1 hashing encoding (string suffix 0x00)
+        write_for_hashing_v1(&truncated_value, &mut hashing_bytes);
     }
 
-    // Build hashing buffer using V1 hashing encoding (string suffix 0x00)
-    let mut hashing_bytes: Vec<u8> = Vec::new();
-    for v in &truncated {
-        write_for_hashing_v1(v, &mut hashing_bytes);
-    }
     let hash32 = murmurhash3_32(&hashing_bytes, 0u32);
     let hash_value_f64 = hash32 as f64; // casts UInt32 -> float (lossy above 2^24)
 
@@ -145,7 +143,7 @@ fn get_effective_partition_key_for_hash_partitioning_v1(pk_value: &[PartitionKey
 
 /// Hashing writer for V1 (string suffix 0x00)
 fn write_for_hashing_v1(value: &PartitionKeyValue, writer: &mut Vec<u8>) {
-    write_for_hashing_core(value, 0x00u8, writer)
+    write_for_hashing_core(value.clone(), 0x00u8, writer)
 }
 
 /// Encode multiple components into a binary buffer using V1 rules and return uppercase hex string.
@@ -175,11 +173,11 @@ fn encode_double_as_uint64(value: f64) -> u64 {
 /// * Null -> marker (0x01)
 fn write_for_binary_encoding_v1(value: &PartitionKeyValue, writer: &mut Vec<u8>) {
     match value {
-        PartitionKeyValue::Bool(true) => writer.push(PartitionKeyComponent::BOOL_TRUE),
-        PartitionKeyValue::Bool(false) => writer.push(PartitionKeyComponent::BOOL_FALSE),
-        PartitionKeyValue::Infinity => writer.push(PartitionKeyComponent::INFINITY),
+        PartitionKeyValue::Bool(true) => writer.push(component::BOOL_TRUE),
+        PartitionKeyValue::Bool(false) => writer.push(component::BOOL_FALSE),
+        PartitionKeyValue::Infinity => writer.push(component::INFINITY),
         PartitionKeyValue::Number(n) => {
-            writer.push(PartitionKeyComponent::NUMBER);
+            writer.push(component::NUMBER);
             let mut payload = encode_double_as_uint64(*n);
             // First 8 bits
             writer.push((payload >> 56) as u8);
@@ -198,14 +196,15 @@ fn write_for_binary_encoding_v1(value: &PartitionKeyValue, writer: &mut Vec<u8>)
             writer.push(byte_to_write & 0xFE); // last byte with 0 flag
         }
         PartitionKeyValue::String(s) => {
-            writer.push(PartitionKeyComponent::STRING);
+            writer.push(component::STRING);
             let utf8 = s.as_bytes();
             let short = utf8.len() <= MAX_STRING_BYTES_TO_APPEND;
+            // Use std::cmp to determine truncated write length (include sentinel +1 when longer than max)
             let write_len = if short {
                 utf8.len()
             } else {
-                MAX_STRING_BYTES_TO_APPEND + 1
-            }; // +1 sentinel when long
+                std::cmp::min(utf8.len(), MAX_STRING_BYTES_TO_APPEND + 1)
+            };
             for i in 0..write_len {
                 let b = utf8[i].wrapping_add(1); // unconditional +1
                 writer.push(b);
@@ -214,8 +213,8 @@ fn write_for_binary_encoding_v1(value: &PartitionKeyValue, writer: &mut Vec<u8>)
                 writer.push(0x00);
             }
         }
-        PartitionKeyValue::Undefined => writer.push(PartitionKeyComponent::UNDEFINED),
-        PartitionKeyValue::Null => writer.push(PartitionKeyComponent::NULL),
+        PartitionKeyValue::Undefined => writer.push(component::UNDEFINED),
+        PartitionKeyValue::Null => writer.push(component::NULL),
     }
 }
 
@@ -231,27 +230,27 @@ fn to_hex_encoded_binary_string(components: &[PartitionKeyValue]) -> String {
 
 /// Write hashing marker and payload for V2 hashing.
 fn write_for_hashing_v2(value: &PartitionKeyValue, writer: &mut Vec<u8>) {
-    write_for_hashing_core(value, 0xFFu8, writer)
+    write_for_hashing_core(value.clone(), 0xFFu8, writer)
 }
 
 /// Common hashing writer core: writes type marker + payload (string suffix used by V2).
-fn write_for_hashing_core(value: &PartitionKeyValue, string_suffix: u8, writer: &mut Vec<u8>) {
+fn write_for_hashing_core(value: PartitionKeyValue, string_suffix: u8, writer: &mut Vec<u8>) {
     match value {
-        PartitionKeyValue::Bool(true) => writer.push(PartitionKeyComponent::BOOL_TRUE),
-        PartitionKeyValue::Bool(false) => writer.push(PartitionKeyComponent::BOOL_FALSE),
-        PartitionKeyValue::Null => writer.push(PartitionKeyComponent::NULL),
+        PartitionKeyValue::Bool(true) => writer.push(component::BOOL_TRUE),
+        PartitionKeyValue::Bool(false) => writer.push(component::BOOL_FALSE),
+        PartitionKeyValue::Null => writer.push(component::NULL),
         PartitionKeyValue::Number(n) => {
-            writer.push(PartitionKeyComponent::NUMBER); // Number marker
+            writer.push(component::NUMBER); // Number marker
             let mut bytes = n.to_le_bytes().to_vec();
             writer.append(&mut bytes);
         }
         PartitionKeyValue::String(s) => {
-            writer.push(PartitionKeyComponent::STRING); // String marker
+            writer.push(component::STRING); // String marker
             writer.extend_from_slice(s.as_bytes());
             writer.push(string_suffix);
         }
-        PartitionKeyValue::Undefined => writer.push(PartitionKeyComponent::UNDEFINED),
-        PartitionKeyValue::Infinity => writer.push(PartitionKeyComponent::INFINITY),
+        PartitionKeyValue::Undefined => writer.push(component::UNDEFINED),
+        PartitionKeyValue::Infinity => writer.push(component::INFINITY),
     }
 }
 
@@ -259,22 +258,25 @@ fn write_for_hashing_core(value: &PartitionKeyValue, string_suffix: u8, writer: 
 /// Implemented simpler than original but keeps markers and payload.
 fn write_for_binary_encoding(value: &PartitionKeyValue, writer: &mut Vec<u8>) {
     match value {
-        PartitionKeyValue::Bool(true) => writer.push(PartitionKeyComponent::BOOL_TRUE),
-        PartitionKeyValue::Bool(false) => writer.push(PartitionKeyComponent::BOOL_FALSE),
-        PartitionKeyValue::Infinity => writer.push(PartitionKeyComponent::INFINITY),
+        PartitionKeyValue::Bool(true) => writer.push(component::BOOL_TRUE),
+        PartitionKeyValue::Bool(false) => writer.push(component::BOOL_FALSE),
+        PartitionKeyValue::Infinity => writer.push(component::INFINITY),
         PartitionKeyValue::Number(n) => {
-            writer.push(PartitionKeyComponent::NUMBER);
+            writer.push(component::NUMBER);
             // use IEEE754 little-endian double representation
             writer.extend_from_slice(&n.to_le_bytes());
         }
         PartitionKeyValue::String(s) => {
-            writer.push(PartitionKeyComponent::STRING);
+            writer.push(component::STRING);
             let utf8 = s.as_bytes();
-            let short_string = utf8.len() <= MAX_STRING_BYTES_TO_APPEND;
-            let write_len = if short_string {
-                utf8.len()
+            let size = std::cmp::min(utf8.len(), MAX_STRING_BYTES_TO_APPEND);
+            let short_string: bool;
+            let write_len = if size == MAX_STRING_BYTES_TO_APPEND {
+                short_string = false;
+                size + 1
             } else {
-                MAX_STRING_BYTES_TO_APPEND + 1
+                short_string = true;
+                size
             };
             for i in 0..write_len {
                 let mut b = utf8[i];
@@ -287,8 +289,8 @@ fn write_for_binary_encoding(value: &PartitionKeyValue, writer: &mut Vec<u8>) {
                 writer.push(0x00);
             }
         }
-        PartitionKeyValue::Undefined => writer.push(PartitionKeyComponent::UNDEFINED),
-        PartitionKeyValue::Null => writer.push(PartitionKeyComponent::NULL),
+        PartitionKeyValue::Undefined => writer.push(component::UNDEFINED),
+        PartitionKeyValue::Null => writer.push(component::NULL),
     }
 }
 
@@ -336,6 +338,10 @@ mod tests {
             get_hashed_partition_key_string(&[comp], Some(PartitionKeyKind::Hash), Some(2));
         // result should be a hex string of length 32 (16 bytes * 2 chars)
         assert_eq!(result.len(), 32);
+        assert_eq!(
+            result, "19819C94CE42A1654CCC8110539D9589",
+            "Mismatch for component hash"
+        )
     }
 
     #[test]

@@ -15,6 +15,11 @@ use crate::{
     slice::{OwnedString, Str},
 };
 
+pub const COSMOSCX_PARTITION_KEY_KIND_HASH: u8 = 0;
+pub const COSMOSCX_PARTITION_KEY_KIND_MULTI_HASH: u8 = 1;
+pub const COSMOSCX_PARTITION_KEY_VERSION_V1: u8 = 1;
+pub const COSMOSCX_PARTITION_KEY_VERSION_V2: u8 = 2;
+
 /// Parses a JSON value into a vector of `PartitionKeyValue`s accepted by the hashing function.
 fn parse_partition_key_components(
     v: Value,
@@ -62,39 +67,6 @@ fn parse_partition_key_components(
     }
 }
 
-fn inner_compute<'a>(
-    json: Str<'a>,
-    version: u8,
-    kind: u8,
-) -> Result<Box<OwnedString>, azure_data_cosmos_engine::Error> {
-    let json_str = unsafe { json.as_str().not_null()? };
-    // Empty string not allowed (would imply none)
-    if json_str.is_empty() {
-        return Err(ErrorKind::DeserializationError.with_message("empty partition key json"));
-    }
-    let value: Value = serde_json::from_str(json_str)
-        .map_err(|e| ErrorKind::DeserializationError.with_source(e))?;
-    let components = parse_partition_key_components(value)?;
-
-    let pk_kind = match kind {
-        0 => PartitionKeyKind::Hash,
-        1 => PartitionKeyKind::MultiHash,
-        _ => {
-            return Err(ErrorKind::DeserializationError
-                .with_message("invalid partition key kind (expected 0 Hash, 1 MultiHash)"))
-        }
-    };
-
-    if pk_kind == PartitionKeyKind::MultiHash && version != 2 {
-        return Err(
-            ErrorKind::DeserializationError.with_message("MultiHash only supports version 2")
-        );
-    }
-
-    let epk = get_hashed_partition_key_string(&components, Some(pk_kind), Some(version));
-    Ok(Box::new(epk.into()))
-}
-
 /// Computes an effective partition key string for the provided JSON representation.
 ///
 /// Parameters:
@@ -109,5 +81,38 @@ pub extern "C" fn cosmoscx_v0_partition_key_effective<'a>(
     version: u8,
     kind: u8,
 ) -> FfiResult<OwnedString> {
+    fn inner_compute<'a>(
+        json: Str<'a>,
+        version: u8,
+        kind: u8,
+    ) -> Result<Box<OwnedString>, azure_data_cosmos_engine::Error> {
+        let json_str = unsafe { json.as_str().not_null()? };
+        // Empty string not allowed (would imply none)
+        if json_str.is_empty() {
+            return Err(ErrorKind::DeserializationError.with_message("empty partition key json"));
+        }
+        let value: Value = serde_json::from_str(json_str)
+            .map_err(|e| ErrorKind::DeserializationError.with_source(e))?;
+        let components = parse_partition_key_components(value)?;
+
+        let pk_kind = match kind {
+            COSMOSCX_PARTITION_KEY_KIND_HASH => PartitionKeyKind::Hash,
+            COSMOSCX_PARTITION_KEY_KIND_MULTI_HASH => PartitionKeyKind::MultiHash,
+            _ => {
+                return Err(
+                    ErrorKind::DeserializationError.with_message("invalid partition key kind")
+                )
+            }
+        };
+
+        if pk_kind == PartitionKeyKind::MultiHash && version != COSMOSCX_PARTITION_KEY_VERSION_V2 {
+            return Err(
+                ErrorKind::DeserializationError.with_message("MultiHash only supports version 2")
+            );
+        }
+
+        let epk = get_hashed_partition_key_string(&components, Some(pk_kind), Some(version));
+        Ok(Box::new(epk.into()))
+    }
     inner_compute(partition_key_json, version, kind).into()
 }
