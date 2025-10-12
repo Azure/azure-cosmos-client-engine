@@ -312,7 +312,6 @@ fn bytes_to_hex_lower(bytes: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
 
     #[test]
