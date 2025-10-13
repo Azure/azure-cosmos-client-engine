@@ -87,21 +87,21 @@ fn get_effective_partition_key_for_hash_partitioning_v2(pk_value: &[PartitionKey
 }
 
 /// Multi-hash V2: compute per-component hash similarly and concatenate uppercase hex segments.
-fn get_effective_partition_key_for_multi_hash_partitioning_v2(
-    pk_value: &[PartitionKeyValue],
-) -> String {
-    let mut pieces: Vec<String> = Vec::new();
-    for comp in pk_value {
-        let mut ms: Vec<u8> = Vec::new();
-        write_for_hashing_v2(comp, &mut ms);
-        let hash_128 = murmurhash3_128(&ms, 0);
-        let mut hash_bytes = hash_128.to_le_bytes();
-        hash_bytes.reverse();
-        hash_bytes[0] &= 0x3F;
-        pieces.push(bytes_to_hex_upper(&hash_bytes));
-    }
-    pieces.join("").to_uppercase()
-}
+// fn get_effective_partition_key_for_multi_hash_partitioning_v2(
+//     pk_value: &[PartitionKeyValue],
+// ) -> String {
+//     let mut pieces: Vec<String> = Vec::new();
+//     for comp in pk_value {
+//         let mut ms: Vec<u8> = Vec::new();
+//         write_for_hashing_v2(comp, &mut ms);
+//         let hash_128 = murmurhash3_128(&ms, 0);
+//         let mut hash_bytes = hash_128.to_le_bytes();
+//         hash_bytes.reverse();
+//         hash_bytes[0] &= 0x3F;
+//         pieces.push(bytes_to_hex_upper(&hash_bytes));
+//     }
+//     pieces.join("").to_uppercase()
+// }
 
 /// Truncate strings to 100 characters for V1 hashing (other types unchanged).
 fn truncate_for_v1_hashing(value: &PartitionKeyValue) -> PartitionKeyValue {
