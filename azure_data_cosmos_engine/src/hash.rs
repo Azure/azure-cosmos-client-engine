@@ -62,6 +62,7 @@ pub fn get_hashed_partition_key_string(
         }
         // hpk only supports V2
         Some(PartitionKeyKind::MultiHash) => {
+            panic!("MultiHash currently not supported. Pending additional testing.");
             if version != Some(2) {
                 panic!("MultiHash partitioning only supports version 2");
             }
