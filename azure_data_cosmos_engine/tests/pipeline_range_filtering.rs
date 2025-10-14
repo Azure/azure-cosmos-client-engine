@@ -42,7 +42,6 @@ impl From<Item> for QueryResult<Item, JsonQueryClauseItem> {
 pub fn pkranges_filtered_by_query_ranges() -> Result<(), Box<dyn std::error::Error>> {
     let mut container = Container::new();
 
-    // Set up 4 physical partitions with data
     container.insert(
         "partition0",
         vec![
@@ -76,15 +75,13 @@ pub fn pkranges_filtered_by_query_ranges() -> Result<(), Box<dyn std::error::Err
         ],
     );
 
-    // Create a query plan with query ranges that only cover partition1
-    // Based on the Engine::new implementation in mock_engine/mod.rs, partition1 will have
-    // EPK range: 0x3FFFFFFF to 0x7FFFFFFF (since EPKs are divided evenly among 4 partitions)
+    // Target partition1 with EPK range that fits within its boundaries
     let query_plan = QueryPlan {
         partitioned_query_execution_info_version: 1,
         query_info: QueryInfo::default(),
         query_ranges: vec![QueryRange {
-            min: "40000000".to_string(), // Start within partition1's range
-            max: "7FFFFFFC".to_string(), // End within partition1's range (well before partition2)
+            min: "40000000".to_string(),
+            max: "7FFFFFFC".to_string(), // Avoids boundary overlap with partition2
             is_min_inclusive: true,
             is_max_inclusive: true,
         }],
@@ -97,17 +94,13 @@ pub fn pkranges_filtered_by_query_ranges() -> Result<(), Box<dyn std::error::Err
         3,
     )?;
 
-    // Execute the query
     let results = engine.execute()?;
 
-    // Extract just the requests to validate partition filtering
     let all_requests: Vec<&DataRequest> = results
         .iter()
         .flat_map(|response| &response.requests)
         .collect();
 
-    // Verify that only partition1 was requested
-    // This test SHOULD FAIL because the current implementation doesn't filter by query ranges
     let requested_partitions: std::collections::HashSet<&str> = all_requests
         .iter()
         .map(|req| req.pkrange_id.as_ref())
@@ -120,7 +113,6 @@ pub fn pkranges_filtered_by_query_ranges() -> Result<(), Box<dyn std::error::Err
         requested_partitions
     );
 
-    // Also verify that we get results only from partition1
     let all_items: Vec<String> = results
         .into_iter()
         .flat_map(|response| response.items)
@@ -146,7 +138,6 @@ pub fn pkranges_filtered_by_query_ranges() -> Result<(), Box<dyn std::error::Err
 pub fn pkranges_filtered_by_overlapping_query_ranges() -> Result<(), Box<dyn std::error::Error>> {
     let mut container = Container::new();
 
-    // Set up 4 physical partitions with data
     container.insert(
         "partition0",
         vec![
@@ -180,17 +171,13 @@ pub fn pkranges_filtered_by_overlapping_query_ranges() -> Result<(), Box<dyn std
         ],
     );
 
-    // Create a query plan with query ranges that overlap partition1 and partition2
-    // Based on the Engine::new implementation in mock_engine/mod.rs:
-    // partition1 EPK range: 0x40000000 to 0x7FFFFFFF
-    // partition2 EPK range: 0x80000000 to 0xBFFFFFFF
-    // We'll create a range that starts partway through partition1 and ends partway through partition2
+    // Query range that spans across two adjacent partitions
     let query_plan = QueryPlan {
         partitioned_query_execution_info_version: 1,
         query_info: QueryInfo::default(),
         query_ranges: vec![QueryRange {
-            min: "60000000".to_string(), // Partway through partition1's range
-            max: "A0000000".to_string(), // Partway through partition2's range
+            min: "60000000".to_string(),
+            max: "A0000000".to_string(),
             is_min_inclusive: true,
             is_max_inclusive: true,
         }],
@@ -203,17 +190,13 @@ pub fn pkranges_filtered_by_overlapping_query_ranges() -> Result<(), Box<dyn std
         3,
     )?;
 
-    // Execute the query
     let results = engine.execute()?;
 
-    // Extract just the requests to validate partition filtering
     let all_requests: Vec<&DataRequest> = results
         .iter()
         .flat_map(|response| &response.requests)
         .collect();
 
-    // Verify that only partition1 and partition2 were requested
-    // This test SHOULD FAIL because the current implementation doesn't filter by query ranges
     let requested_partitions: std::collections::HashSet<&str> = all_requests
         .iter()
         .map(|req| req.pkrange_id.as_ref())
@@ -226,7 +209,6 @@ pub fn pkranges_filtered_by_overlapping_query_ranges() -> Result<(), Box<dyn std
         requested_partitions
     );
 
-    // Also verify that we get results only from partition1 and partition2
     let all_items: Vec<String> = results
         .into_iter()
         .flat_map(|response| response.items)
@@ -241,7 +223,7 @@ pub fn pkranges_filtered_by_overlapping_query_ranges() -> Result<(), Box<dyn std
         "partition2/item1".to_string(),
         "partition2/item2".to_string(),
     ];
-    // Sort both vectors since order might vary
+    // Sort for deterministic comparison since execution order may vary
     expected_items.sort();
     let mut sorted_items = all_items;
     sorted_items.sort();
@@ -259,7 +241,6 @@ pub fn pkranges_filtered_by_overlapping_query_ranges() -> Result<(), Box<dyn std
 pub fn pkranges_filtered_by_all_partitions_query_range() -> Result<(), Box<dyn std::error::Error>> {
     let mut container = Container::new();
 
-    // Set up 4 physical partitions with data
     container.insert(
         "partition0",
         vec![
@@ -293,15 +274,13 @@ pub fn pkranges_filtered_by_all_partitions_query_range() -> Result<(), Box<dyn s
         ],
     );
 
-    // Create a query plan with query ranges that cover all partitions
-    // Based on the Engine::new implementation in mock_engine/mod.rs:
-    // The EPK space goes from 0x00000000 to 0xFFFFFFFF
+    // Query range that spans the entire EPK space
     let query_plan = QueryPlan {
         partitioned_query_execution_info_version: 1,
         query_info: QueryInfo::default(),
         query_ranges: vec![QueryRange {
-            min: "00000000".to_string(), // Start of EPK space
-            max: "FFFFFFFF".to_string(), // End of EPK space
+            min: "00000000".to_string(),
+            max: "FFFFFFFF".to_string(),
             is_min_inclusive: true,
             is_max_inclusive: true,
         }],
@@ -309,17 +288,13 @@ pub fn pkranges_filtered_by_all_partitions_query_range() -> Result<(), Box<dyn s
 
     let engine = Engine::new(container, "SELECT * FROM c", query_plan, 3)?;
 
-    // Execute the query
     let results = engine.execute()?;
 
-    // Extract just the requests to validate partition filtering
     let all_requests: Vec<&DataRequest> = results
         .iter()
         .flat_map(|response| &response.requests)
         .collect();
 
-    // Verify that all partitions were requested
-    // This test should actually PASS when range filtering is implemented, since the range covers all partitions
     let requested_partitions: std::collections::HashSet<&str> = all_requests
         .iter()
         .map(|req| req.pkrange_id.as_ref())
@@ -332,7 +307,6 @@ pub fn pkranges_filtered_by_all_partitions_query_range() -> Result<(), Box<dyn s
         requested_partitions
     );
 
-    // Also verify that we get results from all partitions
     let all_items: Vec<String> = results
         .into_iter()
         .flat_map(|response| response.items)
@@ -353,7 +327,7 @@ pub fn pkranges_filtered_by_all_partitions_query_range() -> Result<(), Box<dyn s
         "partition3/item1".to_string(),
         "partition3/item2".to_string(),
     ];
-    // Sort both vectors since order might vary
+    // Sort for deterministic comparison since execution order may vary
     expected_items.sort();
     let mut sorted_items = all_items;
     sorted_items.sort();
@@ -371,7 +345,6 @@ pub fn pkranges_filtered_by_all_partitions_query_range() -> Result<(), Box<dyn s
 pub fn pkranges_no_query_ranges_queries_all_partitions() -> Result<(), Box<dyn std::error::Error>> {
     let mut container = Container::new();
 
-    // Set up 4 physical partitions with data
     container.insert(
         "partition0",
         vec![
@@ -405,27 +378,22 @@ pub fn pkranges_no_query_ranges_queries_all_partitions() -> Result<(), Box<dyn s
         ],
     );
 
-    // Create a query plan with NO query ranges (empty vector)
-    // This should query all partitions
+    // Empty query ranges should default to querying all partitions
     let query_plan = QueryPlan {
         partitioned_query_execution_info_version: 1,
         query_info: QueryInfo::default(),
-        query_ranges: Vec::new(), // No query ranges
+        query_ranges: Vec::new(),
     };
 
     let engine = Engine::new(container, "SELECT * FROM c", query_plan, 3)?;
 
-    // Execute the query
     let results = engine.execute()?;
 
-    // Extract just the requests to validate partition filtering
     let all_requests: Vec<&DataRequest> = results
         .iter()
         .flat_map(|response| &response.requests)
         .collect();
 
-    // Verify that all partitions were requested
-    // This test should actually PASS when range filtering is implemented, since no ranges means query all
     let requested_partitions: std::collections::HashSet<&str> = all_requests
         .iter()
         .map(|req| req.pkrange_id.as_ref())
@@ -438,7 +406,6 @@ pub fn pkranges_no_query_ranges_queries_all_partitions() -> Result<(), Box<dyn s
         requested_partitions
     );
 
-    // Also verify that we get results from all partitions
     let all_items: Vec<String> = results
         .into_iter()
         .flat_map(|response| response.items)
@@ -459,7 +426,7 @@ pub fn pkranges_no_query_ranges_queries_all_partitions() -> Result<(), Box<dyn s
         "partition3/item1".to_string(),
         "partition3/item2".to_string(),
     ];
-    // Sort both vectors since order might vary
+    // Sort for deterministic comparison since execution order may vary
     expected_items.sort();
     let mut sorted_items = all_items;
     sorted_items.sort();
