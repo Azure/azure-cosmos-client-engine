@@ -18,12 +18,6 @@ function Test-Command {
 Test-Command cargo -Require
 Test-Command go -Require
 
-if ($IsLinux -and !(Test-Command cc)) {
-    Write-Host "Installing build-essential..."
-    sudo apt-get update
-    sudo apt-get install -y build-essential
-}
-
 if (!(Test-Command just)) {
     Write-Host "Installing just..."
     cargo install just
