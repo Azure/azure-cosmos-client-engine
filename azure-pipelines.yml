@@ -17,7 +17,7 @@ extends:
       demands:
         - ImageOverride -equals client-engine-linux-x86_64
     LinuxARM64Pool:
-      name: ClientEngine
+      name: ClientEngine-ARM64
       demands:
         - ImageOverride -equals client-engine-linux-aarch64
     MacPool:
