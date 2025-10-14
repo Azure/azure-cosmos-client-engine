@@ -114,6 +114,9 @@ stages:
               PublishArtifacts: ${{ parameters.IsReleaseBuild }}
               UseMicrosoftToolchain: ${{ parameters.UseMicrosoftToolchain }}
 
+              # Azure Pipelines UsePythonVersion task doesn't support ARM64, so disable it for now.
+              IncludePython: false
+
       - job: x86_64_apple_darwin
         displayName: "macOS x86_64"
         pool: ${{ parameters.MacPool }}
