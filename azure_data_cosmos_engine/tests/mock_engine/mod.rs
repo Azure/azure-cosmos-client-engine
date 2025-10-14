@@ -16,6 +16,7 @@ use azure_data_cosmos_engine::query::{
 
 pub struct Engine<T: Debug> {
     container: Container<T>,
+    partitions: Vec<PartitionKeyRange>,
     pipeline: QueryPipeline<T, JsonQueryClauseItem>,
     request_page_size: usize,
 }
@@ -43,6 +44,11 @@ impl<T: Clone + Debug> Engine<T> {
         plan: QueryPlan,
         request_page_size: usize,
     ) -> Result<Self, azure_data_cosmos_engine::Error> {
+        // Divide the EPK space evenly among the partitions we have
+        const MAX_EPK: u32 = 0xFFFF_FFFF;
+        const MIN_EPK: u32 = 0x0000_0000;
+        let epks_per_partition = (MAX_EPK - MIN_EPK) / (container.partitions.len() as u32);
+
         let partitions = container
             .partitions
             .keys()
@@ -50,16 +56,30 @@ impl<T: Clone + Debug> Engine<T> {
             .map(|(index, pkrange_id)| {
                 PartitionKeyRange::new(
                     pkrange_id.clone(),
-                    format!("{index}"),
-                    format!("{}", index + 1),
+                    format!("{:08X}", MIN_EPK + (index as u32) * epks_per_partition),
+                    if index == container.partitions.len() - 1 {
+                        // Last partition gets the rest of the range
+                        format!("{:08X}", MAX_EPK)
+                    } else {
+                        format!(
+                            "{:08X}",
+                            MIN_EPK + ((index as u32) + 1) * epks_per_partition - 1
+                        )
+                    },
                 )
             });
-        let pipeline = QueryPipeline::new(query, plan, partitions)?;
+        let partitions = partitions.collect::<Vec<_>>();
+        let pipeline = QueryPipeline::new(query, plan, partitions.clone())?;
         Ok(Engine {
             container,
+            partitions,
             pipeline,
             request_page_size,
         })
+    }
+
+    pub fn partition_key_ranges(&self) -> &[PartitionKeyRange] {
+        &self.partitions
     }
 
     /// Executes the query, returning the result in individual batches.
