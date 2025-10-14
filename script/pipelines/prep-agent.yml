@@ -24,6 +24,20 @@ steps:
     inputs:
       version: $(GO_VERSION)
 
+  - ${{ if eq(parameters.HostIsWindows, false) }}:
+      - script: |
+          if [ $(uname) = "Linux" ] && ! type pwsh >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y wget apt-transport-https software-properties-common
+            source /etc/os-release
+            wget -q https://packages.microsoft.com/config/ubuntu/$VERSION_ID/packages-microsoft-prod.deb
+            sudo dpkg -i packages-microsoft-prod.deb
+            rm packages-microsoft-prod.deb
+            sudo apt-get update
+            sudo apt-get install -y powershell
+          fi
+        displayName: "Install PowerShell if necessary"
+
   - ${{ if eq(parameters.IncludePython, true) }}:
       - task: UsePythonVersion@0
         inputs:
