@@ -1,7 +1,3 @@
-param(
-    [switch]$IncludePython
-)
-
 #!/usr/bin/env pwsh
 $RepoRoot = Split-Path $PSScriptRoot -Parent
 
@@ -22,8 +18,7 @@ function Test-Command {
 Test-Command cargo -Require
 Test-Command go -Require
 
-if ($IncludePython) {
-    Test-Command python -Require
+if (Test-Command python) {
     Write-Host "Installing Python build tools..."
     if (-not (Test-Command "maturin")) {
         pip install maturin

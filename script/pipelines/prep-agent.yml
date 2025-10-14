@@ -73,5 +73,5 @@ steps:
           path: $(Build.SourcesDirectory)/target
         displayName: "Restore Cargo Build Cache"
 
-  - powershell: script/bootstrap.ps1 -IncludePython:${{ parameters.IncludePython }}
+  - powershell: script/bootstrap.ps1
     displayName: "Bootstrap Repo"
