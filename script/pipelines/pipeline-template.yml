@@ -225,8 +225,8 @@ stages:
                 displayName: "Place vendored binaries"
               - bash: |
                   git add go/azcosmoscx/libcosmoscx-vendor
-                  git config --global user.name "Azure Pipelines"
-                  git config --global user.email "bot@example.com"
+                  git config --global user.name "Azure CosmosDB SDK"
+                  git config --global user.email "azurecosmossdk@microsoft.com"
                   git commit -m"Updating vendored binaries to $(ReleaseVersion)"
 
                   # It's OK to force push here. Any time we're running this pipeline, we want to replace any bits in the release branch with the new ones.
