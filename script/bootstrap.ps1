@@ -18,13 +18,13 @@ function Test-Command {
 Test-Command cargo -Require
 Test-Command go -Require
 
-if (!(Test-Command cc)) {
-    if ($IsLinux -and (Test-Command apt-get)) {
+if ($IsLinux -and !(Test-Command cc)) {
+    if (Test-Command apt-get) {
         Write-Host "Installing build-essential..."
         sudo apt-get update
         sudo apt-get install -y build-essential
     }
-    elseif ($IsLinux -and (Test-Command tdnf)) {
+    elseif (Test-Command tdnf) {
         Write-Host "Installing build tools"
         tdnf install make automake gcc gcc-c++
     }
