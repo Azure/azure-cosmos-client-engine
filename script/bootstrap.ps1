@@ -18,6 +18,17 @@ function Test-Command {
 Test-Command cargo -Require
 Test-Command go -Require
 
+if (!(Test-Command cc)) {
+    if ($IsLinux -and (Test-Command apt-get)) {
+        Write-Host "Installing build-essential..."
+        sudo apt-get update
+        sudo apt-get install -y build-essential
+    }
+    else {
+        throw "C compiler 'cc' not found in system path. Please install a C compiler toolchain."
+    }
+}
+
 if (!(Test-Command just)) {
     Write-Host "Installing just..."
     cargo install just
