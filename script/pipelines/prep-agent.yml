@@ -14,6 +14,9 @@ parameters:
   - name: IsReleaseBuild
     type: boolean
     default: false
+  - name: IncludePython
+    type: boolean
+    default: true
 
 steps:
   - task: GoTool@0
@@ -21,11 +24,12 @@ steps:
     inputs:
       version: $(GO_VERSION)
 
-  - task: UsePythonVersion@0
-    inputs:
-      versionSpec: $(PY_VERSION)
-      addToPath: true
-    displayName: "Use Python $(PY_VERSION)"
+  - ${{ if eq(parameters.IncludePython, true) }}:
+      - task: UsePythonVersion@0
+        inputs:
+          versionSpec: $(PY_VERSION)
+          addToPath: true
+        displayName: "Use Python $(PY_VERSION)"
 
   - ${{ if ne(parameters.RustTarget, '') }}:
       - ${{ if eq(parameters.IsReleaseBuild, true) }}:
@@ -69,5 +73,5 @@ steps:
           path: $(Build.SourcesDirectory)/target
         displayName: "Restore Cargo Build Cache"
 
-  - powershell: script/bootstrap.ps1
+  - powershell: script/bootstrap.ps1 -IncludePython:${{ parameters.IncludePython }}
     displayName: "Bootstrap Repo"
