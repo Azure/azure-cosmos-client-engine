@@ -19,18 +19,9 @@ Test-Command cargo -Require
 Test-Command go -Require
 
 if ($IsLinux -and !(Test-Command cc)) {
-    if (Test-Command apt-get) {
-        Write-Host "Installing build-essential..."
-        sudo apt-get update
-        sudo apt-get install -y build-essential
-    }
-    elseif (Test-Command tdnf) {
-        Write-Host "Installing build tools"
-        tdnf install make automake gcc gcc-c++
-    }
-    else {
-        throw "C compiler 'cc' not found in system path. Please install a C compiler toolchain."
-    }
+    Write-Host "Installing build-essential..."
+    sudo apt-get update
+    sudo apt-get install -y build-essential
 }
 
 if (!(Test-Command just)) {
