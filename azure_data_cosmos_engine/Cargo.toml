@@ -12,6 +12,9 @@ tracing.workspace = true
 azure_data_cosmos = { workspace = true, optional = true }
 azure_core = { workspace = true, optional = true }
 
+# Use a vendored OpenSSL to allow cross-compiling. We should strongly consider moving to rustls in the future.
+openssl = { version = "0.10.73", features = ["vendored"] }
+
 [features]
 default = ["query_engine"]
 query_engine = ["dep:azure_data_cosmos", "dep:azure_core", "azure_data_cosmos/preview_query_engine"]
