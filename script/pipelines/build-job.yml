@@ -1,9 +1,6 @@
 parameters:
   - name: RustTarget
     type: string
-  - name: CrossToolsPackage
-    type: string
-    default: ""
   - name: PublishArtifacts
     type: boolean
     default: false
@@ -27,7 +24,6 @@ steps:
   - template: prep-agent.yml
     parameters:
       RustTarget: ${{ parameters.RustTarget }}
-      CrossToolsPackage: ${{ parameters.CrossToolsPackage }}
       HostIsWindows: ${{ parameters.HostIsWindows }}
       UseMicrosoftToolchain: ${{ parameters.UseMicrosoftToolchain }}
       CargoCache: true
