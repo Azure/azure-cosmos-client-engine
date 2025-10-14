@@ -18,6 +18,11 @@ function Test-Command {
 Test-Command cargo -Require
 Test-Command go -Require
 
+if (!(Test-Command just)) {
+    Write-Host "Installing just..."
+    cargo install just
+}
+
 if (Test-Command python) {
     Write-Host "Installing Python build tools..."
     if (-not (Test-Command "maturin")) {
