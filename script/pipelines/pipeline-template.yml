@@ -113,6 +113,10 @@ stages:
               PublishArtifacts: ${{ parameters.IsReleaseBuild }}
               UseMicrosoftToolchain: ${{ parameters.UseMicrosoftToolchain }}
 
+              # The job runs on an x86_64 machine, so we can't run tests.
+              RunGoTests: false
+              RunRustTests: false
+
       - job: x86_64_apple_darwin
         displayName: "macOS x86_64"
         pool: ${{ parameters.MacPool }}
