@@ -1,5 +1,5 @@
 param(
-    [switch]$IncludePython = $true
+    [switch]$IncludePython
 )
 
 #!/usr/bin/env pwsh
@@ -9,7 +9,7 @@ $RepoRoot = Split-Path $PSScriptRoot -Parent
 function Test-Command {
     param (
         [string]$Command,
-        [switch]$Require,
+        [switch]$Require
     )
     $commandPath = Get-Command $Command -ErrorAction SilentlyContinue
     $found = $commandPath -ne $null
