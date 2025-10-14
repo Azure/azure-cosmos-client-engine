@@ -7,6 +7,8 @@ parameters:
     default: false
   - name: LinuxPool
     type: object
+  - name: LinuxARM64Pool
+    type: object
   - name: MacPool
     type: object
   - name: WindowsPool
@@ -104,18 +106,13 @@ stages:
 
       - job: aarch64_linux_gnu
         displayName: "Linux aarch64"
-        pool: ${{ parameters.LinuxPool }}
+        pool: ${{ parameters.LinuxARM64Pool }}
         steps:
           - template: /script/pipelines/build-job.yml
             parameters:
               RustTarget: aarch64-unknown-linux-gnu
-              CrossToolsPackage: aarch64-linux-gnu-gcc
               PublishArtifacts: ${{ parameters.IsReleaseBuild }}
               UseMicrosoftToolchain: ${{ parameters.UseMicrosoftToolchain }}
-
-              # The job runs on an x86_64 machine, so we can't run tests.
-              RunGoTests: false
-              RunRustTests: false
 
       - job: x86_64_apple_darwin
         displayName: "macOS x86_64"
