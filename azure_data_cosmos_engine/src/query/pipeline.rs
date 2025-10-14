@@ -10,7 +10,7 @@ use crate::{
 
 use super::{
     node::{LimitPipelineNode, OffsetPipelineNode, PipelineNode, PipelineSlice},
-    plan::DistinctType,
+    plan::{DistinctType, QueryRange},
     producer::ItemProducer,
     PartitionKeyRange, PipelineResponse, QueryFeature, QueryPlan, QueryResult,
 };
@@ -128,6 +128,9 @@ impl QueryPipeline {
         plan: QueryPlan,
         pkranges: impl IntoIterator<Item = PartitionKeyRange>,
     ) -> crate::Result<Self> {
+        let mut pkranges: Vec<PartitionKeyRange> = pkranges.into_iter().collect();
+        get_overlapping_pk_ranges(&mut pkranges, &plan.query_ranges);
+
         let mut result_shape = QueryResultShape::RawPayload;
 
         tracing::trace!(?query, ?plan, "creating query pipeline");
@@ -307,6 +310,61 @@ impl QueryPipeline {
 /// Rewrites the incoming query by replacing tokens within it.
 fn format_query(original: &str) -> String {
     original.replace("{documentdb-formattableorderbyquery-filter}", "true")
+}
+
+/// Filters the partition key ranges to include only those that overlap with the query ranges.
+/// If no query ranges are provided, all partition key ranges are retained.
+fn get_overlapping_pk_ranges(pkranges: &mut Vec<PartitionKeyRange>, query_ranges: &[QueryRange]) {
+    if query_ranges.is_empty() {
+        return;
+    }
+
+    debug_assert!(
+        pkranges.is_sorted_by_key(|pkrange| pkrange.min_inclusive.clone()),
+        "partition key ranges must be sorted by minInclusive"
+    );
+
+    pkranges.retain(|pkrange| {
+        query_ranges.iter().any(|query_range| {
+            ranges_overlap(
+                &pkrange.min_inclusive,
+                &pkrange.max_exclusive,
+                true,  // PK ranges are always min-inclusive
+                false, // PK ranges are always max-exclusive
+                &query_range.min,
+                &query_range.max,
+                query_range.is_min_inclusive,
+                query_range.is_max_inclusive,
+            )
+        })
+    });
+}
+
+/// Determines if two ranges overlap.
+fn ranges_overlap(
+    range1_min: &str,
+    range1_max: &str,
+    range1_min_inclusive: bool,
+    range1_max_inclusive: bool,
+    range2_min: &str,
+    range2_max: &str,
+    range2_min_inclusive: bool,
+    range2_max_inclusive: bool,
+) -> bool {
+    // Check if ranges don't overlap (easier to reason about)
+    let no_overlap = if range1_max < range2_min {
+        true
+    } else if range1_max == range2_min {
+        !(range1_max_inclusive && range2_min_inclusive)
+    } else if range2_max < range1_min {
+        true
+    } else if range2_max == range1_min {
+        !(range2_max_inclusive && range1_min_inclusive)
+    } else {
+        false
+    };
+
+    !no_overlap
 }
 
 // The tests for the pipeline are found in integration tests (in the `tests`) directory, since we want to test an end-to-end experience that matches what the user will see.
