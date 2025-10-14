@@ -2,6 +2,9 @@ parameters:
   - name: RustTarget
     type: string
     default: ""
+  - name: CrossToolsPackage
+    type: string
+    default: ""
   - name: HostIsWindows
     type: boolean
     default: false
@@ -16,6 +19,13 @@ parameters:
     default: false
 
 steps:
+  - ${{ if ne(parameters.CrossToolsPackage, '') }}:
+      - script: |
+          export DEBIAN_FRONTEND=noninteractive
+          sudo apt-get update
+          sudo apt-get install ${{ parameters.CrossToolsPackage }}
+        displayName: "Installing ${{ parameters.CrossToolsPackage }} cross-compiler"
+
   - task: GoTool@0
     displayName: "Install Go $(GO_VERSION)"
     inputs:

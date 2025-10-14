@@ -102,6 +102,17 @@ stages:
               PublishArtifacts: ${{ parameters.IsReleaseBuild }}
               UseMicrosoftToolchain: ${{ parameters.UseMicrosoftToolchain }}
 
+      - job: aarch64_linux_gnu
+        displayName: "Linux aarch64"
+        pool: ${{ parameters.LinuxPool }}
+        steps:
+          - template: /script/pipelines/build-job.yml
+            parameters:
+              RustTarget: aarch64-unknown-linux-gnu
+              CrossToolsPackage: aarch64-linux-gnu-gcc
+              PublishArtifacts: ${{ parameters.IsReleaseBuild }}
+              UseMicrosoftToolchain: ${{ parameters.UseMicrosoftToolchain }}
+
       - job: x86_64_apple_darwin
         displayName: "macOS x86_64"
         pool: ${{ parameters.MacPool }}
