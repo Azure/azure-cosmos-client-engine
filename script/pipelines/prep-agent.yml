@@ -30,7 +30,7 @@ steps:
     inputs:
       version: $(GO_VERSION)
 
-  - ${{ if ne(parameters.DpkgArchitecture, "") }}:
+  - ${{ if ne(parameters.DpkgArchitecture, '') }}:
       - script: |
           # Install aarch64 OpenSSL for cross-compilation
           sudo dpkg --add-architecture "${{ parameters.DpkgArchitecture }}"
@@ -38,7 +38,7 @@ steps:
           sudo apt-get install libssl-dev:${{ parameters.DpkgArchitecture }}
         displayName: "Install cross-compilation dependencies"
 
-  - ${{ if ne(parameters.CrossCompiler, "") }}:
+  - ${{ if ne(parameters.CrossCompiler, '') }}:
       - script: |
           # The apt package is "gcc-[triple]" but the compiler binary itself is "[triple]-gcc"
           sudo apt-get update
