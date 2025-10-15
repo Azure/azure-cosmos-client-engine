@@ -80,20 +80,20 @@ steps:
           Write-Host "##vso[task.setvariable variable=CARGO_BUILD_TARGET]${{ parameters.RustTarget }}"
         displayName: "Initialize Variables"
 
-  - ${{ if eq(parameters.CargoCache, true) }}:
-      - task: Cache@2
-        inputs:
-          key: '"cargo-registry" | "${{ parameters.RustTarget }}" | Cargo.lock'
-          ${{ if eq(parameters.HostIsWindows, true )}}:
-            path: $(UserProfile)/.cargo/registry
-          ${{ if eq(parameters.HostIsWindows, false )}}:
-            path: $(HOME)/.cargo/registry
-        displayName: "Restore Cargo Registry Cache"
-      - task: Cache@2
-        inputs:
-          key: '"cargo" | "${{ parameters.RustTarget }}" | Cargo.lock'
-          path: $(Build.SourcesDirectory)/target
-        displayName: "Restore Cargo Build Cache"
+  # - ${{ if eq(parameters.CargoCache, true) }}:
+  #     - task: Cache@2
+  #       inputs:
+  #         key: '"cargo-registry" | "${{ parameters.RustTarget }}" | Cargo.lock'
+  #         ${{ if eq(parameters.HostIsWindows, true )}}:
+  #           path: $(UserProfile)/.cargo/registry
+  #         ${{ if eq(parameters.HostIsWindows, false )}}:
+  #           path: $(HOME)/.cargo/registry
+  #       displayName: "Restore Cargo Registry Cache"
+  #     - task: Cache@2
+  #       inputs:
+  #         key: '"cargo" | "${{ parameters.RustTarget }}" | Cargo.lock'
+  #         path: $(Build.SourcesDirectory)/target
+  #       displayName: "Restore Cargo Build Cache"
 
   - powershell: script/bootstrap.ps1
     displayName: "Bootstrap Repo"
