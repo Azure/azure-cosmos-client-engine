@@ -48,7 +48,8 @@ func (e *nativeQueryEngine) CreateQueryPipeline(query string, plan string, pkran
 }
 
 func (e *nativeQueryEngine) SupportedFeatures() string {
-	return C.GoString(C.cosmoscx_v0_query_supported_features())
+	features := C.GoString(C.cosmoscx_v0_query_supported_features())
+	return features
 }
 
 type clientEngineQueryPipeline struct {
