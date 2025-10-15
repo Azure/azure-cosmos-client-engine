@@ -1,0 +1,16 @@
+{
+    "name": "aggregates",
+    "testData": "../testdata/sqlSampleData.json",
+    "queries": [
+        {
+            "name": "count_all",
+            "query": "SELECT COUNT(1) FROM c",
+            "container": "QuickStartProducts"
+        },
+        {
+            "name": "count_with_where",
+            "query": "SELECT COUNT(1) FROM c WHERE c.price > 1500",
+            "container": "QuickStartProducts"
+        }
+    ]
+}
