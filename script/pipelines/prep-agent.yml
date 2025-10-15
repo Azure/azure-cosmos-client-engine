@@ -25,11 +25,6 @@ parameters:
     default: true
 
 steps:
-  - task: GoTool@0
-    displayName: "Install Go $(GO_VERSION)"
-    inputs:
-      version: $(GO_VERSION)
-
   - ${{ if ne(parameters.DpkgArchitecture, '') }}:
       - script: |
           # Install aarch64 OpenSSL for cross-compilation
@@ -45,6 +40,11 @@ steps:
           sudo apt-get install "gcc-${{ parameters.CrossCompiler }}
           echo "##vso[task.setvariable variable=RUST_LINKER]${{ parameters.CrossCompiler }}-gcc"
         displayName: "Install cross-compiler"
+
+  - task: GoTool@0
+    displayName: "Install Go $(GO_VERSION)"
+    inputs:
+      version: $(GO_VERSION)
 
   - ${{ if eq(parameters.IncludePython, true) }}:
       - task: UsePythonVersion@0
