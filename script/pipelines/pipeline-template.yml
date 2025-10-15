@@ -106,7 +106,7 @@ stages:
 
       - job: aarch64_linux_gnu
         displayName: "Linux aarch64"
-        pool: ${{ parameters.LinuxARM64Pool }}
+        pool: ${{ parameters.LinuxPool }}
         steps:
           - template: /script/pipelines/build-job.yml
             parameters:
@@ -114,8 +114,11 @@ stages:
               PublishArtifacts: ${{ parameters.IsReleaseBuild }}
               UseMicrosoftToolchain: ${{ parameters.UseMicrosoftToolchain }}
 
-              # Azure Pipelines UsePythonVersion task doesn't support ARM64, so disable it for now.
-              IncludePython: false
+              # This is a cross-compiled target, which means extra config, and we can't run tests
+              CrossCompiler: aarch64-linux-gnu
+              DpkgArchitecture: arm64
+              RunGoTests: false
+              RunRustTests: false
 
       - job: x86_64_apple_darwin
         displayName: "macOS x86_64"

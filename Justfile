@@ -13,6 +13,13 @@ set windows-shell := ["pwsh", "-NoLogo", "-Command"]
 import 'script/just/targets.just'
 import 'script/just/variables.just'
 
+# Attach the appropriate linker if cross-compiling.
+export RUSTFLAGS := if linker != "" {
+  "-C linker=" + linker + " " + env("RUSTFLAGS", "")
+} else {
+  env("RUSTFLAGS", "")
+}
+
 # Updates the headers, builds the engine, and runs unit tests.
 default: headers engine test
 

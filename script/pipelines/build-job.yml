@@ -1,6 +1,12 @@
 parameters:
   - name: RustTarget
     type: string
+  - name: CrossCompiler
+    type: string
+    default: ""
+  - name: DpkgArchitecture
+    type: string
+    default: ""
   - name: PublishArtifacts
     type: boolean
     default: false
@@ -30,6 +36,8 @@ steps:
       HostIsWindows: ${{ parameters.HostIsWindows }}
       UseMicrosoftToolchain: ${{ parameters.UseMicrosoftToolchain }}
       IncludePython: ${{ parameters.IncludePython }}
+      CrossCompiler: ${{ parameters.CrossCompiler }}
+      DpkgArchitecture: ${{ parameters.DpkgArchitecture }}
       CargoCache: true
 
   - script: just engine

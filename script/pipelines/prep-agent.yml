@@ -2,6 +2,12 @@ parameters:
   - name: RustTarget
     type: string
     default: ""
+  - name: CrossCompiler
+    type: string
+    default: ""
+  - name: DpkgArchitecture
+    type: string
+    default: ""
   - name: HostIsWindows
     type: boolean
     default: false
@@ -24,18 +30,21 @@ steps:
     inputs:
       version: $(GO_VERSION)
 
-  - ${{ if eq(parameters.HostIsWindows, false) }}:
+  - ${{ if ne(parameters.DpkgArchitecture, "") }}:
       - script: |
-          if [ $(uname) = "Linux" ] && ! type pwsh >/dev/null 2>&1; then
-            sudo apt-get update
-            sudo apt-get install -y wget apt-transport-https software-properties-common
-            source /etc/os-release
-            wget -q https://github.com/PowerShell/PowerShell/releases/download/v7.5.3/powershell_7.5.3-1.deb_amd64.deb
-            sudo dpkg -i powershell_7.5.3-1.deb_amd64.deb
-            sudo apt-get install -f
-            rm powershell_7.5.3-1.deb_amd64.deb
-          fi
-        displayName: "Install PowerShell if necessary"
+          # Install aarch64 OpenSSL for cross-compilation
+          sudo dpkg --add-architecture "${{ parameters.DpkgArchitecture }}"
+          sudo apt-get update
+          sudo apt-get install libssl-dev:${{ parameters.DpkgArchitecture }}
+        displayName: "Install cross-compilation dependencies"
+
+  - ${{ if ne(parameters.CrossCompiler, "") }}:
+      - script: |
+          # The apt package is "gcc-[triple]" but the compiler binary itself is "[triple]-gcc"
+          sudo apt-get update
+          sudo apt-get install "gcc-${{ parameters.CrossCompiler }}
+          echo "##vso[task.setvariable variable=RUST_LINKER]${{ parameters.CrossCompiler }}-gcc"
+        displayName: "Install cross-compiler"
 
   - ${{ if eq(parameters.IncludePython, true) }}:
       - task: UsePythonVersion@0
