@@ -15,4 +15,8 @@ baseline_tests! {
         flat_euclidean,
         diskann_dotproduct,
     },
+    aggregates {
+        count_all,
+        count_with_where,
+    },
 }

@@ -56,7 +56,8 @@ supported_features!(
     OrderBy,
     MultipleOrderBy,
     Top,
-    NonStreamingOrderBy
+    NonStreamingOrderBy,
+    Aggregate
 );
 
 /// Represents a query pipeline capable of accepting single-partition results for a query and returning a cross-partition stream of results.
@@ -128,6 +129,12 @@ impl QueryPipeline {
 
         tracing::trace!(?query, ?plan, "creating query pipeline");
 
+        // We don't support non-value aggregates, so make sure the query doesn't have any.
+        if !plan.query_info.aggregates.is_empty() && !plan.query_info.has_select_value {
+            return Err(ErrorKind::UnsupportedQueryPlan
+                .with_message("non-value aggregates are not supported"));
+        }
+
         let producer = if plan.query_info.order_by.is_empty() {
             tracing::debug!("using unordered pipeline");
             ItemProducer::unordered(pkranges)
@@ -162,11 +169,6 @@ impl QueryPipeline {
         if let Some(offset) = plan.query_info.offset {
             tracing::debug!(offset, "adding OFFSET node to pipeline");
             pipeline.push(Box::new(OffsetPipelineNode::new(offset)));
-        }
-
-        if plan.query_info.has_select_value {
-            return Err(ErrorKind::UnsupportedQueryPlan
-                .with_message("SELECT VALUE queries are not supported"));
         }
 
         if !plan.query_info.aggregates.is_empty() {

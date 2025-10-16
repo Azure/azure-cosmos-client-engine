@@ -4,12 +4,27 @@
     "queries": [
         {
             "name": "count_all",
-            "query": "SELECT COUNT(1) FROM c",
+            "query": "SELECT VALUE COUNT(1) FROM c",
             "container": "QuickStartProducts"
         },
         {
-            "name": "count_with_where",
-            "query": "SELECT COUNT(1) FROM c WHERE c.price > 1500",
+            "name": "max_price",
+            "query": "SELECT VALUE MAX(c.price) FROM c",
+            "container": "QuickStartProducts"
+        },
+        {
+            "name": "min_price",
+            "query": "SELECT VALUE MIN(c.price) FROM c",
+            "container": "QuickStartProducts"
+        },
+        {
+            "name": "average_price",
+            "query": "SELECT VALUE AVG(c.price) FROM c",
+            "container": "QuickStartProducts"
+        },
+        {
+            "name": "sum_price",
+            "query": "SELECT VALUE SUM(c.price) FROM c",
             "container": "QuickStartProducts"
         }
     ]

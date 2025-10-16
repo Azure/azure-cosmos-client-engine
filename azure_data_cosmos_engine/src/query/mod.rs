@@ -27,7 +27,7 @@ pub use query_result::{QueryClauseItem, QueryResult};
 /// The language binding can then forward that information to the gateway when generating a query plan, which allows the gateway to reject queries that the engine cannot support.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum QueryFeature {
-    NoneQuery,
+    None,
     Aggregate,
     CompositeAggregate,
     Distinct,
@@ -37,9 +37,14 @@ pub enum QueryFeature {
     OffsetAndLimit,
     OrderBy,
     Top,
+    NonValueAggregate,
+    DCount,
     NonStreamingOrderBy,
-    HybridSearch,
+    ListAndSetAggregate,
     CountIf,
+    HybridSearch,
+    WeightedRankFusion,
+    HybridSearchSkipOrderByRewrite,
 }
 
 #[derive(Debug, Clone)]
