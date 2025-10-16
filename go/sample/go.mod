@@ -4,7 +4,7 @@ go 1.23.5
 
 replace (
 	github.com/Azure/azure-cosmos-client-engine/go/azcosmoscx => ../azcosmoscx
-	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos => github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.4.1-0.20251015181701-ad122df3a8ea
+	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos => github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos main
 )
 
 require (

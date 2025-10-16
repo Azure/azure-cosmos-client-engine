@@ -16,10 +16,3 @@ services:
       - "10254:10254"
     environment:
       AZURE_COSMOS_EMULATOR_PARTITION_COUNT: 40
-    volumes:
-      - type: bind
-        source: .local/cosmos-emulator-data
-        target: /tmp/cosmos/appdata
-volumes:
-  cosmos-emulator-data:
-    driver: local

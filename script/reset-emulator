@@ -8,8 +8,5 @@ cd "$script_dir/.."
 echo "Stopping emulator..."
 docker compose down
 
-echo "Removing local cosmos emulator data... (you may be prompted for sudo password)"
-sudo rm -Rf ./.local/cosmos-emulator-data
-
 echo "Starting emulator..."
 script/start-emulator
