@@ -121,6 +121,12 @@ impl ProducerStrategy {
                 }
 
                 // Add the data to the items queue. There's no ordering to worry about, so we just append the items.
+                tracing::debug!(
+                    pkrange_id = ?partition.pkrange.id,
+                    added_items = data.len(),
+                    total_items = items.len() + data.len(),
+                    "added items to unordered queue"
+                );
                 items.extend(data);
             }
             ProducerStrategy::Streaming { buffers, .. } => {
@@ -136,14 +142,26 @@ impl ProducerStrategy {
                     "buffer ID should match partition key range ID",
                 );
                 // We assume the data is coming from the server pre-sorted, so we can just extend the buffer with the data.
+                tracing::debug!(pkrange_id = ?partition.pkrange.id, added_items = data.len(), total_buffered_items = buffer.len() + data.len(), "added items to streaming buffer");
                 buffer.extend(data);
             }
             ProducerStrategy::NonStreaming { sorting, items } => {
                 // Insert the items into the heap as we go, which will keep them sorted
+                let old_len = items.len();
                 for item in data {
                     // We need to sort the items by the order by items, so we create a SortableResult.
+                    tracing::trace!(
+                        orderby_items = ?item.order_by_items,
+                        "creating sortable result"
+                    );
                     items.push(SortableResult::new(sorting.clone(), item));
                 }
+                tracing::debug!(
+                    pkrange_id = ?partition.pkrange.id,
+                    added_items = items.len() - old_len,
+                    total_items = items.len(),
+                    "added items to non-streaming heap"
+                );
             }
         }
         Ok(())
@@ -164,6 +182,11 @@ impl ProducerStrategy {
                 let terminated = items.is_empty()
                     && (*current_partition_index == partitions.len() - 1)
                     && partitions[*current_partition_index].done();
+                tracing::trace!(if value.is_some() {
+                    "producing item from unordered queue"
+                } else {
+                    "no more items in unordered queue"
+                });
                 Ok(PipelineNodeResult { value, terminated })
             }
             ProducerStrategy::Streaming { sorting, buffers } => {
@@ -234,6 +257,7 @@ impl ProducerStrategy {
                     }
                 }
                 if let Some((i, _)) = current_match {
+                    tracing::trace!(pkrange_id = ?partitions[i].pkrange.id, "producing item from streaming buffer");
                     // We found a match, pop the item out of the buffer and return it.
                     debug_assert_eq!(
                         buffers[i].0, partitions[i].pkrange.id,
@@ -263,6 +287,7 @@ impl ProducerStrategy {
                     tracing::debug!("not all partitions are done, cannot produce items");
                     return Ok(PipelineNodeResult::NO_RESULT);
                 }
+                tracing::trace!("producing item from non-streaming sorted heap");
 
                 // We can just pop the next item from the heap, as it is already sorted.
                 let value = items.pop().map(|r| r.into());

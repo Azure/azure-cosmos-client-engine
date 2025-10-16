@@ -248,6 +248,12 @@ impl QueryPipeline {
         data: Vec<QueryResult>,
         continuation: Option<String>,
     ) -> crate::Result<()> {
+        tracing::debug!(
+            pkrange_id = pkrange_id,
+            data_len = data.len(),
+            continuation = continuation.as_deref(),
+            "providing data to pipeline"
+        );
         self.producer.provide_data(pkrange_id, data, continuation)
     }
 

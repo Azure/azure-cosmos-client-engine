@@ -36,6 +36,22 @@ impl PipelineNodeResult {
     }
 }
 
+impl std::fmt::Debug for PipelineNodeResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PipelineNodeResult")
+            .field(
+                "value",
+                if self.value.is_some() {
+                    &"Some(...)"
+                } else {
+                    &"None"
+                },
+            )
+            .field("terminated", &self.terminated)
+            .finish()
+    }
+}
+
 /// Represents a slice of the query pipeline.
 ///
 /// The pipeline is made up of all the nodes in the pipeline, with the final node being the item producer.
@@ -106,7 +122,10 @@ impl LimitPipelineNode {
 impl PipelineNode for LimitPipelineNode {
     fn next_item(&mut self, mut rest: PipelineSlice) -> crate::Result<PipelineNodeResult> {
         if self.remaining == 0 {
-            tracing::debug!("limit reached, terminating pipeline");
+            tracing::debug!(
+                remaining = self.remaining,
+                "limit reached, terminating pipeline"
+            );
             return Ok(PipelineNodeResult {
                 value: None,
                 terminated: true,
@@ -118,7 +137,10 @@ impl PipelineNode for LimitPipelineNode {
                 value: Some(item),
                 terminated,
             } => {
-                tracing::debug!("limit not yet reached, returning item");
+                tracing::debug!(
+                    remaining = self.remaining,
+                    "limit not yet reached, returning item"
+                );
                 self.remaining -= 1;
                 Ok(PipelineNodeResult::result(
                     item,
@@ -151,8 +173,11 @@ impl PipelineNode for OffsetPipelineNode {
         while self.remaining > 0 {
             match rest.run()? {
                 PipelineNodeResult { value: Some(_), .. } => {
-                    tracing::debug!("offset not reached, skipping item");
-                    self.remaining -= 1
+                    self.remaining -= 1;
+                    tracing::debug!(
+                        remaining = self.remaining,
+                        "offset not reached, skipping item"
+                    );
                 }
 
                 // Pass through any early terminations or no results.
@@ -161,7 +186,7 @@ impl PipelineNode for OffsetPipelineNode {
         }
 
         // Now, we're no longer skipping items, so we can pass through the rest of the pipeline.
-        tracing::debug!("offset reached, returning item");
+        tracing::debug!(remaining = self.remaining, "offset reached, returning item");
         rest.run()
     }
 }

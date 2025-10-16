@@ -2,10 +2,10 @@ module github.com/Azure/azure-cosmos-client-engine/go/sample
 
 go 1.23.5
 
-// replace (
-// 	github.com/Azure/azure-cosmos-client-engine/go/azcosmoscx => ../azcosmoscx
-// 	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos => github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.4.1-0.20251015181701-ad122df3a8ea
-// )
+replace (
+	github.com/Azure/azure-cosmos-client-engine/go/azcosmoscx => ../azcosmoscx
+	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos => github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.4.1-0.20251015181701-ad122df3a8ea
+)
 
 require (
 	github.com/Azure/azure-cosmos-client-engine/go/azcosmoscx v0.0.6
@@ -15,7 +15,6 @@ require (
 )
 
 require (
-	github.com/Azure/azure-sdk-for-go v68.0.0+incompatible // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.11.2 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.5.0 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.0 // indirect

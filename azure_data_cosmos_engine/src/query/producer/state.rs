@@ -51,6 +51,11 @@ impl Ord for PartitionState {
 impl PartitionState {
     /// Initializes a partition state for the given partition key range.
     pub fn new(index: usize, pkrange: PartitionKeyRange) -> Self {
+        tracing::trace!(
+            pkrange_id = ?pkrange.id,
+            new_stage = ?PaginationState::Initial,
+            "created partition state"
+        );
         Self {
             index,
             pkrange,
@@ -82,6 +87,11 @@ impl PartitionState {
                 self.stage = PaginationState::Done;
             }
         }
+        tracing::trace!(
+            pkrange_id = ?self.pkrange.id,
+            new_stage = ?self.stage,
+            "updated partition state"
+        );
     }
 
     pub fn started(&self) -> bool {

@@ -13,7 +13,8 @@ use tracing_subscriber::EnvFilter;
 /// Once enabled in this way, tracing cannot be disabled.
 #[no_mangle]
 pub extern "C" fn cosmoscx_v0_tracing_enable() {
-    tracing_subscriber::fmt()
+    // Ignore failures
+    let _ = tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_env("COSMOSCX_LOG"))
-        .init();
+        .try_init();
 }

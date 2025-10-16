@@ -65,6 +65,7 @@ impl azure_data_cosmos::query::QueryPipeline for QueryPipelineAdapter {
 
     fn run(&mut self) -> azure_core::Result<azure_data_cosmos::query::PipelineResult> {
         let result = self.0.run()?;
+        tracing::trace!(?result, "completed pipeline run");
         Ok(azure_data_cosmos::query::PipelineResult {
             is_completed: result.terminated,
             items: result.items,

@@ -1,15 +1,11 @@
-github.com/Azure/azure-cosmos-client-engine/go/azcosmoscx v0.0.6 h1:MlHT6JQ3/fia3o0vlJ3+9v4Ir2WBEGrG9dTPwE+acAY=
-github.com/Azure/azure-cosmos-client-engine/go/azcosmoscx v0.0.6/go.mod h1:WeN45W+Vf3Q8XN6mpJnLizqTpcdAd0GaJ8ngTG829l4=
-github.com/Azure/azure-sdk-for-go v68.0.0+incompatible h1:fcYLmCpyNYRnvJbPerq7U0hS+6+I79yEDJBqVNcqUzU=
-github.com/Azure/azure-sdk-for-go v68.0.0+incompatible/go.mod h1:9XXNKU+eRnpl9moKnB4QOLf1HestfXbmab5FXxiDBjc=
 github.com/Azure/azure-sdk-for-go/sdk/azcore v1.19.1 h1:5YTBM8QDVIBN3sxBil89WfdAAqDZbyJTgh688DSxX5w=
 github.com/Azure/azure-sdk-for-go/sdk/azcore v1.19.1/go.mod h1:YD5h/ldMsG0XiIw7PdyNhLxaM317eFh5yNLccNfGdyw=
 github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.0 h1:KpMC6LFL7mqpExyMC9jVOYRiVhLmamjeZfRsUpB7l4s=
 github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.0/go.mod h1:J7MUC/wtRpfGVbQ5sIItY5/FuVWmvzlY21WAOfQnq/I=
 github.com/Azure/azure-sdk-for-go/sdk/azidentity/cache v0.3.2 h1:yz1bePFlP5Vws5+8ez6T3HWXPmwOK7Yvq8QxDBD3SKY=
 github.com/Azure/azure-sdk-for-go/sdk/azidentity/cache v0.3.2/go.mod h1:Pa9ZNPuoNu/GztvBSKk9J1cDJW6vk/n0zLtV4mgd8N8=
-github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.5.0-beta.0 h1:fVg7KuVtJeDe4yGNjaY3w0smiTMoIxC6fnFD7DSz4TM=
-github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.5.0-beta.0/go.mod h1:Krtog/7tz27z75TwM5cIS8bxEH4dcBUezcq+kGVeZEo=
+github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.4.1-0.20251015181701-ad122df3a8ea h1:ZUfbd//H6UWfCForg7KLE9GgEl3S3hXKyn2r+nWGnRQ=
+github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.4.1-0.20251015181701-ad122df3a8ea/go.mod h1:gR3JSlhrklE5ZMyzW7gEIz2VOpEeXRInTrL2P/E8lLc=
 github.com/Azure/azure-sdk-for-go/sdk/internal v1.11.2 h1:9iefClla7iYpfYWdzPCRDozdmndjTm8DXdpCzPajMgA=
 github.com/Azure/azure-sdk-for-go/sdk/internal v1.11.2/go.mod h1:XtLgD3ZD34DAaVIIAyG3objl5DynM3CQ/vMcbBNJZGI=
 github.com/AzureAD/microsoft-authentication-extensions-for-go/cache v0.1.1 h1:WJTmL004Abzc5wDB5VtZG2PJk5ndYDgVacGqfirKxjM=

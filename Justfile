@@ -58,6 +58,11 @@ engine_c:
   & script/helpers/update-dylib-name.ps1 -TargetOS {{target_os}} -DylibPath {{target_dir}}/{{shared_lib_filename}}
   & script/helpers/write-pkg-config.ps1 -Prefix {{artifacts_dir}} -Includedir {{artifacts_dir}}/include
 
+  # Clean the Go build cache to ensure that changes to the C wrapper are picked up.
+  go -C ./go/integration-tests clean -cache
+  go -C ./go/sample clean -cache
+  go -C ./go/azcosmoscx clean -cache
+
 # Displays the native libraries required by the C wrapper in the current build configuration.
 print-native-libraries:
 	cargo rustc --package "cosmoscx" --profile {{cargo_profile}} -- --print native-static-libs
