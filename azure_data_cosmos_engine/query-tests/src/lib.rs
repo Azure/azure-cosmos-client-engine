@@ -17,6 +17,9 @@ baseline_tests! {
     },
     aggregates {
         count_all,
-        count_with_where,
+        max_price,
+        min_price,
+        average_price,
+        sum_price,
     },
 }
