@@ -1,17 +1,15 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-use std::{ffi::CStr, fmt::Debug};
+use std::ffi::CStr;
 
-use serde::{de::DeserializeOwned, Deserialize};
-
-use crate::ErrorKind;
+use crate::{query::query_result::QueryResultShape, ErrorKind};
 
 use super::{
     node::{LimitPipelineNode, OffsetPipelineNode, PipelineNode, PipelineSlice},
     plan::DistinctType,
     producer::ItemProducer,
-    PartitionKeyRange, PipelineResponse, QueryClauseItem, QueryFeature, QueryPlan, QueryResult,
+    PartitionKeyRange, PipelineResponse, QueryFeature, QueryPlan, QueryResult,
 };
 
 /// Holds a list of [`QueryFeature`]s and a string representation suitable for being passed to the gateway when requesting a query plan.
@@ -103,17 +101,17 @@ supported_features!(
 /// pipeline exposes the rewritten query through the [`QueryPipeline::query()`] method.
 /// If the query was *not* rewritten by the gateway, this method returns the unrewritten query,
 /// so language bindings should *always* use this query when making the signal-partition queries.
-pub struct QueryPipeline<T: Debug, I: QueryClauseItem> {
+pub struct QueryPipeline {
     query: String,
-    pipeline: Vec<Box<dyn PipelineNode<T, I>>>,
-    producer: ItemProducer<T, I>,
-    results_are_bare_payloads: bool,
+    pipeline: Vec<Box<dyn PipelineNode>>,
+    producer: ItemProducer,
+    result_shape: QueryResultShape,
 
     // Indicates if the pipeline has been terminated early.
     terminated: bool,
 }
 
-impl<T: Debug, I: QueryClauseItem> QueryPipeline<T, I> {
+impl QueryPipeline {
     /// Creates a new query pipeline.
     ///
     /// # Parameters
@@ -126,7 +124,7 @@ impl<T: Debug, I: QueryClauseItem> QueryPipeline<T, I> {
         plan: QueryPlan,
         pkranges: impl IntoIterator<Item = PartitionKeyRange>,
     ) -> crate::Result<Self> {
-        let mut results_are_bare_payloads = true;
+        let mut result_shape = QueryResultShape::RawPayload;
 
         tracing::trace!(?query, ?plan, "creating query pipeline");
 
@@ -134,7 +132,7 @@ impl<T: Debug, I: QueryClauseItem> QueryPipeline<T, I> {
             tracing::debug!("using unordered pipeline");
             ItemProducer::unordered(pkranges)
         } else {
-            results_are_bare_payloads = false;
+            result_shape = QueryResultShape::OrderBy;
             if plan.query_info.has_non_streaming_order_by {
                 tracing::debug!(?plan.query_info.order_by, "using non-streaming ORDER BY pipeline");
                 ItemProducer::non_streaming(pkranges, plan.query_info.order_by)
@@ -148,7 +146,7 @@ impl<T: Debug, I: QueryClauseItem> QueryPipeline<T, I> {
         // We are building the pipeline outside-in.
         // That means the first node we push will be the first node executed.
         // This is relevant for nodes like OFFSET and LIMIT, which need to be ordered carefully.
-        let mut pipeline: Vec<Box<dyn PipelineNode<T, I>>> = Vec::new();
+        let mut pipeline: Vec<Box<dyn PipelineNode>> = Vec::new();
 
         // We have to do limiting at right at the outside of the pipeline, so that OFFSET can skip items without affecting the LIMIT counter.
         if let Some(limit) = plan.query_info.limit {
@@ -205,11 +203,17 @@ impl<T: Debug, I: QueryClauseItem> QueryPipeline<T, I> {
 
         Ok(Self {
             query,
-            results_are_bare_payloads,
+            result_shape,
             pipeline,
             producer,
             terminated: false,
         })
+    }
+
+    /// Retrieves the shape of the results produced by this pipeline.
+    /// The shape determines how the pipeline deserializes results from single-partition queries.
+    pub fn result_shape(&self) -> &QueryResultShape {
+        &self.result_shape
     }
 
     /// Retrieves the, possibly rewritten, query that this pipeline is executing.
@@ -230,7 +234,7 @@ impl<T: Debug, I: QueryClauseItem> QueryPipeline<T, I> {
     pub fn provide_data(
         &mut self,
         pkrange_id: &str,
-        data: Vec<QueryResult<T, I>>,
+        data: Vec<QueryResult>,
         continuation: Option<String>,
     ) -> crate::Result<()> {
         self.producer.provide_data(pkrange_id, data, continuation)
@@ -253,7 +257,7 @@ impl<T: Debug, I: QueryClauseItem> QueryPipeline<T, I> {
     ///
     /// If the pipeline returns no items and no requests, then the query has completed and there are no further results to return.
     #[tracing::instrument(level = "debug", skip(self), err)]
-    pub fn run(&mut self) -> crate::Result<PipelineResponse<T>> {
+    pub fn run(&mut self) -> crate::Result<PipelineResponse> {
         if self.terminated {
             return Ok(PipelineResponse::TERMINATED);
         }
@@ -268,7 +272,8 @@ impl<T: Debug, I: QueryClauseItem> QueryPipeline<T, I> {
             }
 
             if let Some(item) = result.value {
-                items.push(item.into_payload());
+                // TODO: Handle scenarios where there is no payload (aggregates)
+                items.push(item.payload.unwrap());
             } else {
                 // The pipeline has finished for now, but we're not terminated yet.
                 break;
@@ -287,59 +292,6 @@ impl<T: Debug, I: QueryClauseItem> QueryPipeline<T, I> {
             requests,
             terminated: self.terminated,
         })
-    }
-
-    /// Returns a boolean indicating if the results of the single-partition queries are expected to be "bare" payloads.
-    ///
-    /// This is a somewhat esoteric API used only in a few language bindings.
-    /// Let's start by addressing what a "bare" payload means.
-    ///
-    /// Consider a query like: `SELECT * FROM c`.
-    /// This query does not need to be rewritten by the gateway,
-    /// so the results of each single-partition query will be exactly what the user expects.
-    /// This is a "bare" payload.
-    /// The values returned by the query are exactly the payload the user expects with no wrapping.
-    ///
-    /// However, consider the query `SELECT * FROM c ORDER BY c.foo`.
-    /// The gateway rewrites this into a single-partition query like this: `SELECT * as payload, '[{"item": c.foo}]' as orderByItems FROM c ORDER BY c.foo`.
-    /// It does this so that the pipeline can ALWAYS extract the values to be ordered by reading `orderByItems` from the results without having to traverse the object to find the order by expressions.
-    /// This is a "wrapped" payload, where the actual value the user wants returned is "wrapped" by an object that contains other metadata for the query pipeline.
-    ///
-    /// The [`QueryResult`] type can be deserialized from BOTH "bare" and "wrapped" payloads.
-    /// Deserializing from a bare payload is done through [`QueryResult::from_payload`], but
-    /// deserializing from a wrapped payload is done through [`QueryResult::deserialize`].
-    /// So, this method identifies which deserialization method is necessary to get a [`QueryResult`]
-    pub fn results_are_bare_payloads(&self) -> bool {
-        self.results_are_bare_payloads
-    }
-}
-
-impl<T: Debug + DeserializeOwned, I: QueryClauseItem + DeserializeOwned + Default>
-    QueryPipeline<T, I>
-{
-    /// Deserializes the payload of a query result, according to the expectations of the query plan.
-    ///
-    /// The query plan can affect the format of the returned data, so this method will deserialize the payload accordingly.
-    pub fn deserialize_payload(&self, input: &str) -> crate::Result<Vec<QueryResult<T, I>>> {
-        #[derive(Deserialize)]
-        struct DocumentResult<T> {
-            #[serde(rename = "Documents")]
-            documents: Vec<T>,
-        }
-
-        if self.results_are_bare_payloads {
-            let results = serde_json::from_str::<DocumentResult<T>>(input)
-                .map_err(|e| ErrorKind::InvalidGatewayResponse.with_source(e))?;
-            Ok(results
-                .documents
-                .into_iter()
-                .map(|doc| QueryResult::from_payload(doc))
-                .collect())
-        } else {
-            let results = serde_json::from_str::<DocumentResult<_>>(input)
-                .map_err(|e| ErrorKind::InvalidGatewayResponse.with_source(e))?;
-            Ok(results.documents)
-        }
     }
 }
 

@@ -6,68 +6,102 @@ use std::fmt::Debug;
 
 use crate::ErrorKind;
 
+/// Describes the expected shape of the query result.
+///
+/// The results the gateway gives us can vary in shape depending on the type of query executed.
+/// However, to property move through the pipeline, we want a normalized representation of the results.
+/// This enum describes the expected shape, and provides deserialization logic to convert from the raw gateway response into a list of normalized [`QueryResult`]s.
+#[derive(Clone, Copy, Debug)]
+pub enum QueryResultShape {
+    /// The result will be just the raw payload, with no additional metadata.
+    RawPayload,
+
+    /// The payload is the result of a `GROUP BY` query.
+    OrderBy,
+
+    /// The result is from a `SELECT VALUE [aggregate function](...)` query.
+    ValueAggregate,
+}
+
+impl QueryResultShape {
+    pub fn results_from_slice(self, buffer: &[u8]) -> crate::Result<Vec<QueryResult>> {
+        #[derive(Deserialize)]
+        struct DocumentResult<T> {
+            #[serde(rename = "Documents")]
+            documents: Vec<T>,
+        }
+
+        match self {
+            QueryResultShape::RawPayload => {
+                let results: DocumentResult<Box<serde_json::value::RawValue>> =
+                    serde_json::from_slice(buffer)
+                        .map_err(|e| ErrorKind::InvalidGatewayResponse.with_source(e))?;
+                Ok(results
+                    .documents
+                    .into_iter()
+                    .map(|payload| QueryResult {
+                        order_by_items: vec![],
+                        aggregates: vec![],
+                        payload: Some(payload),
+                    })
+                    .collect())
+            }
+            QueryResultShape::OrderBy => {
+                #[derive(Deserialize)]
+                #[serde(rename_all = "camelCase")]
+                struct OrderByItem {
+                    order_by_items: Vec<QueryClauseItem>,
+                    payload: Box<serde_json::value::RawValue>,
+                }
+                let results: DocumentResult<OrderByItem> = serde_json::from_slice(buffer)
+                    .map_err(|e| ErrorKind::InvalidGatewayResponse.with_source(e))?;
+                Ok(results
+                    .documents
+                    .into_iter()
+                    .map(|item| QueryResult {
+                        order_by_items: item.order_by_items,
+                        aggregates: vec![],
+                        payload: Some(item.payload),
+                    })
+                    .collect())
+            }
+            QueryResultShape::ValueAggregate => {
+                let results: DocumentResult<Vec<QueryClauseItem>> = serde_json::from_slice(buffer)
+                    .map_err(|e| ErrorKind::InvalidGatewayResponse.with_source(e))?;
+                Ok(results
+                    .documents
+                    .into_iter()
+                    .map(|item| QueryResult {
+                        order_by_items: vec![],
+                        aggregates: item,
+                        payload: None,
+                    })
+                    .collect())
+            }
+        }
+    }
+}
+
 /// Represents the result of a rewritten query.
 ///
 /// When we generate a query plan, the gateway rewrites the query so that it can be properly executed against each partition.
 /// For example, order by items are collected into a well-known property with a well-known format so that the pipeline can easily access them.
-#[derive(Clone, Debug, Deserialize)]
-#[cfg_attr(
-    feature = "python_conversions",
-    derive(pyo3::FromPyObject),
-    pyo3(from_item_all)
-)]
-#[serde(rename_all = "camelCase")]
-pub struct QueryResult<T: Debug, I: QueryClauseItem> {
-    #[allow(dead_code)]
-    #[serde(default)]
-    #[cfg_attr(feature = "python_conversions", pyo3(item("groupByItems"), default))]
-    pub group_by_items: Vec<I>,
+#[derive(Clone, Debug, Default)]
+pub struct QueryResult {
+    /// The items used for ordering the results, if any.
+    pub order_by_items: Vec<QueryClauseItem>,
 
-    #[serde(default)]
-    #[cfg_attr(feature = "python_conversions", pyo3(item("orderByItems"), default))]
-    pub order_by_items: Vec<I>,
+    /// Values of aggregate functions, if any.
+    pub aggregates: Vec<QueryClauseItem>,
 
-    pub payload: T,
+    /// The actual payload of the query result, which may be empty if the query only requested aggregates.
+    pub payload: Option<Box<serde_json::value::RawValue>>,
 }
 
-impl<T: Debug, I: QueryClauseItem> QueryResult<T, I> {
-    pub fn new(group_by_items: Vec<I>, order_by_items: Vec<I>, payload: T) -> Self {
-        Self {
-            group_by_items,
-            order_by_items,
-            payload,
-        }
-    }
-
-    /// Creates a [`QueryResult`] from a raw payload.
-    ///
-    /// This constructor is used when we've identified that the _projections_ of the query haven't been rewritten by the query planner.
-    /// For example, if the query doesn't include any `ORDER BY` or `GROUP BY` clauses, the payload will be the same as the original query.
-    /// However, if the query DOES include `ORDER BY` or `GROUP BY` clauses, you should use the implementation of `Deserialize` to directly deserialize the query result received for each partition.
-    pub fn from_payload(payload: T) -> Self {
-        // NOTE: An empty vec that _stays empty_ is "free" allocation-wise. It's basically just a null pointer.
-        Self {
-            group_by_items: Vec::new(),
-            order_by_items: Vec::new(),
-            payload,
-        }
-    }
-
-    pub fn payload(&self) -> &T {
-        &self.payload
-    }
-
-    pub fn into_payload(self) -> T {
-        self.payload
-    }
-}
-
-pub trait QueryClauseItem: Debug {
-    fn compare(&self, other: &Self) -> crate::Result<std::cmp::Ordering>;
-}
-
+/// Many of the gateway-rewritten queries cause the backend to produce `{"item": <value>}` objects for order by and group by items.
+/// This struct represents that shape, and provides comparison logic for ordering.
 #[derive(Clone, Debug, Deserialize, Default, PartialEq, Eq)]
-pub struct JsonQueryClauseItem {
+pub struct QueryClauseItem {
     #[serde(default, deserialize_with = "deserialize_item")]
     pub item: Option<serde_json::Value>,
 }
@@ -82,11 +116,11 @@ where
     Deserialize::deserialize(deserializer).map(Some)
 }
 
-impl QueryClauseItem for JsonQueryClauseItem {
+impl QueryClauseItem {
     /// Compares two [`QueryClauseItem`]s based on the ordering rules defined for Cosmos DB.
     ///
     /// We can't just implement [`PartialOrd`] here, because we need to be able to return an error.
-    fn compare(&self, other: &Self) -> crate::Result<std::cmp::Ordering> {
+    pub fn compare(&self, other: &Self) -> crate::Result<std::cmp::Ordering> {
         let left_ordinal = self.type_ordinal()?;
         let right_ordinal = other.type_ordinal()?;
 
@@ -127,9 +161,7 @@ impl QueryClauseItem for JsonQueryClauseItem {
             _ => unreachable!("encountered different types after comparing type ordinal, this shouldn't be possible")
         }
     }
-}
 
-impl JsonQueryClauseItem {
     /// Gets the "Type Ordinal" for a given item.
     ///
     /// The Type Ordinal is used to order items of differing types.
@@ -156,65 +188,47 @@ mod tests {
 
     use super::*;
 
+    fn json_to_query_result(shape: QueryResultShape, json: &str) -> QueryResult {
+        let result: Vec<QueryResult> = shape.results_from_slice(json.as_bytes()).unwrap();
+        assert_eq!(1, result.len());
+        result.into_iter().next().unwrap()
+    }
+
     #[test]
-    pub fn query_result_deserializes_order_by_items_only() {
-        const JSON: &str = r#"{"orderByItems":[{"item":1}], "payload": {"a":1}}"#;
-        let result: QueryResult<Box<serde_json::value::RawValue>, JsonQueryClauseItem> =
-            serde_json::from_str(JSON).unwrap();
-        assert_eq!(result.group_by_items, vec![]);
+    pub fn query_result_deserializes_raw_payload_shape() {
+        const JSON: &str = r#"{"Documents":[{"a":1}]}"#;
+        let result: QueryResult = json_to_query_result(QueryResultShape::RawPayload, JSON);
+        assert_eq!(result.order_by_items, vec![]);
+        assert_eq!(result.aggregates, vec![]);
+        assert_eq!(result.payload.as_ref().map(|p| p.get()), Some(r#"{"a":1}"#));
+    }
+
+    #[test]
+    pub fn query_result_deserializes_order_by_shape() {
+        const JSON: &str = r#"{"Documents":[{"orderByItems":[{"item":1}], "payload": {"a":1}}]}"#;
+        let result: QueryResult = json_to_query_result(QueryResultShape::OrderBy, JSON);
         assert_eq!(
             result.order_by_items,
-            vec![JsonQueryClauseItem {
+            vec![QueryClauseItem {
                 item: Some(serde_json::json!(1))
             }]
         );
-        assert_eq!(result.payload.get(), r#"{"a":1}"#);
+        assert_eq!(result.aggregates, vec![]);
+        assert_eq!(result.payload.as_ref().map(|p| p.get()), Some(r#"{"a":1}"#));
     }
 
     #[test]
-    pub fn query_result_deserializes_group_by_items_only() {
-        const JSON: &str = r#"{"groupByItems":[{"item":"yoot"}], "payload": {"a":1}}"#;
-        let result: QueryResult<Box<serde_json::value::RawValue>, JsonQueryClauseItem> =
-            serde_json::from_str(JSON).unwrap();
-        assert_eq!(
-            result.group_by_items,
-            vec![JsonQueryClauseItem {
-                item: Some(serde_json::json!("yoot"))
-            }]
-        );
+    pub fn query_result_deserializes_value_aggregate_shape() {
+        const JSON: &str = r#"{"Documents":[[{"item":42}]]}"#;
+        let result: QueryResult = json_to_query_result(QueryResultShape::ValueAggregate, JSON);
         assert_eq!(result.order_by_items, vec![]);
-        assert_eq!(result.payload.get(), r#"{"a":1}"#);
-    }
-
-    #[test]
-    pub fn query_result_deserializes_full_content() {
-        const JSON: &str = r#"{"orderByItems":[{"item":1}], "groupByItems":[{"item":"yoot"}], "payload": {"a":1}}"#;
-        let result: QueryResult<Box<serde_json::value::RawValue>, JsonQueryClauseItem> =
-            serde_json::from_str(JSON).unwrap();
         assert_eq!(
-            result.group_by_items,
-            vec![JsonQueryClauseItem {
-                item: Some(serde_json::json!("yoot"))
+            result.aggregates,
+            vec![QueryClauseItem {
+                item: Some(serde_json::json!(42))
             }]
         );
-        assert_eq!(
-            result.order_by_items,
-            vec![JsonQueryClauseItem {
-                item: Some(serde_json::json!(1))
-            }]
-        );
-        assert_eq!(result.payload.get(), r#"{"a":1}"#);
-    }
-
-    #[test]
-    pub fn query_result_can_be_created_from_raw_payload() {
-        const JSON: &str = r#"{"a":1}"#;
-        let result = QueryResult::<_, JsonQueryClauseItem>::from_payload(
-            serde_json::value::RawValue::from_string(JSON.to_string()).unwrap(),
-        );
-        assert_eq!(result.group_by_items, vec![]);
-        assert_eq!(result.order_by_items, vec![]);
-        assert_eq!(result.payload.get(), r#"{"a":1}"#);
+        assert!(result.payload.is_none());
     }
 
     macro_rules! ordering_tests {
@@ -232,8 +246,8 @@ mod tests {
                     $(
                         let left = serde_json::json!($left);
                         let right = serde_json::json!($right);
-                        let left: JsonQueryClauseItem = serde_json::from_value(left).unwrap();
-                        let right: JsonQueryClauseItem  = serde_json::from_value(right).unwrap();
+                        let left: QueryClauseItem = serde_json::from_value(left).unwrap();
+                        let right: QueryClauseItem  = serde_json::from_value(right).unwrap();
                         let result = left.compare(&right);
 
                         assert!(matches!(result, $expected), "comparing {:?} and {:?}, expected: {}, but got {:?}", left, right, stringify!($expected), result);

@@ -7,7 +7,7 @@ use core::str;
 
 use serde::Deserialize;
 
-use crate::query::{JsonQueryClauseItem, PartitionKeyRange, QueryPipeline};
+use crate::query::{PartitionKeyRange, QueryPipeline};
 
 pub struct QueryEngine;
 
@@ -26,11 +26,7 @@ impl azure_data_cosmos::query::QueryEngine for QueryEngine {
 
         let plan = serde_json::from_slice(plan)?;
         let pkranges: PartitionKeyRangeResult = serde_json::from_slice(pkranges)?;
-        let pipeline = QueryPipeline::<Box<serde_json::value::RawValue>, JsonQueryClauseItem>::new(
-            query,
-            plan,
-            pkranges.ranges,
-        )?;
+        let pipeline = QueryPipeline::new(query, plan, pkranges.ranges)?;
 
         Ok(Box::new(QueryPipelineAdapter(pipeline)))
     }
@@ -56,9 +52,7 @@ impl From<crate::Error> for azure_core::Error {
     }
 }
 
-pub struct QueryPipelineAdapter(
-    crate::query::QueryPipeline<Box<serde_json::value::RawValue>, JsonQueryClauseItem>,
-);
+pub struct QueryPipelineAdapter(crate::query::QueryPipeline);
 
 impl azure_data_cosmos::query::QueryPipeline for QueryPipelineAdapter {
     fn query(&self) -> &str {
@@ -89,10 +83,8 @@ impl azure_data_cosmos::query::QueryPipeline for QueryPipelineAdapter {
         &mut self,
         data: azure_data_cosmos::query::QueryResult,
     ) -> azure_core::Result<()> {
-        let result = str::from_utf8(data.result)
-            .map_err(|_| azure_core::error::ErrorKind::DataConversion)?;
-        tracing::debug!(payload = result, "providing data to pipeline");
-        let payload = self.0.deserialize_payload(result)?;
+        tracing::debug!("providing data to pipeline");
+        let payload = self.0.result_shape().results_from_slice(data.result)?;
         self.0
             .provide_data(data.partition_key_range_id, payload, data.next_continuation)?;
         Ok(())

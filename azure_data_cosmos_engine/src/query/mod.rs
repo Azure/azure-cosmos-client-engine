@@ -19,7 +19,7 @@ pub use engine::*;
 
 pub use pipeline::{QueryPipeline, SupportedFeatures, SUPPORTED_FEATURES};
 pub use plan::{DistinctType, QueryInfo, QueryPlan, QueryRange, SortOrder};
-pub use query_result::{JsonQueryClauseItem, QueryClauseItem, QueryResult};
+pub use query_result::{QueryClauseItem, QueryResult};
 
 /// Features that may be required by the Query Engine.
 ///
@@ -101,11 +101,10 @@ impl DataRequest {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "python_conversions", derive(pyo3::IntoPyObject))]
-pub struct PipelineResponse<T> {
+#[derive(Clone, Debug)]
+pub struct PipelineResponse {
     /// The items returned by the pipeline.
-    pub items: Vec<T>,
+    pub items: Vec<Box<serde_json::value::RawValue>>,
 
     /// Requests for additional data from the pipeline.
     ///
@@ -118,21 +117,10 @@ pub struct PipelineResponse<T> {
     pub terminated: bool,
 }
 
-impl<T> PipelineResponse<T> {
+impl PipelineResponse {
     pub const TERMINATED: Self = Self {
         items: Vec::new(),
         requests: Vec::new(),
         terminated: true,
     };
-
-    pub fn map_items<U, F>(self, f: F) -> PipelineResponse<U>
-    where
-        F: Fn(T) -> U,
-    {
-        PipelineResponse {
-            items: self.items.into_iter().map(f).collect(),
-            requests: self.requests,
-            terminated: self.terminated,
-        }
-    }
 }

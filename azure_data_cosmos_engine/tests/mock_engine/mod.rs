@@ -11,16 +11,16 @@
 use std::{collections::BTreeMap, fmt::Debug};
 
 use azure_data_cosmos_engine::query::{
-    JsonQueryClauseItem, PartitionKeyRange, PipelineResponse, QueryPipeline, QueryPlan, QueryResult,
+    DataRequest, PartitionKeyRange, QueryPipeline, QueryPlan, QueryResult,
 };
 
-pub struct Engine<T: Debug> {
-    container: Container<T>,
-    pipeline: QueryPipeline<T, JsonQueryClauseItem>,
+pub struct Engine {
+    container: Container,
+    pipeline: QueryPipeline,
     request_page_size: usize,
 }
 
-impl<T: Clone + Debug> Engine<T> {
+impl Engine {
     /// Creates a new engine with the given container and query plan.
     ///
     /// # Parameters
@@ -38,7 +38,7 @@ impl<T: Clone + Debug> Engine<T> {
     ///
     /// It's up to language bindings to handle pagination and buffer data as needed.
     pub fn new(
-        container: Container<T>,
+        container: Container,
         query: &str,
         plan: QueryPlan,
         request_page_size: usize,
@@ -66,11 +66,20 @@ impl<T: Clone + Debug> Engine<T> {
     ///
     /// Each separate `Vec<T>` represents a single [`PipelineResponse`] recieved from the query pipeline.
     /// After each batch, the engine automatically fulfills any requests for additional data from the pipeline and moves to the next batch.
-    pub fn execute(mut self) -> Result<Vec<PipelineResponse<T>>, azure_data_cosmos_engine::Error> {
+    pub fn execute(mut self) -> Result<Vec<EngineResult>, azure_data_cosmos_engine::Error> {
         let mut responses = Vec::new();
         loop {
             let result = self.pipeline.run()?;
 
+            let result = EngineResult {
+                items: result
+                    .items
+                    .into_iter()
+                    .map(|r| serde_json::from_str(r.get()).unwrap())
+                    .collect(),
+                requests: result.requests,
+                terminated: result.terminated,
+            };
             responses.push(result.clone());
 
             if result.terminated {
@@ -92,19 +101,27 @@ impl<T: Clone + Debug> Engine<T> {
     }
 }
 
-pub struct Page<T: Debug> {
-    pub items: Vec<QueryResult<T, JsonQueryClauseItem>>,
+/// Equivalent of [`PipelineResponse`], but with the raw items as [`Value`](serde_json::Value) for easier testing.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EngineResult {
+    pub items: Vec<serde_json::Value>,
+    pub requests: Vec<DataRequest>,
+    pub terminated: bool,
+}
+
+pub struct Page {
+    pub items: Vec<QueryResult>,
     pub continuation: Option<String>,
 }
 
 /// Represents a container in the simulated Cosmos DB backend.
 ///
 /// Because we don't need to simulate Database or Account operations, this is the root of the simulated engine.
-pub struct Container<T: Debug> {
-    partitions: BTreeMap<String, Partition<T>>,
+pub struct Container {
+    partitions: BTreeMap<String, Partition>,
 }
 
-impl<T: Clone + Debug> Container<T> {
+impl Container {
     pub fn new() -> Self {
         Container {
             partitions: BTreeMap::new(),
@@ -114,7 +131,7 @@ impl<T: Clone + Debug> Container<T> {
     pub fn insert(
         &mut self,
         partition_key: impl Into<String>,
-        items: impl IntoIterator<Item = QueryResult<T, JsonQueryClauseItem>>,
+        items: impl IntoIterator<Item = QueryResult>,
     ) {
         let partition_key = partition_key.into();
         self.partitions
@@ -128,7 +145,7 @@ impl<T: Clone + Debug> Container<T> {
         partition_key: &str,
         continuation: Option<&str>,
         page_size: usize,
-    ) -> Page<T> {
+    ) -> Page {
         self.partitions
             .get(partition_key)
             .map(|partition| partition.get_data(continuation, page_size))
@@ -140,20 +157,20 @@ impl<T: Clone + Debug> Container<T> {
 }
 
 /// Represents the sequence of pages that will be returned by a given partition.
-pub struct Partition<T: Debug> {
-    data: Vec<QueryResult<T, JsonQueryClauseItem>>,
+pub struct Partition {
+    data: Vec<QueryResult>,
 }
 
-impl<T: Clone + Debug> Partition<T> {
+impl Partition {
     pub fn new() -> Self {
         Partition { data: Vec::new() }
     }
 
-    pub fn extend(&mut self, items: impl IntoIterator<Item = QueryResult<T, JsonQueryClauseItem>>) {
+    pub fn extend(&mut self, items: impl IntoIterator<Item = QueryResult>) {
         self.data.extend(items)
     }
 
-    pub fn get_data(&self, continuation: Option<&str>, page_size: usize) -> Page<T> {
+    pub fn get_data(&self, continuation: Option<&str>, page_size: usize) -> Page {
         let index = continuation
             .map(|c| c.parse::<usize>().unwrap())
             .unwrap_or(0);

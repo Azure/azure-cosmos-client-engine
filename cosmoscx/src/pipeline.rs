@@ -4,7 +4,7 @@
 //! Functions related to creating and executing query pipelines.
 
 use azure_data_cosmos_engine::{
-    query::{JsonQueryClauseItem, PartitionKeyRange, QueryPipeline, QueryPlan},
+    query::{PartitionKeyRange, QueryClauseItem, QueryPipeline, QueryPlan},
     ErrorKind,
 };
 use serde::Deserialize;
@@ -17,7 +17,7 @@ use super::{
 };
 
 // The C API uses "Box<serde_json::value::RawValue>" as the payload type for the query pipeline.
-type RawQueryPipeline = QueryPipeline<Box<serde_json::value::RawValue>, JsonQueryClauseItem>;
+type RawQueryPipeline = QueryPipeline<Box<serde_json::value::RawValue>, QueryClauseItem>;
 
 /// Opaque type representing the query pipeline.
 /// Callers should not attempt to access the fields of this struct directly.
@@ -225,7 +225,7 @@ pub extern "C" fn cosmoscx_v0_query_pipeline_provide_data<'a>(
             }
         };
 
-        let query_results = pipeline.deserialize_payload(data)?;
+        let query_results = pipeline.result_shape().results_from_slice(buffer)?;
 
         // And insert it!
         pipeline.provide_data(pkrange_id, query_results, continuation)

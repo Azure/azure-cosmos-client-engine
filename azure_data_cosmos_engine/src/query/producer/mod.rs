@@ -4,7 +4,6 @@
 use std::{
     cmp::Ordering,
     collections::{BinaryHeap, VecDeque},
-    fmt::Debug,
 };
 
 use crate::{
@@ -18,33 +17,31 @@ use crate::{
     ErrorKind,
 };
 
-use super::QueryClauseItem;
-
 mod sorting;
 mod state;
 
 /// Indicates the way in which multiple partition results should be merged.
-enum ProducerStrategy<T: Debug, I: QueryClauseItem> {
+enum ProducerStrategy {
     /// Results are not re-ordered by the query and should be ordered by the partition key range minimum.
     Unordered {
         current_partition_index: usize,
         current_pkrange_id: Option<String>,
-        items: VecDeque<QueryResult<T, I>>,
+        items: VecDeque<QueryResult>,
     },
 
     /// Results should be merged by comparing the sort order of the `ORDER BY` items. Results can be streamed, because each partition will provide data in a global order.
     Streaming {
         sorting: Sorting,
-        buffers: Vec<(String, VecDeque<QueryResult<T, I>>)>, // (partition key range ID, buffer)
+        buffers: Vec<(String, VecDeque<QueryResult>)>, // (partition key range ID, buffer)
     },
     /// Results should be merged by comparing the sort order of the `ORDER BY` items. Results cannot be streamed, because each partition will provide data in a local order.
     NonStreaming {
         sorting: Sorting,
-        items: BinaryHeap<SortableResult<T, I>>,
+        items: BinaryHeap<SortableResult>,
     },
 }
 
-impl<T: Debug, I: QueryClauseItem> ProducerStrategy<T, I> {
+impl ProducerStrategy {
     pub fn requests(&mut self, partitions: &[PartitionState]) -> Option<Vec<DataRequest>> {
         // Fetches the next set of requests to be made to get additional data.
         match self {
@@ -95,7 +92,7 @@ impl<T: Debug, I: QueryClauseItem> ProducerStrategy<T, I> {
     pub fn provide_data(
         &mut self,
         partition: &PartitionState,
-        data: Vec<QueryResult<T, I>>,
+        data: Vec<QueryResult>,
     ) -> crate::Result<()> {
         // Provides data for the given partition key range.
         match self {
@@ -154,7 +151,7 @@ impl<T: Debug, I: QueryClauseItem> ProducerStrategy<T, I> {
     pub fn produce_item(
         &mut self,
         partitions: &[PartitionState],
-    ) -> crate::Result<Option<QueryResult<T, I>>> {
+    ) -> crate::Result<Option<QueryResult>> {
         // Gets the next item from the merge strategy.
         match self {
             ProducerStrategy::Unordered { items, .. } => Ok(items.pop_front()),
@@ -264,8 +261,8 @@ impl<T: Debug, I: QueryClauseItem> ProducerStrategy<T, I> {
 /// are handled by the pipeline that runs after a specific item has been produced.
 /// Ordering can't really be done by the pipeline though, since it may require buffering results from some or all partitions.
 /// So, before the pipeline runs, the producer is responsible for actually organizing the initial set of results in the correct order.
-pub struct ItemProducer<T: Debug, I: QueryClauseItem> {
-    strategy: ProducerStrategy<T, I>,
+pub struct ItemProducer {
+    strategy: ProducerStrategy,
     partitions: Vec<PartitionState>,
 }
 
@@ -281,7 +278,7 @@ fn create_partition_state(
     partitions
 }
 
-impl<T: Debug, I: QueryClauseItem> ItemProducer<T, I> {
+impl ItemProducer {
     /// Creates a producer for queries without ORDER BY clauses.
     ///
     /// This strategy processes partitions sequentially in partition key range order,
@@ -362,7 +359,7 @@ impl<T: Debug, I: QueryClauseItem> ItemProducer<T, I> {
     pub fn provide_data(
         &mut self,
         pkrange_id: &str,
-        data: Vec<QueryResult<T, I>>,
+        data: Vec<QueryResult>,
         continuation: Option<String>,
     ) -> crate::Result<()> {
         let partition = self
@@ -381,7 +378,7 @@ impl<T: Debug, I: QueryClauseItem> ItemProducer<T, I> {
 
     /// Requests the next item from the cross-partition result stream.
     #[tracing::instrument(level = "trace", skip(self))]
-    pub fn produce_item(&mut self) -> crate::Result<Option<QueryResult<T, I>>> {
+    pub fn produce_item(&mut self) -> crate::Result<Option<QueryResult>> {
         self.strategy.produce_item(&self.partitions)
     }
 }
@@ -393,7 +390,7 @@ mod tests {
     use serde::{Deserialize, Serialize};
     use serde_json::json;
 
-    use crate::query::{query_result::JsonQueryClauseItem, PartitionKeyRange, QueryResult};
+    use crate::query::{PartitionKeyRange, QueryResult};
 
     use super::*;
 
@@ -414,13 +411,13 @@ mod tests {
         }
     }
 
-    pub type TestPage = (Option<String>, Vec<QueryResult<Item, JsonQueryClauseItem>>);
+    pub type TestPage = (Option<String>, Vec<QueryResult>);
 
     fn create_item(
         pkrange_id: &str,
         id: impl Into<String>,
         order_by_items: Vec<serde_json::Value>,
-    ) -> QueryResult<Item, JsonQueryClauseItem> {
+    ) -> QueryResult {
         let id = id.into();
         let item = Item::new(
             id.clone(),
@@ -431,11 +428,15 @@ mod tests {
             .into_iter()
             .map(|value| serde_json::from_value(value).unwrap())
             .collect();
-        QueryResult::new(vec![], order_by_items, item)
+        QueryResult {
+            order_by_items,
+            payload: Some(serde_json::value::to_raw_value(&item).unwrap()),
+            ..Default::default()
+        }
     }
 
     fn run_producer(
-        producer: &mut ItemProducer<Item, JsonQueryClauseItem>,
+        producer: &mut ItemProducer,
         mut partitions: HashMap<String, VecDeque<TestPage>>,
     ) -> crate::Result<Vec<Item>> {
         let mut items = Vec::new();
@@ -463,7 +464,8 @@ mod tests {
 
             // Now drain the items from the producer.
             while let Some(item) = producer.produce_item()? {
-                items.push(item.into_payload());
+                let item = serde_json::from_str(item.payload.unwrap().get()).unwrap();
+                items.push(item);
             }
 
             // Loop back around to check for requests.
