@@ -1,7 +1,9 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-use std::fmt::Debug;
+use std::{fmt::Debug, str::FromStr};
+
+use crate::ErrorKind;
 
 use super::{producer::ItemProducer, QueryResult};
 
@@ -167,5 +169,68 @@ impl PipelineNode for OffsetPipelineNode {
         // Now, we're no longer skipping items, so we can pass through the rest of the pipeline.
         tracing::debug!("offset reached, returning item");
         rest.run()
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum Aggregator {
+    Count,
+    Sum,
+    Average,
+    Min,
+    Max,
+}
+
+impl FromStr for Aggregator {
+    type Err = crate::Error;
+
+    fn from_str(s: &str) -> crate::Result<Self> {
+        // A match statement seems like the right thing to do, but it means forcing the string to lowercase first.
+        // This allows us to do the comparison in a case-insensitive way without having to allocate a new string.
+        if s.eq_ignore_ascii_case("count") {
+            Ok(Aggregator::Count)
+        } else if s.eq_ignore_ascii_case("sum") {
+            Ok(Aggregator::Sum)
+        } else if s.eq_ignore_ascii_case("average") {
+            Ok(Aggregator::Average)
+        } else if s.eq_ignore_ascii_case("min") {
+            Ok(Aggregator::Min)
+        } else if s.eq_ignore_ascii_case("max") {
+            Ok(Aggregator::Max)
+        } else {
+            Err(ErrorKind::UnsupportedQueryPlan.with_message(format!("unknown aggregator: {}", s)))
+        }
+    }
+}
+
+impl Aggregator {
+    /// Aggregates the current value with the provided value, updating it in place.
+    pub fn aggregate(self, current: &mut serde_json::Value) -> crate::Result<()> {
+        todo!()
+    }
+}
+
+pub struct AggregatePipelineNode {
+    aggregators: Vec<Aggregator>,
+    values: Vec<serde_json::Value>,
+}
+
+impl AggregatePipelineNode {
+    pub fn from_names(names: Vec<String>) -> crate::Result<Self> {
+        let mut aggregators = Vec::with_capacity(names.len());
+        for name in names {
+            aggregators.push(Aggregator::from_str(&name)?);
+        }
+        let values = vec![serde_json::Value::Null; aggregators.len()];
+        Ok(Self {
+            aggregators,
+            values,
+        })
+    }
+}
+
+impl PipelineNode for AggregatePipelineNode {
+    fn next_item(&mut self, mut rest: PipelineSlice) -> crate::Result<PipelineNodeResult> {
+        todo!()
     }
 }

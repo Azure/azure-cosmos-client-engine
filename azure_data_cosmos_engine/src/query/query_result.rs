@@ -11,7 +11,7 @@ use crate::ErrorKind;
 /// The results the gateway gives us can vary in shape depending on the type of query executed.
 /// However, to properly move through the pipeline, we want a normalized representation of the results.
 /// This enum describes the expected shape, and provides deserialization logic to convert from the raw gateway response into a list of normalized [`QueryResult`]s.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum QueryResultShape {
     /// The result will be just the raw payload, with no additional metadata.
     RawPayload,

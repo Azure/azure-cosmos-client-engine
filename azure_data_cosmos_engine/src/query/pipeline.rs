@@ -3,7 +3,10 @@
 
 use std::ffi::CStr;
 
-use crate::{query::query_result::QueryResultShape, ErrorKind};
+use crate::{
+    query::{node::AggregatePipelineNode, query_result::QueryResultShape},
+    ErrorKind,
+};
 
 use super::{
     node::{LimitPipelineNode, OffsetPipelineNode, PipelineNode, PipelineSlice},
@@ -172,9 +175,14 @@ impl QueryPipeline {
         }
 
         if !plan.query_info.aggregates.is_empty() {
-            return Err(
-                ErrorKind::UnsupportedQueryPlan.with_message("aggregates are not supported")
-            );
+            if result_shape != QueryResultShape::RawPayload {
+                return Err(ErrorKind::UnsupportedQueryPlan
+                    .with_message("cannot mix aggregates with ORDER BY"));
+            }
+            result_shape = QueryResultShape::ValueAggregate;
+            pipeline.push(Box::new(AggregatePipelineNode::from_names(
+                plan.query_info.aggregates.clone(),
+            )?));
         }
         if !plan.query_info.group_by_expressions.is_empty()
             || !plan.query_info.group_by_alias_to_aggregate_type.is_empty()
