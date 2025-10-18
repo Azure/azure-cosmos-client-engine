@@ -7,6 +7,11 @@
         "deque",
         "pkrange",
         "pkranges",
+        "pyclass",
+        "pymethods",
+        "pyfunction",
+        "pymodule",
+        "cosmoscx",
     ],
     "ignoreWords": [],
     "import": []

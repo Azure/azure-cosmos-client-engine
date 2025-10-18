@@ -14,7 +14,6 @@ use pyo3::{
 use tracing_subscriber::EnvFilter;
 
 mod pipeline;
-mod query_clause;
 
 #[pymodule(name = "_azure_cosmoscx")]
 fn azure_cosmoscx(m: &Bound<PyModule>) -> PyResult<()> {
