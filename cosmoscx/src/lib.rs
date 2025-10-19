@@ -11,7 +11,6 @@
 use azure_data_cosmos_engine::query::SUPPORTED_FEATURES;
 
 pub mod diag;
-pub mod partition_key;
 pub mod pipeline;
 pub mod result;
 pub mod slice;

@@ -12,14 +12,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define CosmosCxCOSMOSCX_PARTITION_KEY_KIND_HASH 0
-
-#define CosmosCxCOSMOSCX_PARTITION_KEY_KIND_MULTI_HASH 1
-
-#define CosmosCxCOSMOSCX_PARTITION_KEY_VERSION_V1 1
-
-#define CosmosCxCOSMOSCX_PARTITION_KEY_VERSION_V2 2
-
 /**
  * A result code for FFI functions, which indicates the success or failure of the operation.
  *
@@ -68,38 +60,6 @@ typedef intptr_t CosmosCxResultCode;
 typedef struct CosmosCxPipeline CosmosCxPipeline;
 
 /**
- * Represents a contiguous sequence of objects OWNED BY THE ENGINE.
- *
- * The language binding MUST free the memory associated with this sequence by calling the appropriate 'free' function.
- * For example, all [`OwnedSlice`]s within a [`PipelineResponse`](azure_data_cosmos_engine::query::PipelineResponse) are freed by calling [`cosmoscx_v0_query_pipeline_free_result`](super::pipeline::cosmoscx_v0_query_pipeline_free_result).
- *
- * The C representation of this struct is:
- *
- * ```
- * struct {
- *   const void *data; // A pointer to the first item in the slice
- *   intptr_t len; // The number of items in the slice.
- * };
- * ```
- *
- * The `data` pointer is guaranteed to point to a contiguous sequence of `T` values.
- * Each `T` value will be properly aligned.
- * Thus, the `data` pointer can be treated as a C-style array of length `len`.
- */
-typedef struct CosmosCxOwnedSlice_u8 {
-  uint8_t *data;
-  uintptr_t len;
-} CosmosCxOwnedSlice_u8;
-
-/**
- * Represents a contiguous sequence of valid UTF-8 bytes OWNED BY THE ENGINE.
- *
- * The language binding MUST free the memory associated with this sequence by calling the appropriate 'free' function.
- * For example, all [`OwnedSlice`]s within a [`PipelineResponse`](azure_data_cosmos_engine::query::PipelineResponse) are freed by calling [`cosmoscx_v0_query_pipeline_free_result`](super::pipeline::cosmoscx_v0_query_pipeline_free_result).
- */
-typedef struct CosmosCxOwnedSlice_u8 CosmosCxOwnedString;
-
-/**
  * A result type for FFI functions.
  *
  * An `FfiResult` is returned from a function that both returns a value AND can fail.
@@ -115,10 +75,10 @@ typedef struct CosmosCxOwnedSlice_u8 CosmosCxOwnedString;
  *
  * The data pointed to by the `value` pointer is OWNED BY THE ENGINE and must be freed by calling the appropriate free function, depending on the data.
  */
-typedef struct CosmosCxFfiResult_OwnedString {
+typedef struct CosmosCxFfiResult_Pipeline {
   CosmosCxResultCode code;
-  const CosmosCxOwnedString *value;
-} CosmosCxFfiResult_OwnedString;
+  const struct CosmosCxPipeline *value;
+} CosmosCxFfiResult_Pipeline;
 
 /**
  * Represents a contiguous sequence of objects OWNED BY THE CALLING CODE.
@@ -164,31 +124,42 @@ typedef struct CosmosCxSlice_u8 CosmosCxStr;
  *
  * The data pointed to by the `value` pointer is OWNED BY THE ENGINE and must be freed by calling the appropriate free function, depending on the data.
  */
-typedef struct CosmosCxFfiResult_Pipeline {
+typedef struct CosmosCxFfiResult_Str {
   CosmosCxResultCode code;
-  const struct CosmosCxPipeline *value;
-} CosmosCxFfiResult_Pipeline;
+  const CosmosCxStr *value;
+} CosmosCxFfiResult_Str;
 
 /**
- * A result type for FFI functions.
+ * Represents a contiguous sequence of objects OWNED BY THE ENGINE.
  *
- * An `FfiResult` is returned from a function that both returns a value AND can fail.
+ * The language binding MUST free the memory associated with this sequence by calling the appropriate 'free' function.
+ * For example, all [`OwnedSlice`]s within a [`PipelineResponse`](azure_data_cosmos_engine::query::PipelineResponse) are freed by calling [`cosmoscx_v0_query_pipeline_free_result`](super::pipeline::cosmoscx_v0_query_pipeline_free_result).
  *
  * The C representation of this struct is:
  *
  * ```
  * struct {
- *   intptr_t code; // The result code, which will be '0' if the operation succeeded
- *   const void *value; // A pointer to the returned value, which will be `nullptr`/`0` if the operation failed.
+ *   const void *data; // A pointer to the first item in the slice
+ *   intptr_t len; // The number of items in the slice.
  * };
  * ```
  *
- * The data pointed to by the `value` pointer is OWNED BY THE ENGINE and must be freed by calling the appropriate free function, depending on the data.
+ * The `data` pointer is guaranteed to point to a contiguous sequence of `T` values.
+ * Each `T` value will be properly aligned.
+ * Thus, the `data` pointer can be treated as a C-style array of length `len`.
  */
-typedef struct CosmosCxFfiResult_Str {
-  CosmosCxResultCode code;
-  const CosmosCxStr *value;
-} CosmosCxFfiResult_Str;
+typedef struct CosmosCxOwnedSlice_u8 {
+  uint8_t *data;
+  uintptr_t len;
+} CosmosCxOwnedSlice_u8;
+
+/**
+ * Represents a contiguous sequence of valid UTF-8 bytes OWNED BY THE ENGINE.
+ *
+ * The language binding MUST free the memory associated with this sequence by calling the appropriate 'free' function.
+ * For example, all [`OwnedSlice`]s within a [`PipelineResponse`](azure_data_cosmos_engine::query::PipelineResponse) are freed by calling [`cosmoscx_v0_query_pipeline_free_result`](super::pipeline::cosmoscx_v0_query_pipeline_free_result).
+ */
+typedef struct CosmosCxOwnedSlice_u8 CosmosCxOwnedString;
 
 /**
  * Represents a contiguous sequence of objects OWNED BY THE ENGINE.
@@ -314,20 +285,6 @@ const char *cosmoscx_v0_query_supported_features(void);
  * Once enabled in this way, tracing cannot be disabled.
  */
 void cosmoscx_v0_tracing_enable(void);
-
-/**
- * Computes an effective partition key string for the provided JSON representation.
- *
- * Parameters:
- * - `partition_key_json`: JSON representing either a single value (e.g. `"abc"`) or an array (e.g. `["abc", 5]`).
- * - `version`: 1 for V1, 2 for V2.
- * - `kind`: 0 for Hash, 1 for MultiHash.
- *
- * Returns: An engine-owned UTF-8 string (hex) that must be freed with `cosmoscx_v0_partition_key_free_string`.
- */
-struct CosmosCxFfiResult_OwnedString cosmoscx_v0_partition_key_effective(CosmosCxStr partition_key_json,
-                                                                         uint8_t version,
-                                                                         uint8_t kind);
 
 /**
  * Creates a new query pipeline from a JSON query plan and list of partitions.
