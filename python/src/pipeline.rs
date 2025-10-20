@@ -3,29 +3,23 @@
 
 use std::{ops::DerefMut, sync::Mutex};
 
-use azure_data_cosmos_engine::query::{
-    PartitionKeyRange, PipelineResponse, QueryPipeline, QueryResult,
-};
+use azure_data_cosmos_engine::query::{PartitionKeyRange, PipelineResponse, QueryPipeline};
 use pyo3::{
     exceptions, pyclass, pymethods,
-    types::{PyAnyMethods, PyList, PyString, PyStringMethods},
+    types::{PyAnyMethods, PyBytes, PyBytesMethods, PyList, PyString, PyStringMethods},
     Bound, Py, PyAny, PyErr, PyResult, Python,
 };
-
-use crate::query_clause::PyQueryClauseItem;
 
 #[pyclass(frozen, name = "QueryPipeline")]
 pub struct NativeQueryPipeline {
     // Python may access this object on any thread.
-    pipeline: Mutex<QueryPipeline<Py<PyAny>, PyQueryClauseItem>>,
+    pipeline: Mutex<QueryPipeline>,
 }
 
 // All methods in this block are NOT python-accessible, and only visible to Rust code
 impl NativeQueryPipeline {
     #[inline(always)]
-    fn pipeline(
-        &self,
-    ) -> PyResult<impl DerefMut<Target = QueryPipeline<Py<PyAny>, PyQueryClauseItem>> + '_> {
+    fn pipeline(&self) -> PyResult<impl DerefMut<Target = QueryPipeline> + '_> {
         self.pipeline
             .lock()
             .map_err(|_| PyErr::new::<exceptions::PyRuntimeError, _>("lock poisoned"))
@@ -61,7 +55,7 @@ impl NativeQueryPipeline {
     fn provide_data<'py>(
         &self,
         pkrange_id: Bound<'py, PyString>,
-        data: Bound<'py, PyList>,
+        data: Bound<'py, PyBytes>,
         continuation: Option<Bound<'py, PyString>>,
     ) -> PyResult<()> {
         let mut pipeline = self.pipeline()?;
@@ -69,16 +63,9 @@ impl NativeQueryPipeline {
         let continuation = continuation
             .map(|s| s.to_str().map(|s| s.to_string()))
             .transpose()?;
-        let data: Vec<QueryResult<Py<PyAny>, PyQueryClauseItem>> =
-            if pipeline.results_are_bare_payloads() {
-                data.try_iter()?
-                    .map(|a| a.map(|a| QueryResult::from_payload(a.unbind())))
-                    .collect::<Result<Vec<_>, _>>()?
-            } else {
-                data.try_iter()?
-                    .map(|a| a?.extract())
-                    .collect::<Result<Vec<_>, _>>()?
-            };
+        let data = pipeline
+            .result_shape()
+            .results_from_slice(data.as_bytes())?;
         pipeline.provide_data(pkrange_id, data, continuation)?;
         Ok(())
     }
@@ -95,8 +82,11 @@ pub struct PyPipelineResult {
 }
 
 impl PyPipelineResult {
-    pub fn new(py: Python, result: PipelineResponse<Py<PyAny>>) -> PyResult<Self> {
-        let items = result.items.into_iter();
+    pub fn new(py: Python, result: PipelineResponse) -> PyResult<Self> {
+        let items = result
+            .items
+            .into_iter()
+            .map(|r| PyBytes::new(py, r.get().as_bytes()));
         let requests = result.requests.into_iter().map(|r| PyDataRequest {
             pkrange_id: PyString::new(py, r.pkrange_id.as_ref()).unbind(),
             continuation: r.continuation.map(|s| PyString::new(py, &s).unbind()),

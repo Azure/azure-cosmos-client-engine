@@ -4,7 +4,7 @@
 //! Functions related to creating and executing query pipelines.
 
 use azure_data_cosmos_engine::{
-    query::{JsonQueryClauseItem, PartitionKeyRange, QueryPipeline, QueryPlan},
+    query::{PartitionKeyRange, QueryPipeline, QueryPlan},
     ErrorKind,
 };
 use serde::Deserialize;
@@ -16,9 +16,6 @@ use super::{
     slice::{OwnedString, Str},
 };
 
-// The C API uses "Box<serde_json::value::RawValue>" as the payload type for the query pipeline.
-type RawQueryPipeline = QueryPipeline<Box<serde_json::value::RawValue>, JsonQueryClauseItem>;
-
 /// Opaque type representing the query pipeline.
 /// Callers should not attempt to access the fields of this struct directly.
 pub struct Pipeline;
@@ -27,15 +24,15 @@ impl Pipeline {
     // We can't make this into a "method" without the arbitrary_self_types feature
     // (https://github.com/rust-lang/rust/issues/44874)
 
-    /// Unwraps the pointer to the underlying `RawQueryPipeline` type.
+    /// Unwraps the pointer to the underlying `QueryPipeline` type.
     ///
     /// # Safety
     ///
-    /// The caller must ensure that the pointer passed to this function is a valid pointer to a `RawQueryPipeline`.
+    /// The caller must ensure that the pointer passed to this function is a valid pointer to a `QueryPipeline`.
     pub unsafe fn unwrap_ptr(
         pipeline: *mut Self,
-    ) -> Result<&'static mut RawQueryPipeline, azure_data_cosmos_engine::Error> {
-        (pipeline as *mut RawQueryPipeline)
+    ) -> Result<&'static mut QueryPipeline, azure_data_cosmos_engine::Error> {
+        (pipeline as *mut QueryPipeline)
             .as_mut()
             .ok_or_else(|| ErrorKind::ArgumentNull.with_message("pipeline was null"))
     }
@@ -62,7 +59,7 @@ pub extern "C" fn cosmoscx_v0_query_pipeline_create<'a>(
         query: Str<'a>,
         query_plan_json: Str<'a>,
         pkranges: Str<'a>,
-    ) -> Result<Box<RawQueryPipeline>, azure_data_cosmos_engine::Error> {
+    ) -> Result<Box<QueryPipeline>, azure_data_cosmos_engine::Error> {
         let query = unsafe { query.as_str().not_null() }?;
         let query_plan_json = unsafe { query_plan_json.as_str().not_null() }?;
         let pkranges_json = unsafe { pkranges.as_str().not_null() }?;
@@ -75,7 +72,7 @@ pub extern "C" fn cosmoscx_v0_query_pipeline_create<'a>(
         // SAFETY: We should no longer need either of the parameter slices, we copied them into owned data.
 
         tracing::debug!(query = ?query, query_plan = ?query_plan, pkranges = ?pkranges.ranges, "creating query pipeline");
-        let pipeline = RawQueryPipeline::new(query, query_plan, pkranges.ranges)?;
+        let pipeline = QueryPipeline::new(query, query_plan, pkranges.ranges)?;
         Ok(Box::new(pipeline))
     }
 
@@ -225,7 +222,9 @@ pub extern "C" fn cosmoscx_v0_query_pipeline_provide_data<'a>(
             }
         };
 
-        let query_results = pipeline.deserialize_payload(data)?;
+        let query_results = pipeline
+            .result_shape()
+            .results_from_slice(data.as_bytes())?;
 
         // And insert it!
         pipeline.provide_data(pkrange_id, query_results, continuation)

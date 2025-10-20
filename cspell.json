@@ -1,0 +1,18 @@
+{
+    "version": "0.2",
+    "ignorePaths": [],
+    "dictionaryDefinitions": [],
+    "dictionaries": [],
+    "words": [
+        "deque",
+        "pkrange",
+        "pkranges",
+        "pyclass",
+        "pymethods",
+        "pyfunction",
+        "pymodule",
+        "cosmoscx",
+    ],
+    "ignoreWords": [],
+    "import": []
+}

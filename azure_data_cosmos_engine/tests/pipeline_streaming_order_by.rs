@@ -4,12 +4,14 @@
 use std::vec;
 
 use azure_data_cosmos_engine::query::{
-    DataRequest, JsonQueryClauseItem, PipelineResponse, QueryInfo, QueryPlan, QueryResult,
-    SortOrder,
+    DataRequest, QueryClauseItem, QueryInfo, QueryPlan, QueryResult, SortOrder,
 };
 use pretty_assertions::assert_eq;
 
 use mock_engine::{Container, Engine};
+use serde_json::json;
+
+use crate::mock_engine::EngineResult;
 
 mod mock_engine;
 
@@ -42,17 +44,22 @@ impl Item {
     }
 }
 
-impl From<Item> for QueryResult<Item, JsonQueryClauseItem> {
+impl From<Item> for QueryResult {
     fn from(item: Item) -> Self {
-        let sort0 = JsonQueryClauseItem {
+        let raw = serde_json::value::to_raw_value(&item.title).unwrap();
+        let sort0 = QueryClauseItem {
             item: Some(serde_json::Value::Number(serde_json::Number::from(
                 item.sort0,
             ))),
         };
-        let sort1 = JsonQueryClauseItem {
+        let sort1 = QueryClauseItem {
             item: Some(serde_json::Value::String(item.sort1.clone())),
         };
-        QueryResult::new(vec![], vec![sort0, sort1], item)
+        QueryResult {
+            order_by_items: vec![sort0, sort1],
+            payload: Some(raw),
+            ..Default::default()
+        }
     }
 }
 
@@ -98,13 +105,9 @@ pub fn streaming_order_by() -> Result<(), Box<dyn std::error::Error>> {
 
     // Execute the query, and flatten the response down to just the title for easier comparison.
     let results = engine.execute()?;
-    let titles = results
-        .into_iter()
-        .map(|response| response.map_items(|item| item.title))
-        .collect::<Vec<_>>();
     assert_eq!(
         vec![
-            PipelineResponse {
+            EngineResult {
                 items: vec![],
                 requests: vec![
                     DataRequest::new("partition0", None),
@@ -112,29 +115,29 @@ pub fn streaming_order_by() -> Result<(), Box<dyn std::error::Error>> {
                 ],
                 terminated: false
             },
-            PipelineResponse {
+            EngineResult {
                 items: vec![
-                    "partition1/item0".to_string(),
-                    "partition0/item0".to_string(),
-                    "partition0/item1".to_string(),
-                    "partition1/item1".to_string(),
-                    "partition1/item2".to_string(),
+                    json!("partition1/item0"),
+                    json!("partition0/item0"),
+                    json!("partition0/item1"),
+                    json!("partition1/item1"),
+                    json!("partition1/item2"),
                 ],
                 requests: vec![DataRequest::new("partition1", Some("3".into())),],
                 terminated: false
             },
-            PipelineResponse {
+            EngineResult {
                 items: vec![
-                    "partition0/item2".to_string(),
-                    "partition1/item3".to_string(),
-                    "partition1/item4".to_string(),
-                    "partition1/item5".to_string(),
+                    json!("partition0/item2"),
+                    json!("partition1/item3"),
+                    json!("partition1/item4"),
+                    json!("partition1/item5"),
                 ],
                 requests: vec![],
                 terminated: true
             },
         ],
-        titles
+        results
     );
 
     Ok(())
