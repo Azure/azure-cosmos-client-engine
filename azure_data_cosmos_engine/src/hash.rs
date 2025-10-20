@@ -34,7 +34,7 @@ pub enum PartitionKeyValue {
 pub enum PartitionKeyKind {
     Hash,
     MultiHash,
-    Other
+    Other,
 }
 
 impl PartitionKeyValue {
