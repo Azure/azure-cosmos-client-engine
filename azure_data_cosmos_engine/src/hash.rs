@@ -39,7 +39,7 @@ pub enum PartitionKeyKind {
 
 impl PartitionKeyValue {
     /// Common hashing writer core: writes type marker + payload (string suffix used by V2).
-    pub fn write_for_hashing_core(&self, string_suffix: u8, writer: &mut Vec<u8>) {
+    fn write_for_hashing_core(&self, string_suffix: u8, writer: &mut Vec<u8>) {
         match self {
             PartitionKeyValue::Bool(true) => writer.push(component::BOOL_TRUE),
             PartitionKeyValue::Bool(false) => writer.push(component::BOOL_FALSE),
