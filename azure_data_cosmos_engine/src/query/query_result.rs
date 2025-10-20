@@ -16,7 +16,7 @@ pub enum QueryResultShape {
     /// The result will be just the raw payload, with no additional metadata.
     RawPayload,
 
-    /// The payload is the result of a `GROUP BY` query.
+    /// The payload is the result of a `ORDER BY` query.
     OrderBy,
 
     /// The result is from a `SELECT VALUE [aggregate function](...)` query.
