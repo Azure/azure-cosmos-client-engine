@@ -345,7 +345,7 @@ pub async fn run_baseline_test(
         let mut retry_count = 0;
         const MAX_RETRIES: usize = 3;
         loop {
-            let pager = container_client.query_items::<HashMap<String, serde_json::Value>>(
+            let pager = container_client.query_items::<serde_json::Value>(
                 query.clone(),
                 (),
                 Some(options.clone()),
@@ -381,47 +381,38 @@ pub async fn run_baseline_test(
         );
     }
 
-    // Get the list of properties to validate from the first item
-    let properties = items
-        .first()
-        .map(|i| i.keys().cloned().collect::<Vec<_>>())
-        .expect("expected at least one item in the results");
-    let mut validation_errors = Vec::new();
-    for property in properties {
-        // Run the validator for each property
-        let validator = get_validator(&test_query.validators, &property);
-        tracing::debug!(property, validator, "validating property");
-        let expected_items: Vec<_> = results
-            .iter()
-            .map(|item| item.get(&property).cloned().unwrap_or_default())
-            .collect();
-        let actual_items: Vec<_> = items
-            .iter()
-            .map(|item| item.get(&property).cloned().unwrap_or_default())
-            .collect();
-        let property_errors =
-            validate_property(validator, &property, &expected_items, &actual_items);
-        tracing::debug!(
-            property,
-            validator,
-            error_count = property_errors.len(),
-            "validated property"
-        );
-        validation_errors.extend(property_errors);
-    }
+    // If the first expected item is an object, we do per-property validation.
+    let errors = if let Some(serde_json::Value::Object(_)) = results.first() {
+        validate_with_validators(&test_query.validators, &items, &results)?
+    } else {
+        // Otherwise, we just compare the values directly.
+        let mut errors = Vec::new();
+        for (i, (actual, expected)) in items.iter().zip(results.iter()).enumerate() {
+            if actual != expected {
+                errors.push(ValidationError {
+                    item: i,
+                    property_name: "<item>".to_string(),
+                    message: "items do not match".to_string(),
+                    expected: expected.clone(),
+                    actual: actual.clone(),
+                });
+            }
+        }
+        errors
+    };
 
-    if !validation_errors.is_empty() {
-        for error in &validation_errors {
+    if !errors.is_empty() {
+        for error in &errors {
             tracing::error!(
                 item = error.item,
-                property_name = error.property_name,
+                property = error.property_name,
                 expected = ?error.expected,
                 actual = ?error.actual,
                 "validation error: {}",
                 error.message
             );
         }
-        panic!("validation failed with {} errors", validation_errors.len());
+        return Err(format!("validation failed with {} errors", errors.len()).into());
     }
 
     // Delete the database
@@ -430,6 +421,51 @@ pub async fn run_baseline_test(
     tracing::info!("deleted database");
 
     Ok(())
+}
+
+fn validate_with_validators(
+    validators: &HashMap<String, String>,
+    actual_items: &[serde_json::Value],
+    expected_items: &[serde_json::Value],
+) -> Result<Vec<ValidationError>, Box<dyn std::error::Error>> {
+    let mut all_errors = Vec::new();
+
+    // For each property in the expected items, validate according to the specified validator.
+    if let Some(expected_first) = expected_items.first() {
+        if let serde_json::Value::Object(expected_map) = expected_first {
+            for property_name in expected_map.keys() {
+                let validator = get_validator(validators, property_name);
+                let expected_property_values: Vec<serde_json::Value> = expected_items
+                    .iter()
+                    .map(|item| {
+                        item.get(property_name)
+                            .cloned()
+                            .unwrap_or(serde_json::Value::Null)
+                    })
+                    .collect();
+                let actual_property_values: Vec<serde_json::Value> = actual_items
+                    .iter()
+                    .map(|item| {
+                        item.get(property_name)
+                            .cloned()
+                            .unwrap_or(serde_json::Value::Null)
+                    })
+                    .collect();
+
+                let errors = validate_property(
+                    validator,
+                    property_name,
+                    &expected_property_values,
+                    &actual_property_values,
+                );
+                all_errors.extend(errors);
+            }
+        } else {
+            return Err("expected items are not JSON objects".into());
+        }
+    }
+
+    Ok(all_errors)
 }
 
 fn extract_partition_key(
