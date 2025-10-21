@@ -35,6 +35,9 @@ pub enum ResultCode {
 
     /// See [`ErrorKind::ArgumentNull`].
     ArgumentNull = -8,
+
+    /// See [`ErrorKind::ArithmeticOverflow`].
+    ArithmeticOverflow = -9,
 }
 
 impl From<azure_data_cosmos_engine::Error> for ResultCode {
@@ -55,6 +58,7 @@ impl From<ErrorKind> for ResultCode {
             ErrorKind::UnsupportedQueryPlan => ResultCode::UnsupportedQueryPlan,
             ErrorKind::InvalidUtf8String => ResultCode::InvalidUtf8String,
             ErrorKind::ArgumentNull => ResultCode::ArgumentNull,
+            ErrorKind::ArithmeticOverflow => ResultCode::ArithmeticOverflow,
             ErrorKind::PythonError => ResultCode::InternalError,
         }
     }

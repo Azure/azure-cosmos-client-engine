@@ -50,6 +50,10 @@ enum CosmosCxResultCode {
    * See [`ErrorKind::ArgumentNull`].
    */
   COSMOS_CX_RESULT_CODE_ARGUMENT_NULL = -8,
+  /**
+   * See [`ErrorKind::ArithmeticOverflow`].
+   */
+  COSMOS_CX_RESULT_CODE_ARITHMETIC_OVERFLOW = -9,
 };
 typedef intptr_t CosmosCxResultCode;
 

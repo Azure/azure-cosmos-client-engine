@@ -41,6 +41,8 @@ func (e *Error) Error() string {
 		return "invalid UTF-8 string"
 	case C.COSMOS_CX_RESULT_CODE_ARGUMENT_NULL:
 		return "provided argument was null"
+	case C.COSMOS_CX_RESULT_CODE_ARITHMETIC_OVERFLOW:
+		return "arithmetic overflow occurred"
 	default:
 		return "unknown error"
 	}

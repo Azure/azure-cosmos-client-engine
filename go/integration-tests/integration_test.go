@@ -63,19 +63,19 @@ type ValidationError struct {
 	Actual   interface{}
 }
 
-var Validators = map[string]func(t *testing.T, propertyName string, expected, actual []map[string]interface{}) []ValidationError{
-	ValidationIgnore: func(t *testing.T, propertyName string, expected, actual []map[string]interface{}) []ValidationError {
+var Validators = map[string]func(t *testing.T, propertyName string, expected, actual []interface{}) []ValidationError{
+	ValidationIgnore: func(t *testing.T, propertyName string, expected, actual []interface{}) []ValidationError {
 		return nil
 	},
-	ValidationEqual: func(t *testing.T, propertyName string, expected, actual []map[string]interface{}) []ValidationError {
+	ValidationEqual: func(t *testing.T, propertyName string, expected, actual []interface{}) []ValidationError {
 		errors := make([]ValidationError, 0)
 		for i, exp := range expected {
 			if i >= len(actual) {
 				return []ValidationError{{Item: i, Property: propertyName, Expected: exp, Actual: nil}}
 			}
 			act := actual[i]
-			expectedPropertyValue := expected[i][propertyName]
-			actualPropertyValue, ok := act[propertyName]
+			expectedPropertyValue := expected[i].(map[string]interface{})[propertyName]
+			actualPropertyValue, ok := act.(map[string]interface{})[propertyName]
 			if !ok {
 				errors = append(errors, ValidationError{Item: i, Property: propertyName, Message: "missing expected property", Expected: expectedPropertyValue, Actual: nil})
 				continue
@@ -97,10 +97,10 @@ var Validators = map[string]func(t *testing.T, propertyName string, expected, ac
 		}
 		return errors
 	},
-	ValidationOrderedDescending: func(t *testing.T, propertyName string, expected, actual []map[string]interface{}) []ValidationError {
+	ValidationOrderedDescending: func(t *testing.T, propertyName string, expected, actual []interface{}) []ValidationError {
 		return validateOrdered(propertyName, actual, false)
 	},
-	ValidationOrderedAscending: func(t *testing.T, propertyName string, expected, actual []map[string]interface{}) []ValidationError {
+	ValidationOrderedAscending: func(t *testing.T, propertyName string, expected, actual []interface{}) []ValidationError {
 		return validateOrdered(propertyName, actual, true)
 	},
 }
@@ -256,14 +256,14 @@ func loadTestData(path, uniqueId string) (TestData, error) {
 	return testData, nil
 }
 
-func loadExpectedResults(path string) ([]map[string]interface{}, error) {
+func loadExpectedResults(path string) ([]interface{}, error) {
 	resultsFile, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
 
 	defer resultsFile.Close()
-	var results []map[string]interface{}
+	var results []interface{}
 	err = json.NewDecoder(resultsFile).Decode(&results)
 	if err != nil {
 		return nil, err
@@ -337,7 +337,7 @@ func runIntegrationTest(t *testing.T, querySetPath string) {
 	require.NoError(t, err)
 }
 
-func runSingleQuery(t *testing.T, expectedResults []map[string]interface{}, query QuerySpec, container *azcosmos.ContainerClient) error {
+func runSingleQuery(t *testing.T, expectedResults []interface{}, query QuerySpec, container *azcosmos.ContainerClient) error {
 	// Run the query
 	queryEngine := azcosmoscx.NewQueryEngine()
 	queryOptions := &azcosmos.QueryOptions{
@@ -347,7 +347,7 @@ func runSingleQuery(t *testing.T, expectedResults []map[string]interface{}, quer
 	pager := container.NewQueryItemsPager(query.Text, azcosmos.NewPartitionKey(), queryOptions)
 
 	actualItemCount := 0
-	actualItems := make([]map[string]interface{}, 0, len(expectedResults))
+	actualItems := make([]interface{}, 0, len(expectedResults))
 	for pager.More() {
 		page, err := pager.NextPage(context.TODO())
 		if err != nil {
@@ -356,7 +356,7 @@ func runSingleQuery(t *testing.T, expectedResults []map[string]interface{}, quer
 
 		for idx, actualJson := range page.Items {
 			actualItemCount++
-			var actualItem map[string]interface{}
+			var actualItem interface{}
 			err := json.Unmarshal(actualJson, &actualItem)
 			if err != nil {
 				return fmt.Errorf("failed to unmarshal item %d: %v", idx, err)
@@ -366,17 +366,59 @@ func runSingleQuery(t *testing.T, expectedResults []map[string]interface{}, quer
 	}
 	assert.Equal(t, len(actualItems), actualItemCount, "Expected %d items, but got %d", len(actualItems), actualItemCount)
 
-	// Now run the validators for each property. Use the first item to determine the properties to validate.
 	if len(actualItems) == 0 {
 		return fmt.Errorf("no items returned for query %s", query.Name)
 	}
-	firstItem := actualItems[0]
+
+	if len(actualItems) != len(expectedResults) {
+		return fmt.Errorf("expected %d results, but got %d", len(expectedResults), len(actualItems))
+	}
+
+	// Check if the first expected item is a map, and if so, validate using property validators
+	var errors []ValidationError
+	if _, ok := expectedResults[0].(map[string]interface{}); ok {
+		var err error
+		errors, err = validateUsingValidators(t, actualItems, expectedResults, query.Validators)
+		if err != nil {
+			return err
+		}
+	} else {
+		// Just do a direct comparison of each object. We already know the counts match
+		for i := 0; i < len(expectedResults); i++ {
+			patch, err := jsondiff.Compare(expectedResults[i], actualItems[i], jsondiff.Ignores("_etag", "_rid", "_self", "_ts", "_attachments"))
+			if err != nil {
+				return fmt.Errorf("error comparing item %d: %v", i, err)
+			}
+			if len(patch) > 0 {
+				errors = append(errors, ValidationError{
+					Item:     i,
+					Property: "<item>",
+					Message:  fmt.Sprintf("item mismatch: %s", patch),
+					Expected: expectedResults[i],
+					Actual:   actualItems[i],
+				})
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		for _, err := range errors {
+			t.Errorf("Item %d, property '%s' validation failed: %s\nExpected: %v\nActual: %v\nMessage: %s",
+				err.Item, err.Property, err.Message, err.Expected, err.Actual, err.Message)
+		}
+	}
+	return nil
+}
+
+func validateUsingValidators(t *testing.T, actualItems, expectedResults []interface{}, validators map[string]string) ([]ValidationError, error) {
+	firstItem := actualItems[0].(map[string]interface{})
 	properties := make([]string, 0, len(firstItem))
 	for property := range firstItem {
 		properties = append(properties, property)
 	}
+	errors := make([]ValidationError, 0)
 	for _, property := range properties {
-		validator, ok := query.Validators[property]
+		validator, ok := validators[property]
 		if !ok {
 			validator, ok = DefaultValidators[property]
 			if !ok {
@@ -385,34 +427,28 @@ func runSingleQuery(t *testing.T, expectedResults []map[string]interface{}, quer
 		}
 		validateFunc, ok := Validators[validator]
 		if !ok {
-			return fmt.Errorf("unknown validator %s for property %s", validator, property)
+			return nil, fmt.Errorf("unknown validator %s for property %s", validator, property)
 		}
-		errors := validateFunc(t, property, expectedResults, actualItems)
-		if len(errors) > 0 {
-			for _, err := range errors {
-				t.Errorf("Item %d, property '%s' validation failed: %s\nExpected: %v\nActual: %v\nMessage: %s",
-					err.Item, err.Property, err.Message, err.Expected, err.Actual, err.Message)
-			}
-		}
+		localErrors := validateFunc(t, property, expectedResults, actualItems)
+		errors = append(errors, localErrors...)
 	}
-
-	return nil
+	return errors, nil
 }
 
 // validateOrdered checks that the actual results are ordered by the specified property.
 // ascending determines whether to check for ascending (true) or descending (false) order.
-func validateOrdered(propertyName string, actual []map[string]interface{}, ascending bool) []ValidationError {
+func validateOrdered(propertyName string, actual []interface{}, ascending bool) []ValidationError {
 	errors := make([]ValidationError, 0)
 	if len(actual) == 0 {
 		return []ValidationError{{Item: 0, Property: propertyName, Message: "no actual results to validate against"}}
 	}
 	for i := 0; i < len(actual)-1; i++ {
-		currentValue, ok := actual[i][propertyName]
+		currentValue, ok := actual[i].(map[string]interface{})[propertyName]
 		if !ok {
 			errors = append(errors, ValidationError{Item: i, Property: propertyName, Message: "missing expected property", Expected: nil, Actual: nil})
 			continue
 		}
-		nextValue, ok := actual[i+1][propertyName]
+		nextValue, ok := actual[i+1].(map[string]interface{})[propertyName]
 		if !ok {
 			errors = append(errors, ValidationError{Item: i + 1, Property: propertyName, Message: "missing expected property", Expected: nil, Actual: nil})
 			continue
