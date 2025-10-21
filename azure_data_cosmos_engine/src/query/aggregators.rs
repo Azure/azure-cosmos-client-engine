@@ -7,10 +7,17 @@ use serde::Deserialize;
 
 use crate::{query::QueryClauseItem, ErrorKind};
 
-#[derive(Clone, Debug)]
+/// Helper type to try and keep numeric types as integers until necessary
+#[derive(Debug)]
+pub enum Num {
+    Int(i64),
+    Float(f64),
+}
+
+#[derive(Debug)]
 pub enum Aggregator {
     Count { count: u64 },
-    Sum { sum: f64 },
+    Sum { sum: Option<Num> },
     Average { sum: f64, count: u64 },
     Min { min: Option<QueryClauseItem> },
     Max { max: Option<QueryClauseItem> },
@@ -25,7 +32,7 @@ impl FromStr for Aggregator {
         if s.eq_ignore_ascii_case("count") {
             Ok(Aggregator::Count { count: 0 })
         } else if s.eq_ignore_ascii_case("sum") {
-            Ok(Aggregator::Sum { sum: 0.0 })
+            Ok(Aggregator::Sum { sum: None })
         } else if s.eq_ignore_ascii_case("average") {
             Ok(Aggregator::Average { sum: 0.0, count: 0 })
         } else if s.eq_ignore_ascii_case("min") {
@@ -39,30 +46,35 @@ impl FromStr for Aggregator {
 }
 
 impl Aggregator {
-    pub fn into_value(self) -> crate::Result<serde_json::Value> {
-        fn make_number(value: f64) -> crate::Result<serde_json::Number> {
-            serde_json::Number::from_f64(value).ok_or_else(|| {
-                crate::ErrorKind::ArithmeticOverflow.with_message("aggregator has non-finite value")
-            })
-        }
-
+    pub fn into_value(self) -> crate::Result<Option<serde_json::Value>> {
         let value = match self {
-            Aggregator::Count { count } => serde_json::Value::Number(count.into()),
-            Aggregator::Sum { sum } => serde_json::Value::Number(make_number(sum)?),
-            Aggregator::Average { sum, count } => {
-                let avg = if count == 0 {
-                    0.0
-                } else {
-                    sum / (count as f64)
+            Aggregator::Count { count } => Some(serde_json::Value::Number(count.into())),
+            Aggregator::Sum { sum } => {
+                let num = match sum {
+                    Some(Num::Int(i)) => serde_json::Number::from(i),
+                    Some(Num::Float(f)) => serde_json::Number::from_f64(f).ok_or_else(|| {
+                        crate::ErrorKind::ArithmeticOverflow
+                            .with_message("aggregator has non-finite value")
+                    })?,
+                    None => serde_json::Number::from(0),
                 };
-                serde_json::Value::Number(make_number(avg)?)
+                Some(serde_json::Value::Number(num))
             }
-            Aggregator::Min { min, .. } => {
-                min.and_then(|c| c.item).unwrap_or(serde_json::Value::Null)
+            Aggregator::Average { sum, count } => {
+                if count == 0 {
+                    None
+                } else {
+                    let avg = sum / (count as f64);
+                    Some(serde_json::Value::Number(
+                        serde_json::Number::from_f64(avg).ok_or_else(|| {
+                            crate::ErrorKind::ArithmeticOverflow
+                                .with_message("aggregator has non-finite value")
+                        })?,
+                    ))
+                }
             }
-            Aggregator::Max { max, .. } => {
-                max.and_then(|c| c.item).unwrap_or(serde_json::Value::Null)
-            }
+            Aggregator::Min { min, .. } => min.and_then(|c| c.item),
+            Aggregator::Max { max, .. } => max.and_then(|c| c.item),
         };
         Ok(value)
     }
@@ -80,11 +92,39 @@ impl Aggregator {
             }
             Aggregator::Sum { sum } => {
                 let value = require_non_null_value(clause_item, "sum")?;
-                let num_value = value.as_f64().ok_or_else(|| {
-                    crate::ErrorKind::InvalidGatewayResponse
-                        .with_message("sum aggregator expects a numeric value")
-                })?;
-                *sum += num_value;
+                let new_sum = match sum {
+                    None => {
+                        // Try int first
+                        if let Some(int_value) = value.as_u64() {
+                            Some(Num::Int(int_value as i64))
+                        } else if let Some(float_value) = value.as_f64() {
+                            Some(Num::Float(float_value))
+                        } else {
+                            return Err(crate::ErrorKind::InvalidGatewayResponse
+                                .with_message("sum aggregator expects a numeric value"));
+                        }
+                    }
+                    Some(Num::Int(current_int)) => {
+                        if let Some(int_value) = value.as_u64() {
+                            // New value is also an integer
+                            Some(Num::Int(current_int.wrapping_add(int_value as i64)))
+                        } else if let Some(float_value) = value.as_f64() {
+                            // New value is a float, convert current sum to float
+                            Some(Num::Float((*current_int as f64) + float_value))
+                        } else {
+                            return Err(crate::ErrorKind::InvalidGatewayResponse
+                                .with_message("sum aggregator expects a numeric value"));
+                        }
+                    }
+                    Some(Num::Float(current_float)) => {
+                        let float_value = value.as_f64().ok_or_else(|| {
+                            crate::ErrorKind::InvalidGatewayResponse
+                                .with_message("sum aggregator expects a numeric value")
+                        })?;
+                        Some(Num::Float(*current_float + float_value))
+                    }
+                };
+                *sum = new_sum;
             }
             Aggregator::Average { sum, count } => {
                 let value = require_non_null_value(clause_item, "average")?;
@@ -188,7 +228,7 @@ mod tests {
         aggregator.aggregate(&QueryClauseItem::from_value(json!(7)))?;
 
         let result = aggregator.into_value()?;
-        assert_eq!(result, json!(15));
+        assert_eq!(result, Some(json!(15)));
 
         Ok(())
     }
@@ -201,7 +241,7 @@ mod tests {
         aggregator.aggregate(&QueryClauseItem::from_value(json!(0)))?;
 
         let result = aggregator.into_value()?;
-        assert_eq!(result, json!(0));
+        assert_eq!(result, Some(json!(0)));
 
         Ok(())
     }
@@ -211,31 +251,31 @@ mod tests {
         let aggregator = Aggregator::Count { count: 0 };
 
         let result = aggregator.into_value()?;
-        assert_eq!(result, json!(0));
+        assert_eq!(result, Some(json!(0)));
 
         Ok(())
     }
 
     #[test]
     fn sum() -> crate::Result<()> {
-        let mut aggregator = Aggregator::Sum { sum: 0.0 };
+        let mut aggregator = Aggregator::Sum { sum: None };
 
         aggregator.aggregate(&QueryClauseItem::from_value(json!(10.5)))?;
         aggregator.aggregate(&QueryClauseItem::from_value(json!(20)))?;
         aggregator.aggregate(&QueryClauseItem::from_value(json!(-5.5)))?;
 
         let result = aggregator.into_value()?;
-        assert_eq!(result, json!(25.0));
+        assert_eq!(result, Some(json!(25.0)));
 
         Ok(())
     }
 
     #[test]
     fn sum_empty() -> crate::Result<()> {
-        let aggregator = Aggregator::Sum { sum: 0.0 };
+        let aggregator = Aggregator::Sum { sum: None };
 
         let result = aggregator.into_value()?;
-        assert_eq!(result, json!(0.0));
+        assert_eq!(result, Some(json!(0.0)));
 
         Ok(())
     }
@@ -255,7 +295,7 @@ mod tests {
         ))?;
 
         let result = aggregator.into_value()?;
-        assert_eq!(result, json!(5.0));
+        assert_eq!(result, Some(json!(5.0)));
 
         Ok(())
     }
@@ -266,7 +306,7 @@ mod tests {
 
         // Returns 0.0 when count is 0 to avoid division by zero
         let result = aggregator.into_value()?;
-        assert_eq!(result, json!(0.0));
+        assert_eq!(result, None);
 
         Ok(())
     }
@@ -280,7 +320,7 @@ mod tests {
         aggregator.aggregate(&QueryClauseItem::from_value(json!({"min": 15, "count": 1})))?;
 
         let result = aggregator.into_value()?;
-        assert_eq!(result, json!(5));
+        assert_eq!(result, Some(json!(5)));
 
         Ok(())
     }
@@ -294,7 +334,7 @@ mod tests {
         aggregator.aggregate(&QueryClauseItem::from_value(json!(15)))?;
 
         let result = aggregator.into_value()?;
-        assert_eq!(result, json!(5));
+        assert_eq!(result, Some(json!(5)));
 
         Ok(())
     }
@@ -308,7 +348,7 @@ mod tests {
         aggregator.aggregate(&QueryClauseItem::from_value(json!({"min": 1, "count": 0})))?;
 
         let result = aggregator.into_value()?;
-        assert_eq!(result, json!(10));
+        assert_eq!(result, Some(json!(10)));
 
         Ok(())
     }
@@ -318,7 +358,7 @@ mod tests {
         let aggregator = Aggregator::Min { min: None };
 
         let result = aggregator.into_value()?;
-        assert_eq!(result, json!(null));
+        assert_eq!(result, None);
 
         Ok(())
     }
@@ -332,7 +372,7 @@ mod tests {
         aggregator.aggregate(&QueryClauseItem::from_value(json!({"max": 15, "count": 1})))?;
 
         let result = aggregator.into_value()?;
-        assert_eq!(result, json!(15));
+        assert_eq!(result, Some(json!(15)));
 
         Ok(())
     }
@@ -346,7 +386,7 @@ mod tests {
         aggregator.aggregate(&QueryClauseItem::from_value(json!(15)))?;
 
         let result = aggregator.into_value()?;
-        assert_eq!(result, json!(15));
+        assert_eq!(result, Some(json!(15)));
 
         Ok(())
     }
@@ -362,7 +402,7 @@ mod tests {
         ))?;
 
         let result = aggregator.into_value()?;
-        assert_eq!(result, json!(10));
+        assert_eq!(result, Some(json!(10)));
 
         Ok(())
     }
@@ -372,7 +412,7 @@ mod tests {
         let aggregator = Aggregator::Max { max: None };
 
         let result = aggregator.into_value()?;
-        assert_eq!(result, json!(null));
+        assert_eq!(result, None);
 
         Ok(())
     }
@@ -392,8 +432,8 @@ mod tests {
 
         let min_result = min_aggregator.into_value()?;
         let max_result = max_aggregator.into_value()?;
-        assert_eq!(min_result, json!("apple"));
-        assert_eq!(max_result, json!("cherry"));
+        assert_eq!(min_result, Some(json!("apple")));
+        assert_eq!(max_result, Some(json!("cherry")));
 
         Ok(())
     }

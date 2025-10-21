@@ -8,8 +8,18 @@
             "container": "QuickStartProducts"
         },
         {
+            "name": "count_no_items",
+            "query": "SELECT VALUE COUNT(1) FROM c WHERE c.categoryId = 'NonExistentCategory'",
+            "container": "QuickStartProducts"
+        },
+        {
             "name": "max_price",
             "query": "SELECT VALUE MAX(c.price) FROM c",
+            "container": "QuickStartProducts"
+        },
+        {
+            "name": "max_no_items",
+            "query": "SELECT VALUE MAX(c.price) FROM c WHERE c.categoryId = 'NonExistentCategory'",
             "container": "QuickStartProducts"
         },
         {
@@ -18,13 +28,28 @@
             "container": "QuickStartProducts"
         },
         {
+            "name": "min_no_items",
+            "query": "SELECT VALUE MIN(c.price) FROM c WHERE c.categoryId = 'NonExistentCategory'",
+            "container": "QuickStartProducts"
+        },
+        {
             "name": "average_price",
             "query": "SELECT VALUE AVG(c.price) FROM c",
             "container": "QuickStartProducts"
         },
         {
+            "name": "average_no_items",
+            "query": "SELECT VALUE AVG(c.price) FROM c WHERE c.categoryId = 'NonExistentCategory'",
+            "container": "QuickStartProducts"
+        },
+        {
             "name": "sum_price",
             "query": "SELECT VALUE SUM(c.price) FROM c",
+            "container": "QuickStartProducts"
+        },
+        {
+            "name": "sum_no_items",
+            "query": "SELECT VALUE SUM(c.price) FROM c WHERE c.categoryId = 'NonExistentCategory'",
             "container": "QuickStartProducts"
         }
     ]

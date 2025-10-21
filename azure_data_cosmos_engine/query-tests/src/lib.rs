@@ -17,9 +17,14 @@ baseline_tests! {
     },
     aggregates {
         count_all,
+        count_no_items,
         max_price,
+        max_no_items,
         min_price,
+        min_no_items,
         average_price,
+        average_no_items,
         sum_price,
+        sum_no_items,
     },
 }

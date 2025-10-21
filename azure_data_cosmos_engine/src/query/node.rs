@@ -225,11 +225,13 @@ impl PipelineNode for AggregatePipelineNode {
             let mut results = VecDeque::with_capacity(self.aggregators.len());
             for aggregator in self.aggregators.drain(..) {
                 let value = aggregator.into_value()?;
-                let value = serde_json::value::to_raw_value(&value).map_err(|e| {
-                    ErrorKind::InternalError
-                        .with_message(format!("failed to serialize aggregate result: {}", e))
-                })?;
-                results.push_back(value);
+                if let Some(value) = value {
+                    let value = serde_json::value::to_raw_value(&value).map_err(|e| {
+                        ErrorKind::InternalError
+                            .with_message(format!("failed to serialize aggregate result: {}", e))
+                    })?;
+                    results.push_back(value);
+                }
             }
 
             let result = drain_result(&mut results);
