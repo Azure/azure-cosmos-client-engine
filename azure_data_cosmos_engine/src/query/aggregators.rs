@@ -293,7 +293,35 @@ mod tests {
         let aggregator = Aggregator::Sum { sum: Sum::Empty };
 
         let result = aggregator.into_value()?;
-        assert_eq!(result, Some(json!(0.0)));
+        assert_eq!(result, Some(json!(0)));
+
+        Ok(())
+    }
+
+    #[test]
+    fn sum_all_integers() -> crate::Result<()> {
+        let mut aggregator = Aggregator::Sum { sum: Sum::Empty };
+
+        aggregator.aggregate(&QueryClauseItem::from_value(json!(10)))?;
+        aggregator.aggregate(&QueryClauseItem::from_value(json!(20)))?;
+        aggregator.aggregate(&QueryClauseItem::from_value(json!(-5)))?;
+
+        let result = aggregator.into_value()?;
+        assert_eq!(result, Some(json!(25)));
+
+        Ok(())
+    }
+
+    #[test]
+    fn sum_mixed_types() -> crate::Result<()> {
+        let mut aggregator = Aggregator::Sum { sum: Sum::Empty };
+
+        aggregator.aggregate(&QueryClauseItem::from_value(json!(10)))?;
+        aggregator.aggregate(&QueryClauseItem::from_value(json!(20.5)))?;
+        aggregator.aggregate(&QueryClauseItem::from_value(json!(-5)))?;
+
+        let result = aggregator.into_value()?;
+        assert_eq!(result, Some(json!(25.5)));
 
         Ok(())
     }
