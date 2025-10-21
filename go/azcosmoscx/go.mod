@@ -3,7 +3,7 @@ module github.com/Azure/azure-cosmos-client-engine/go/azcosmoscx
 go 1.23.3
 
 require (
-	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.5.0-beta.0
+	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.5.0-beta.1
 	github.com/stretchr/testify v1.10.0
 )
 

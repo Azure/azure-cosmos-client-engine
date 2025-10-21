@@ -2,16 +2,13 @@ module github.com/Azure/azure-cosmos-client-engine/go/sample
 
 go 1.23.5
 
-replace (
-	github.com/Azure/azure-cosmos-client-engine/go/azcosmoscx => ../azcosmoscx
-	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos => github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos main
-)
+replace github.com/Azure/azure-cosmos-client-engine/go/azcosmoscx => ../azcosmoscx
 
 require (
 	github.com/Azure/azure-cosmos-client-engine/go/azcosmoscx v0.0.6
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.19.1
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.0
-	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.5.0-beta.0
+	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.5.0-beta.1
 )
 
 require (
