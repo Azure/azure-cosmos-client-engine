@@ -12,6 +12,7 @@
         "pyfunction",
         "pymodule",
         "cosmoscx",
+        "reqwest"
     ],
     "ignoreWords": [],
     "import": []

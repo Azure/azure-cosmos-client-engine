@@ -5,6 +5,7 @@ use std::borrow::Cow;
 
 use serde::Deserialize;
 
+mod aggregators;
 pub mod node;
 mod pipeline;
 mod plan;

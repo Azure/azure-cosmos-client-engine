@@ -117,6 +117,11 @@ where
 }
 
 impl QueryClauseItem {
+    /// Creates a new [`QueryClauseItem`] from a [`serde_json::Value`].
+    pub fn from_value(value: serde_json::Value) -> Self {
+        Self { item: Some(value) }
+    }
+
     /// Compares two [`QueryClauseItem`]s based on the ordering rules defined for Cosmos DB.
     ///
     /// We can't just implement [`PartialOrd`] here, because we need to be able to return an error.

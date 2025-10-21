@@ -13,6 +13,7 @@ use std::{collections::BTreeMap, fmt::Debug};
 use azure_data_cosmos_engine::query::{
     DataRequest, PartitionKeyRange, QueryPipeline, QueryPlan, QueryResult,
 };
+use tracing_subscriber::EnvFilter;
 
 pub struct Engine {
     container: Container,
@@ -64,9 +65,13 @@ impl Engine {
 
     /// Executes the query, returning the result in individual batches.
     ///
-    /// Each separate `Vec<T>` represents a single [`PipelineResponse`] recieved from the query pipeline.
+    /// Each separate `Vec<T>` represents a single [`PipelineResponse`] received from the query pipeline.
     /// After each batch, the engine automatically fulfills any requests for additional data from the pipeline and moves to the next batch.
     pub fn execute(mut self) -> Result<Vec<EngineResult>, azure_data_cosmos_engine::Error> {
+        let _ = tracing_subscriber::fmt()
+            .with_env_filter(EnvFilter::from_default_env())
+            .try_init();
+
         let mut responses = Vec::new();
         loop {
             let result = self.pipeline.run()?;

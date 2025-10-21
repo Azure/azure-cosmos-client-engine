@@ -1,9 +1,9 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-use std::{fmt::Debug, str::FromStr};
+use std::{collections::VecDeque, fmt::Debug, str::FromStr};
 
-use crate::ErrorKind;
+use crate::{query::aggregators::Aggregator, ErrorKind};
 
 use super::{producer::ItemProducer, QueryResult};
 
@@ -22,19 +22,13 @@ pub struct PipelineNodeResult {
 }
 
 impl PipelineNodeResult {
-    /// Indicates that the pipeline should terminate after yielding the item in [`PipelineNodeResult::value`], if any.
-    pub const EARLY_TERMINATE: Self = Self {
-        value: None,
-        terminated: true,
-    };
-
     /// Indicates that the pipeline has no result, but is not terminated. The pipeline requires more data to produce a result.
     pub const NO_RESULT: Self = Self {
         value: None,
         terminated: false,
     };
 
-    pub fn result(value: QueryResult, terminated: bool) -> Self {
+    pub const fn result(value: QueryResult, terminated: bool) -> Self {
         Self {
             value: Some(value),
             terminated,
@@ -72,11 +66,8 @@ impl<'a> PipelineSlice<'a> {
             }
             None => {
                 tracing::debug!("retrieving item from producer");
-                let value = self.producer.produce_item()?;
-                Ok(PipelineNodeResult {
-                    value,
-                    terminated: false,
-                })
+                let result = self.producer.produce_item()?;
+                Ok(result)
             }
         }
     }
@@ -116,7 +107,10 @@ impl PipelineNode for LimitPipelineNode {
     fn next_item(&mut self, mut rest: PipelineSlice) -> crate::Result<PipelineNodeResult> {
         if self.remaining == 0 {
             tracing::debug!("limit reached, terminating pipeline");
-            return Ok(PipelineNodeResult::EARLY_TERMINATE);
+            return Ok(PipelineNodeResult {
+                value: None,
+                terminated: true,
+            });
         }
 
         match rest.run()? {
@@ -172,47 +166,9 @@ impl PipelineNode for OffsetPipelineNode {
     }
 }
 
-#[derive(Clone, Debug)]
-pub enum Aggregator {
-    Count,
-    Sum,
-    Average,
-    Min,
-    Max,
-}
-
-impl FromStr for Aggregator {
-    type Err = crate::Error;
-
-    fn from_str(s: &str) -> crate::Result<Self> {
-        // A match statement seems like the right thing to do, but it means forcing the string to lowercase first.
-        // This allows us to do the comparison in a case-insensitive way without having to allocate a new string.
-        if s.eq_ignore_ascii_case("count") {
-            Ok(Aggregator::Count)
-        } else if s.eq_ignore_ascii_case("sum") {
-            Ok(Aggregator::Sum)
-        } else if s.eq_ignore_ascii_case("average") {
-            Ok(Aggregator::Average)
-        } else if s.eq_ignore_ascii_case("min") {
-            Ok(Aggregator::Min)
-        } else if s.eq_ignore_ascii_case("max") {
-            Ok(Aggregator::Max)
-        } else {
-            Err(ErrorKind::UnsupportedQueryPlan.with_message(format!("unknown aggregator: {}", s)))
-        }
-    }
-}
-
-impl Aggregator {
-    /// Aggregates the current value with the provided value, updating it in place.
-    pub fn aggregate(self, current: &mut serde_json::Value) -> crate::Result<()> {
-        todo!()
-    }
-}
-
 pub struct AggregatePipelineNode {
     aggregators: Vec<Aggregator>,
-    values: Vec<serde_json::Value>,
+    results: Option<VecDeque<Box<serde_json::value::RawValue>>>,
 }
 
 impl AggregatePipelineNode {
@@ -221,16 +177,67 @@ impl AggregatePipelineNode {
         for name in names {
             aggregators.push(Aggregator::from_str(&name)?);
         }
-        let values = vec![serde_json::Value::Null; aggregators.len()];
         Ok(Self {
             aggregators,
-            values,
+            results: None,
         })
     }
 }
 
 impl PipelineNode for AggregatePipelineNode {
     fn next_item(&mut self, mut rest: PipelineSlice) -> crate::Result<PipelineNodeResult> {
-        todo!()
+        fn drain_result(
+            results: &mut VecDeque<Box<serde_json::value::RawValue>>,
+        ) -> crate::Result<PipelineNodeResult> {
+            if let Some(value) = results.pop_front() {
+                Ok(PipelineNodeResult::result(
+                    QueryResult {
+                        payload: Some(value),
+                        ..Default::default()
+                    },
+                    results.is_empty(),
+                ))
+            } else {
+                // We shouldn't be here if there are no results left.
+                Ok(PipelineNodeResult {
+                    value: None,
+                    terminated: true,
+                })
+            }
+        }
+
+        if let Some(results) = &mut self.results {
+            return drain_result(results);
+        }
+
+        let result = rest.run()?;
+        if let Some(item) = result.value {
+            tracing::debug!(aggregator_count = self.aggregators.len(), "processing item");
+            for clause_item in item.aggregates {
+                for aggregator in &mut self.aggregators {
+                    aggregator.aggregate(&clause_item)?
+                }
+            }
+        }
+
+        if result.terminated {
+            tracing::debug!("aggregation complete, producing final result");
+            let mut results = VecDeque::with_capacity(self.aggregators.len());
+            for aggregator in self.aggregators.drain(..) {
+                let value = aggregator.into_value()?;
+                let value = serde_json::value::to_raw_value(&value).map_err(|e| {
+                    ErrorKind::InternalError
+                        .with_message(format!("failed to serialize aggregate result: {}", e))
+                })?;
+                results.push_back(value);
+            }
+
+            let result = drain_result(&mut results);
+            self.results = Some(results);
+            result
+        } else {
+            tracing::debug!("aggregation not yet complete, no result");
+            Ok(PipelineNodeResult::NO_RESULT)
+        }
     }
 }

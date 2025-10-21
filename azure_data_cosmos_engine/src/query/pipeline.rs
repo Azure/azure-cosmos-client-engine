@@ -184,6 +184,7 @@ impl QueryPipeline {
                 plan.query_info.aggregates.clone(),
             )?));
         }
+
         if !plan.query_info.group_by_expressions.is_empty()
             || !plan.query_info.group_by_alias_to_aggregate_type.is_empty()
             || !plan.query_info.group_by_aliases.is_empty()
@@ -277,7 +278,10 @@ impl QueryPipeline {
         let mut items = Vec::new();
         while !self.terminated {
             let result = slice.run()?;
+
+            // Termination MUST come from the pipeline, to ensure aggregates (which can only be emitted after all data is processed) work correctly.
             if result.terminated {
+                tracing::trace!("pipeline node terminated the pipeline");
                 self.terminated = true;
             }
 
@@ -291,11 +295,6 @@ impl QueryPipeline {
         }
 
         let requests = self.producer.data_requests();
-
-        // Once there are no more requests, there's no more data to be provided.
-        if requests.is_empty() {
-            self.terminated = true;
-        }
 
         Ok(PipelineResponse {
             items,
