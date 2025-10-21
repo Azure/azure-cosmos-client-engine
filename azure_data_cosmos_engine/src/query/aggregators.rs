@@ -1,23 +1,83 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-use std::str::FromStr;
+use std::{
+    ops::{Add, AddAssign},
+    str::FromStr,
+};
 
 use serde::Deserialize;
 
 use crate::{query::QueryClauseItem, ErrorKind};
 
 /// Helper type to try and keep numeric types as integers until necessary
-#[derive(Debug)]
-pub enum Num {
+#[derive(Debug, Clone, Copy)]
+pub enum Sum {
+    Empty,
     Int(i64),
     Float(f64),
+}
+
+impl Add for Sum {
+    type Output = Sum;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Sum::Int(a), Sum::Int(b)) => Sum::Int(a.wrapping_add(b)),
+            (Sum::Int(a), Sum::Float(b)) => Sum::Float((a as f64) + b),
+            (Sum::Float(a), Sum::Int(b)) => Sum::Float(a + (b as f64)),
+            (Sum::Float(a), Sum::Float(b)) => Sum::Float(a + b),
+            (Sum::Empty, num) | (num, Sum::Empty) => num,
+        }
+    }
+}
+
+impl Add<&serde_json::Value> for Sum {
+    type Output = Sum;
+
+    fn add(self, rhs: &serde_json::Value) -> Self::Output {
+        let rhs_num: Sum = rhs.into();
+        self + rhs_num
+    }
+}
+
+impl AddAssign<&serde_json::Value> for Sum {
+    fn add_assign(&mut self, rhs: &serde_json::Value) {
+        let rhs_num: Sum = rhs.into();
+        *self = *self + rhs_num;
+    }
+}
+
+impl From<&serde_json::Value> for Sum {
+    fn from(num: &serde_json::Value) -> Self {
+        if let Some(i) = num.as_i64() {
+            Sum::Int(i)
+        } else if let Some(f) = num.as_f64() {
+            Sum::Float(f)
+        } else {
+            Sum::Empty
+        }
+    }
+}
+
+impl TryFrom<Sum> for serde_json::Number {
+    type Error = crate::Error;
+
+    fn try_from(value: Sum) -> crate::Result<Self> {
+        match value {
+            Sum::Int(i) => Ok(serde_json::Number::from(i)),
+            Sum::Float(f) => serde_json::Number::from_f64(f).ok_or_else(|| {
+                crate::ErrorKind::ArithmeticOverflow.with_message("aggregator has non-finite value")
+            }),
+            Sum::Empty => Ok(serde_json::Number::from(0)),
+        }
+    }
 }
 
 #[derive(Debug)]
 pub enum Aggregator {
     Count { count: u64 },
-    Sum { sum: Option<Num> },
+    Sum { sum: Sum },
     Average { sum: f64, count: u64 },
     Min { min: Option<QueryClauseItem> },
     Max { max: Option<QueryClauseItem> },
@@ -32,7 +92,7 @@ impl FromStr for Aggregator {
         if s.eq_ignore_ascii_case("count") {
             Ok(Aggregator::Count { count: 0 })
         } else if s.eq_ignore_ascii_case("sum") {
-            Ok(Aggregator::Sum { sum: None })
+            Ok(Aggregator::Sum { sum: Sum::Empty })
         } else if s.eq_ignore_ascii_case("average") {
             Ok(Aggregator::Average { sum: 0.0, count: 0 })
         } else if s.eq_ignore_ascii_case("min") {
@@ -49,17 +109,7 @@ impl Aggregator {
     pub fn into_value(self) -> crate::Result<Option<serde_json::Value>> {
         let value = match self {
             Aggregator::Count { count } => Some(serde_json::Value::Number(count.into())),
-            Aggregator::Sum { sum } => {
-                let num = match sum {
-                    Some(Num::Int(i)) => serde_json::Number::from(i),
-                    Some(Num::Float(f)) => serde_json::Number::from_f64(f).ok_or_else(|| {
-                        crate::ErrorKind::ArithmeticOverflow
-                            .with_message("aggregator has non-finite value")
-                    })?,
-                    None => serde_json::Number::from(0),
-                };
-                Some(serde_json::Value::Number(num))
-            }
+            Aggregator::Sum { sum } => Some(serde_json::Value::Number(sum.try_into()?)),
             Aggregator::Average { sum, count } => {
                 if count == 0 {
                     None
@@ -92,39 +142,7 @@ impl Aggregator {
             }
             Aggregator::Sum { sum } => {
                 let value = require_non_null_value(clause_item, "sum")?;
-                let new_sum = match sum {
-                    None => {
-                        // Try int first
-                        if let Some(int_value) = value.as_u64() {
-                            Some(Num::Int(int_value as i64))
-                        } else if let Some(float_value) = value.as_f64() {
-                            Some(Num::Float(float_value))
-                        } else {
-                            return Err(crate::ErrorKind::InvalidGatewayResponse
-                                .with_message("sum aggregator expects a numeric value"));
-                        }
-                    }
-                    Some(Num::Int(current_int)) => {
-                        if let Some(int_value) = value.as_u64() {
-                            // New value is also an integer
-                            Some(Num::Int(current_int.wrapping_add(int_value as i64)))
-                        } else if let Some(float_value) = value.as_f64() {
-                            // New value is a float, convert current sum to float
-                            Some(Num::Float((*current_int as f64) + float_value))
-                        } else {
-                            return Err(crate::ErrorKind::InvalidGatewayResponse
-                                .with_message("sum aggregator expects a numeric value"));
-                        }
-                    }
-                    Some(Num::Float(current_float)) => {
-                        let float_value = value.as_f64().ok_or_else(|| {
-                            crate::ErrorKind::InvalidGatewayResponse
-                                .with_message("sum aggregator expects a numeric value")
-                        })?;
-                        Some(Num::Float(*current_float + float_value))
-                    }
-                };
-                *sum = new_sum;
+                *sum += value;
             }
             Aggregator::Average { sum, count } => {
                 let value = require_non_null_value(clause_item, "average")?;
@@ -258,7 +276,7 @@ mod tests {
 
     #[test]
     fn sum() -> crate::Result<()> {
-        let mut aggregator = Aggregator::Sum { sum: None };
+        let mut aggregator = Aggregator::Sum { sum: Sum::Empty };
 
         aggregator.aggregate(&QueryClauseItem::from_value(json!(10.5)))?;
         aggregator.aggregate(&QueryClauseItem::from_value(json!(20)))?;
@@ -272,7 +290,7 @@ mod tests {
 
     #[test]
     fn sum_empty() -> crate::Result<()> {
-        let aggregator = Aggregator::Sum { sum: None };
+        let aggregator = Aggregator::Sum { sum: Sum::Empty };
 
         let result = aggregator.into_value()?;
         assert_eq!(result, Some(json!(0.0)));
