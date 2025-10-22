@@ -370,6 +370,11 @@ func runSingleQuery(t *testing.T, expectedResults []interface{}, query QuerySpec
 		return fmt.Errorf("expected %d results, but got %d", len(expectedResults), len(actualItems))
 	}
 
+	if len(actualItems) == 0 {
+		// No results to validate
+		return nil
+	}
+
 	// Check if the first expected item is a map, and if so, validate using property validators
 	var errors []ValidationError
 	if _, ok := expectedResults[0].(map[string]interface{}); ok {
