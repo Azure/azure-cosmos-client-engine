@@ -85,6 +85,9 @@ var Validators = map[string]func(t *testing.T, propertyName string, expected, ac
 
 			validationError, err := validateJsonEquality(t, i, propertyName, expectedPropertyValue, actualPropertyValue)
 			if err != nil {
+				return []ValidationError{{Item: i, Property: propertyName, Message: fmt.Sprintf("error during validation: %v", err), Expected: expectedPropertyValue, Actual: actualPropertyValue}}
+			}
+			if validationError != nil {
 				errors = append(errors, *validationError)
 			}
 		}

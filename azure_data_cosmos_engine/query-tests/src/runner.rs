@@ -52,6 +52,8 @@ struct ValidationError {
     actual: serde_json::Value,
 }
 
+// f64::EPSILON isn't sufficient for our needs here, we need a bit more leeway.
+// Since we're comparing between different SDKs, AND dealing with JSON serialization, EPSILON is just too tight.
 const ALLOWED_FLOAT_ERROR: f64 = 1e-6;
 
 fn get_validator<'a>(validators: &'a HashMap<String, String>, property_name: &str) -> &'a str {
