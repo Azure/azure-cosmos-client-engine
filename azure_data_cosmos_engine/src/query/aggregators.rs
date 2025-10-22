@@ -169,7 +169,7 @@ impl Aggregator {
             }
             Aggregator::Max { max } => {
                 if let Some(new) =
-                    better_minmax_candidate(max, clause_item, std::cmp::Ordering::Greater)?
+                    better_minmax_candidate(max, &clause_item, std::cmp::Ordering::Greater)?
                 {
                     *max = Some(new);
                 }
@@ -197,30 +197,32 @@ fn better_minmax_candidate(
     candidate: &QueryClauseItem,
     preferred_ordering: std::cmp::Ordering,
 ) -> crate::Result<Option<QueryClauseItem>> {
-    let candidate_value = match &candidate.item {
-        Some(serde_json::Value::Object(_)) => {
-            #[derive(Debug, Deserialize)]
-            struct MinMaxItem {
-                #[serde(alias = "min")]
-                #[serde(alias = "max")]
-                value: serde_json::Value,
-                count: u64,
-            }
+    let candidate_value = match (&candidate.item, &candidate.item2) {
+        // Prefer the higher-precision "item2" value
+        (_, Some(serde_json::Value::Object(o))) => {
+            let count = o.get("count").and_then(|v| v.as_u64()).ok_or_else(|| {
+                crate::ErrorKind::InvalidGatewayResponse
+                    .with_message("max aggregator expects 'item2' to have a 'count' property")
+            })?;
 
-            let item: MinMaxItem = serde_json::from_value(candidate.item.clone().unwrap())
-                .map_err(|e| {
-                    crate::ErrorKind::InvalidGatewayResponse.with_message(format!(
-                        "max aggregator expects object with 'max' and 'count' properties: {}",
-                        e
-                    ))
-                })?;
-            if item.count == 0 {
+            if count == 0 {
+                tracing::trace!("ignoring min/max candidate with zero count");
                 // Ignore aggregation if count is zero
                 return Ok(None);
             }
-            QueryClauseItem::from_value(item.value)
+
+            let value = o.get("max").or_else(|| o.get("min")).ok_or_else(|| {
+                crate::ErrorKind::InvalidGatewayResponse.with_message(
+                    "max aggregator expects 'item2' to have a 'max' or 'min' property",
+                )
+            })?;
+            QueryClauseItem::from_value(value.clone())
         }
-        _ => candidate.clone(),
+        (Some(i), _) => QueryClauseItem::from_value(i.clone()),
+        _ => {
+            return Err(crate::ErrorKind::InvalidGatewayResponse
+                .with_message("min/max aggregator expects either 'item' or 'item2' to be present"))
+        }
     };
 
     Ok(match current {
@@ -331,17 +333,17 @@ mod tests {
         let mut aggregator = Aggregator::Average { sum: 0.0, count: 0 };
 
         aggregator.aggregate(&QueryClauseItem::from_value(
-            json!({"sum": 10.0, "count": 2}),
+            json!({"sum": 9.0, "count": 2}),
         ))?;
         aggregator.aggregate(&QueryClauseItem::from_value(
-            json!({"sum": 15.0, "count": 3}),
+            json!({"sum": 4.0, "count": 3}),
         ))?;
         aggregator.aggregate(&QueryClauseItem::from_value(
             json!({"sum": 5.0, "count": 1}),
         ))?;
 
         let result = aggregator.into_value()?;
-        assert_eq!(result, Some(json!(5.0)));
+        assert_eq!(result, Some(json!(3.0)));
 
         Ok(())
     }
@@ -350,7 +352,6 @@ mod tests {
     fn average_empty() -> crate::Result<()> {
         let aggregator = Aggregator::Average { sum: 0.0, count: 0 };
 
-        // Returns 0.0 when count is 0 to avoid division by zero
         let result = aggregator.into_value()?;
         assert_eq!(result, None);
 
@@ -361,9 +362,18 @@ mod tests {
     fn min_with_objects() -> crate::Result<()> {
         let mut aggregator = Aggregator::Min { min: None };
 
-        aggregator.aggregate(&QueryClauseItem::from_value(json!({"min": 10, "count": 1})))?;
-        aggregator.aggregate(&QueryClauseItem::from_value(json!({"min": 5, "count": 2})))?;
-        aggregator.aggregate(&QueryClauseItem::from_value(json!({"min": 15, "count": 1})))?;
+        aggregator.aggregate(&QueryClauseItem::from_values(
+            json!(10),
+            json!({"min": 10, "count": 1}),
+        ))?;
+        aggregator.aggregate(&QueryClauseItem::from_values(
+            json!(5),
+            json!({"min": 5, "count": 2}),
+        ))?;
+        aggregator.aggregate(&QueryClauseItem::from_values(
+            json!(15),
+            json!({"min": 15, "count": 1}),
+        ))?;
 
         let result = aggregator.into_value()?;
         assert_eq!(result, Some(json!(5)));
@@ -389,9 +399,15 @@ mod tests {
     fn min_ignore_zero_count() -> crate::Result<()> {
         let mut aggregator = Aggregator::Min { min: None };
 
-        aggregator.aggregate(&QueryClauseItem::from_value(json!({"min": 10, "count": 1})))?;
+        aggregator.aggregate(&QueryClauseItem::from_values(
+            json!(10),
+            json!({"min": 10, "count": 1}),
+        ))?;
         // Zero count values are ignored because they come from empty partitions
-        aggregator.aggregate(&QueryClauseItem::from_value(json!({"min": 1, "count": 0})))?;
+        aggregator.aggregate(&QueryClauseItem::from_values(
+            json!(1),
+            json!({"min": 1, "count": 0}),
+        ))?;
 
         let result = aggregator.into_value()?;
         assert_eq!(result, Some(json!(10)));
@@ -413,9 +429,18 @@ mod tests {
     fn max_with_objects() -> crate::Result<()> {
         let mut aggregator = Aggregator::Max { max: None };
 
-        aggregator.aggregate(&QueryClauseItem::from_value(json!({"max": 10, "count": 1})))?;
-        aggregator.aggregate(&QueryClauseItem::from_value(json!({"max": 5, "count": 2})))?;
-        aggregator.aggregate(&QueryClauseItem::from_value(json!({"max": 15, "count": 1})))?;
+        aggregator.aggregate(&QueryClauseItem::from_values(
+            json!(10),
+            json!({"max": 10, "count": 1}),
+        ))?;
+        aggregator.aggregate(&QueryClauseItem::from_values(
+            json!(5),
+            json!({"max": 5, "count": 2}),
+        ))?;
+        aggregator.aggregate(&QueryClauseItem::from_values(
+            json!(15),
+            json!({"max": 15, "count": 1}),
+        ))?;
 
         let result = aggregator.into_value()?;
         assert_eq!(result, Some(json!(15)));
@@ -441,9 +466,13 @@ mod tests {
     fn max_ignore_zero_count() -> crate::Result<()> {
         let mut aggregator = Aggregator::Max { max: None };
 
-        aggregator.aggregate(&QueryClauseItem::from_value(json!({"max": 10, "count": 1})))?;
+        aggregator.aggregate(&QueryClauseItem::from_values(
+            json!(10),
+            json!({"max": 10, "count": 1}),
+        ))?;
         // Zero count values are ignored because they come from empty partitions
-        aggregator.aggregate(&QueryClauseItem::from_value(
+        aggregator.aggregate(&QueryClauseItem::from_values(
+            json!(100),
             json!({"max": 100, "count": 0}),
         ))?;
 

@@ -198,7 +198,6 @@ impl PipelineNode for AggregatePipelineNode {
                     results.is_empty(),
                 ))
             } else {
-                // We shouldn't be here if there are no results left.
                 Ok(PipelineNodeResult {
                     value: None,
                     terminated: true,
@@ -226,11 +225,11 @@ impl PipelineNode for AggregatePipelineNode {
             for aggregator in self.aggregators.drain(..) {
                 let value = aggregator.into_value()?;
                 if let Some(value) = value {
-                    let value = serde_json::value::to_raw_value(&value).map_err(|e| {
+                    let raw_value = serde_json::value::to_raw_value(&value).map_err(|e| {
                         ErrorKind::InternalError
                             .with_message(format!("failed to serialize aggregate result: {}", e))
                     })?;
-                    results.push_back(value);
+                    results.push_back(raw_value);
                 }
             }
 

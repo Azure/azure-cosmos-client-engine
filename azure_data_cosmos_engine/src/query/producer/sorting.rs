@@ -120,23 +120,15 @@ mod tests {
     pub fn compare_query_results_different() {
         let left = QueryResult {
             order_by_items: vec![
-                QueryClauseItem {
-                    item: Some(serde_json::json!(1)),
-                },
-                QueryClauseItem {
-                    item: Some(serde_json::json!("zzzz")),
-                },
+                QueryClauseItem::from_value(serde_json::json!(1)),
+                QueryClauseItem::from_value(serde_json::json!("zzzz")),
             ],
             ..Default::default()
         };
         let right = QueryResult {
             order_by_items: vec![
-                QueryClauseItem {
-                    item: Some(serde_json::json!(1)),
-                },
-                QueryClauseItem {
-                    item: Some(serde_json::json!("yyyy")),
-                },
+                QueryClauseItem::from_value(serde_json::json!(1)),
+                QueryClauseItem::from_value(serde_json::json!("yyyy")),
             ],
             ..Default::default()
         };
@@ -156,23 +148,15 @@ mod tests {
     pub fn compare_query_results_identical() {
         let left = QueryResult {
             order_by_items: vec![
-                QueryClauseItem {
-                    item: Some(serde_json::json!(1)),
-                },
-                QueryClauseItem {
-                    item: Some(serde_json::json!("zzzz")),
-                },
+                QueryClauseItem::from_value(serde_json::json!(1)),
+                QueryClauseItem::from_value(serde_json::json!("zzzz")),
             ],
             ..Default::default()
         };
         let right = QueryResult {
             order_by_items: vec![
-                QueryClauseItem {
-                    item: Some(serde_json::json!(1)),
-                },
-                QueryClauseItem {
-                    item: Some(serde_json::json!("zzzz")),
-                },
+                QueryClauseItem::from_value(serde_json::json!(1)),
+                QueryClauseItem::from_value(serde_json::json!("zzzz")),
             ],
             ..Default::default()
         };
@@ -192,12 +176,8 @@ mod tests {
     pub fn compare_with_empty() {
         let non_empty = QueryResult {
             order_by_items: vec![
-                QueryClauseItem {
-                    item: Some(serde_json::json!(1)),
-                },
-                QueryClauseItem {
-                    item: Some(serde_json::json!("zzzz")),
-                },
+                QueryClauseItem::from_value(serde_json::json!(1)),
+                QueryClauseItem::from_value(serde_json::json!("zzzz")),
             ],
             ..Default::default()
         };
@@ -223,19 +203,13 @@ mod tests {
     #[test]
     pub fn compare_query_results_inconsistent() {
         let left = QueryResult {
-            order_by_items: vec![QueryClauseItem {
-                item: Some(serde_json::json!(1)),
-            }],
+            order_by_items: vec![QueryClauseItem::from_value(serde_json::json!(1))],
             ..Default::default()
         };
         let right = QueryResult {
             order_by_items: vec![
-                QueryClauseItem {
-                    item: Some(serde_json::json!(1)),
-                },
-                QueryClauseItem {
-                    item: Some(serde_json::json!("zzzz")),
-                },
+                QueryClauseItem::from_value(serde_json::json!(1)),
+                QueryClauseItem::from_value(serde_json::json!("zzzz")),
             ],
             ..Default::default()
         };
