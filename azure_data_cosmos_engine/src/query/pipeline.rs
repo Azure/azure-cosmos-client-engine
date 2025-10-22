@@ -3,7 +3,10 @@
 
 use std::ffi::CStr;
 
-use crate::{query::query_result::QueryResultShape, ErrorKind};
+use crate::{
+    query::{node::AggregatePipelineNode, query_result::QueryResultShape},
+    ErrorKind,
+};
 
 use super::{
     node::{LimitPipelineNode, OffsetPipelineNode, PipelineNode, PipelineSlice},
@@ -56,7 +59,8 @@ supported_features!(
     OrderBy,
     MultipleOrderBy,
     Top,
-    NonStreamingOrderBy
+    NonStreamingOrderBy,
+    Aggregate
 );
 
 /// Represents a query pipeline capable of accepting single-partition results for a query and returning a cross-partition stream of results.
@@ -128,6 +132,12 @@ impl QueryPipeline {
 
         tracing::trace!(?query, ?plan, "creating query pipeline");
 
+        // We don't support non-value aggregates, so make sure the query doesn't have any.
+        if !plan.query_info.aggregates.is_empty() && !plan.query_info.has_select_value {
+            return Err(ErrorKind::UnsupportedQueryPlan
+                .with_message("non-value aggregates are not supported"));
+        }
+
         let producer = if plan.query_info.order_by.is_empty() {
             tracing::debug!("using unordered pipeline");
             ItemProducer::unordered(pkranges)
@@ -164,16 +174,17 @@ impl QueryPipeline {
             pipeline.push(Box::new(OffsetPipelineNode::new(offset)));
         }
 
-        if plan.query_info.has_select_value {
-            return Err(ErrorKind::UnsupportedQueryPlan
-                .with_message("SELECT VALUE queries are not supported"));
+        if !plan.query_info.aggregates.is_empty() {
+            if result_shape != QueryResultShape::RawPayload {
+                return Err(ErrorKind::UnsupportedQueryPlan
+                    .with_message("cannot mix aggregates with ORDER BY"));
+            }
+            result_shape = QueryResultShape::ValueAggregate;
+            pipeline.push(Box::new(AggregatePipelineNode::from_names(
+                plan.query_info.aggregates.clone(),
+            )?));
         }
 
-        if !plan.query_info.aggregates.is_empty() {
-            return Err(
-                ErrorKind::UnsupportedQueryPlan.with_message("aggregates are not supported")
-            );
-        }
         if !plan.query_info.group_by_expressions.is_empty()
             || !plan.query_info.group_by_alias_to_aggregate_type.is_empty()
             || !plan.query_info.group_by_aliases.is_empty()
@@ -267,7 +278,10 @@ impl QueryPipeline {
         let mut items = Vec::new();
         while !self.terminated {
             let result = slice.run()?;
+
+            // Termination MUST come from the pipeline, to ensure aggregates (which can only be emitted after all data is processed) work correctly.
             if result.terminated {
+                tracing::trace!("pipeline node terminated the pipeline");
                 self.terminated = true;
             }
 
@@ -281,11 +295,6 @@ impl QueryPipeline {
         }
 
         let requests = self.producer.data_requests();
-
-        // Once there are no more requests, there's no more data to be provided.
-        if requests.is_empty() {
-            self.terminated = true;
-        }
 
         Ok(PipelineResponse {
             items,

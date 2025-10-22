@@ -1,10 +1,11 @@
 # Release History
 
-## 0.0.6-beta.1 
+## 0.0.6-beta.1 (Unreleased)
 
 ### Features Added
 
 * Added ability to get effective partition key string from a partition key value. - [PR 39](https://github.com/Azure/azure-cosmos-client-engine/pull/39)
+* Added support for SELECT VALUE queries that include aggregate functions. - [PR 43](https://github.com/Azure/azure-cosmos-client-engine/pull/43)
 
 ### Breaking Changes
 

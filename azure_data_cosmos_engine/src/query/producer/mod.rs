@@ -8,6 +8,7 @@ use std::{
 
 use crate::{
     query::{
+        node::PipelineNodeResult,
         producer::{
             sorting::{SortableResult, Sorting},
             state::PartitionState,
@@ -151,10 +152,20 @@ impl ProducerStrategy {
     pub fn produce_item(
         &mut self,
         partitions: &[PartitionState],
-    ) -> crate::Result<Option<QueryResult>> {
+    ) -> crate::Result<PipelineNodeResult> {
         // Gets the next item from the merge strategy.
         match self {
-            ProducerStrategy::Unordered { items, .. } => Ok(items.pop_front()),
+            ProducerStrategy::Unordered {
+                items,
+                current_partition_index,
+                ..
+            } => {
+                let value = items.pop_front();
+                let terminated = items.is_empty()
+                    && (*current_partition_index == partitions.len() - 1)
+                    && partitions[*current_partition_index].done();
+                Ok(PipelineNodeResult { value, terminated })
+            }
             ProducerStrategy::Streaming { sorting, buffers } => {
                 // Scan through each partition to find the next item to produce.
                 // We do the scan first with an immutable borrow of the buffers, and then end up with the index of the partition that has the next item to produce.
@@ -178,7 +189,7 @@ impl ProducerStrategy {
                         // SDKs could optimize how they call the engine to avoid this scenario (by always making requests first, for example),
                         // but we can't assume that will always be the case.
                         tracing::debug!(pkrange_id = ?partition.pkrange.id, "partition not started, stopping item production");
-                        return Ok(None);
+                        return Ok(PipelineNodeResult::NO_RESULT);
                     }
 
                     if partition.done() && buffer.is_empty() {
@@ -233,10 +244,16 @@ impl ProducerStrategy {
                     // If it was fully exhausted, the check for `done() && buffer.is_empty()` would have excluded it.
                     // Instead, we have an empty buffer AND the possibility for more data from this partition.
                     // That means we WANT to return `None` here. We need to check this partition for more data before we can yield an item.
-                    Ok(buffers[i].1.pop_front())
+                    let value = buffers[i].1.pop_front();
+                    let terminated = value.is_none() && partitions.iter().all(|p| p.done());
+                    Ok(PipelineNodeResult { value, terminated })
                 } else {
                     // No match found, meaning all partitions are either exhausted or waiting for data.
-                    Ok(None)
+                    let terminated = partitions.iter().all(|p| p.done());
+                    Ok(PipelineNodeResult {
+                        value: None,
+                        terminated,
+                    })
                 }
             }
             ProducerStrategy::NonStreaming { items, .. } => {
@@ -244,11 +261,15 @@ impl ProducerStrategy {
                 if partitions.iter().any(|p| !p.done()) {
                     // If any partition is not done, we cannot produce items yet.
                     tracing::debug!("not all partitions are done, cannot produce items");
-                    return Ok(None);
+                    return Ok(PipelineNodeResult::NO_RESULT);
                 }
 
                 // We can just pop the next item from the heap, as it is already sorted.
-                Ok(items.pop().map(|r| r.into()))
+                let value = items.pop().map(|r| r.into());
+                Ok(PipelineNodeResult {
+                    value,
+                    terminated: items.is_empty(),
+                })
             }
         }
     }
@@ -378,7 +399,7 @@ impl ItemProducer {
 
     /// Requests the next item from the cross-partition result stream.
     #[tracing::instrument(level = "trace", skip(self))]
-    pub fn produce_item(&mut self) -> crate::Result<Option<QueryResult>> {
+    pub fn produce_item(&mut self) -> crate::Result<PipelineNodeResult> {
         self.strategy.produce_item(&self.partitions)
     }
 }
@@ -442,10 +463,6 @@ mod tests {
         let mut items = Vec::new();
         loop {
             let requests = producer.data_requests();
-            if requests.is_empty() {
-                // No more requests, we can stop.
-                return Ok(items);
-            }
             for request in requests {
                 let pkrange_id = request.pkrange_id.to_string();
                 if let Some(pages) = partitions.get_mut(&pkrange_id) {
@@ -463,9 +480,21 @@ mod tests {
             }
 
             // Now drain the items from the producer.
-            while let Some(item) = producer.produce_item()? {
-                let item = serde_json::from_str(item.payload.unwrap().get()).unwrap();
-                items.push(item);
+            loop {
+                let result = producer.produce_item()?;
+                let has_value = result.value.is_some(); // Capture Some/None state before we consume it.
+                if let Some(value) = result.value {
+                    let item = serde_json::from_str(value.payload.unwrap().get()).unwrap();
+                    items.push(item);
+                }
+
+                if result.terminated {
+                    return Ok(items);
+                }
+
+                if !has_value {
+                    break;
+                }
             }
 
             // Loop back around to check for requests.

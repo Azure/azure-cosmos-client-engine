@@ -10,3 +10,7 @@ import (
 func TestOrderBy(t *testing.T) {
 	runIntegrationTest(t, "order_by.json")
 }
+
+func TestAggregates(t *testing.T) {
+	runIntegrationTest(t, "aggregates.json")
+}

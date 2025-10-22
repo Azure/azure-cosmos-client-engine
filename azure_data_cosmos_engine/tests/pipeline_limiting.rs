@@ -47,14 +47,10 @@ impl Item {
 impl From<Item> for QueryResult {
     fn from(item: Item) -> Self {
         let raw = serde_json::value::to_raw_value(&item.title).unwrap();
-        let sort0 = QueryClauseItem {
-            item: Some(serde_json::Value::Number(serde_json::Number::from(
-                item.sort0,
-            ))),
-        };
-        let sort1 = QueryClauseItem {
-            item: Some(serde_json::Value::String(item.sort1.clone())),
-        };
+        let sort0 = QueryClauseItem::from_value(serde_json::Value::Number(
+            serde_json::Number::from(item.sort0),
+        ));
+        let sort1 = QueryClauseItem::from_value(serde_json::Value::String(item.sort1.clone()));
         QueryResult {
             order_by_items: vec![sort0, sort1],
             payload: Some(raw),

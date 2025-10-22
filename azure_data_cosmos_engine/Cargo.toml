@@ -21,3 +21,4 @@ python_conversions = ["dep:pyo3"]
 
 [dev-dependencies]
 pretty_assertions = "1.4.1"
+tracing-subscriber.workspace = true

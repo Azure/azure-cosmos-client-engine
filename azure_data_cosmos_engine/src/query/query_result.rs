@@ -11,7 +11,7 @@ use crate::ErrorKind;
 /// The results the gateway gives us can vary in shape depending on the type of query executed.
 /// However, to properly move through the pipeline, we want a normalized representation of the results.
 /// This enum describes the expected shape, and provides deserialization logic to convert from the raw gateway response into a list of normalized [`QueryResult`]s.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum QueryResultShape {
     /// The result will be just the raw payload, with no additional metadata.
     RawPayload,
@@ -104,6 +104,10 @@ pub struct QueryResult {
 pub struct QueryClauseItem {
     #[serde(default, deserialize_with = "deserialize_item")]
     pub item: Option<serde_json::Value>,
+
+    /// The backend sometimes returns an alternate form of the item, such as a min/max value with added metadata about the number of items in the partition.
+    #[serde(default, deserialize_with = "deserialize_item")]
+    pub item2: Option<serde_json::Value>,
 }
 
 // Based on https://github.com/serde-rs/serde/issues/984#issuecomment-314143738
@@ -117,6 +121,22 @@ where
 }
 
 impl QueryClauseItem {
+    /// Creates a new [`QueryClauseItem`] from a [`serde_json::Value`].
+    pub fn from_value(value: serde_json::Value) -> Self {
+        Self {
+            item: Some(value),
+            item2: None,
+        }
+    }
+
+    /// Creates a new [`QueryClauseItem`] from a [`serde_json::Value`].
+    pub fn from_values(item: serde_json::Value, item2: serde_json::Value) -> Self {
+        Self {
+            item: Some(item),
+            item2: Some(item2),
+        }
+    }
+
     /// Compares two [`QueryClauseItem`]s based on the ordering rules defined for Cosmos DB.
     ///
     /// We can't just implement [`PartialOrd`] here, because we need to be able to return an error.
@@ -209,9 +229,7 @@ mod tests {
         let result: QueryResult = json_to_query_result(QueryResultShape::OrderBy, JSON);
         assert_eq!(
             result.order_by_items,
-            vec![QueryClauseItem {
-                item: Some(serde_json::json!(1))
-            }]
+            vec![QueryClauseItem::from_value(serde_json::json!(1))]
         );
         assert_eq!(result.aggregates, vec![]);
         assert_eq!(result.payload.as_ref().map(|p| p.get()), Some(r#"{"a":1}"#));
@@ -224,9 +242,7 @@ mod tests {
         assert_eq!(result.order_by_items, vec![]);
         assert_eq!(
             result.aggregates,
-            vec![QueryClauseItem {
-                item: Some(serde_json::json!(42))
-            }]
+            vec![QueryClauseItem::from_value(serde_json::json!(42))]
         );
         assert!(result.payload.is_none());
     }
