@@ -181,7 +181,7 @@ stages:
                 artifact: packages
                 patterns: "**"
               - bash: |
-                  version=cargo metadata --format-version 1 | jq -r '.packages[] | select(.name == "cosmoscx") | .version'
+                  version=$(cargo metadata --format-version 1 | jq -r '.packages[] | select(.name == "cosmoscx") | .version')
                   tag_name="go/azcosmoscx/v$version"
                   branch_name="azp-release-staging/v$version"
                   echo "##vso[task.setvariable variable=ReleaseVersion]$version"
@@ -216,7 +216,7 @@ stages:
                 displayName: "Place vendored binaries"
               - bash: |
                   git add go/azcosmoscx/libcosmoscx-vendor
-                  git config --global user.name "Azure CosmosDB SDK"
+                  git config --global user.name "Azure CosmosDB SDK Automation"
                   git config --global user.email "azurecosmossdk@microsoft.com"
                   git commit -m"Updating vendored binaries to $(ReleaseVersion)"
 
