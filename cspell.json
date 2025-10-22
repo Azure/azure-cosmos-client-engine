@@ -12,7 +12,8 @@
         "pyfunction",
         "pymodule",
         "cosmoscx",
-        "reqwest"
+        "reqwest",
+        "jsondiff"
     ],
     "ignoreWords": [],
     "import": []

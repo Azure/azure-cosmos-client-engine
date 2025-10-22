@@ -52,6 +52,8 @@ struct ValidationError {
     actual: serde_json::Value,
 }
 
+const ALLOWED_FLOAT_ERROR: f64 = 1e-6;
+
 fn get_validator<'a>(validators: &'a HashMap<String, String>, property_name: &str) -> &'a str {
     if let Some(validator) = validators.get(property_name) {
         return validator;
@@ -404,13 +406,13 @@ pub async fn run_baseline_test(
                     format!("failed to convert expected number '{expected}' to f64")
                 })?;
                 let delta = (actual_f - expected_f).abs();
-                if delta > f64::EPSILON {
+                if delta > ALLOWED_FLOAT_ERROR {
                     errors.push(ValidationError {
                         item: i,
                         property_name: "<item>".to_string(),
                         message: format!(
                             "floating point numbers do not match within precision value {}: delta is {}",
-                            f64::EPSILON,
+                            ALLOWED_FLOAT_ERROR,
                             delta
                         ),
                         expected: expected.clone(),

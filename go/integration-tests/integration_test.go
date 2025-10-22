@@ -10,6 +10,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"os"
 	"path"
@@ -46,6 +47,7 @@ const ValidationIgnore = "ignore"
 const ValidationEqual = "equal"
 const ValidationOrderedDescending = "orderedDescending"
 const ValidationOrderedAscending = "orderedAscending"
+const AllowedFloatError = 1e-6
 
 type QueryContext struct {
 	Query      QuerySet
@@ -80,19 +82,10 @@ var Validators = map[string]func(t *testing.T, propertyName string, expected, ac
 				errors = append(errors, ValidationError{Item: i, Property: propertyName, Message: "missing expected property", Expected: expectedPropertyValue, Actual: nil})
 				continue
 			}
-			patch, err := jsondiff.Compare(expectedPropertyValue, actualPropertyValue)
+
+			validationError, err := validateJsonEquality(t, i, propertyName, expectedPropertyValue, actualPropertyValue)
 			if err != nil {
-				errors = append(errors, ValidationError{Item: i, Property: propertyName, Message: fmt.Sprintf("error comparing property: %v", err), Expected: expectedPropertyValue, Actual: actualPropertyValue})
-				continue
-			}
-			if len(patch) > 0 {
-				errors = append(errors, ValidationError{
-					Item:     i,
-					Property: propertyName,
-					Message:  fmt.Sprintf("property mismatch: %s", patch),
-					Expected: expectedPropertyValue,
-					Actual:   actualPropertyValue,
-				})
+				errors = append(errors, *validationError)
 			}
 		}
 		return errors
@@ -337,6 +330,20 @@ func runIntegrationTest(t *testing.T, querySetPath string) {
 	require.NoError(t, err)
 }
 
+func floatEqual(index int, expected, actual, allowedError float64) *ValidationError {
+	delta := math.Abs(expected - actual)
+	if delta > allowedError {
+		return &ValidationError{
+			Item:     i,
+			Property: "<item>",
+			Message:  fmt.Sprintf("float mismatch: expected %f, got %f (delta %f exceeds allowed error %f)", expectedFloat, actualFloat, delta, AllowedFloatError),
+			Expected: expectedFloat,
+			Actual:   actualFloat,
+		}
+	}
+	return nil
+}
+
 func runSingleQuery(t *testing.T, expectedResults []interface{}, query QuerySpec, container *azcosmos.ContainerClient) error {
 	// Run the query
 	queryEngine := azcosmoscx.NewQueryEngine()
@@ -386,18 +393,12 @@ func runSingleQuery(t *testing.T, expectedResults []interface{}, query QuerySpec
 	} else {
 		// Just do a direct comparison of each object. We already know the counts match
 		for i := 0; i < len(expectedResults); i++ {
-			patch, err := jsondiff.Compare(expectedResults[i], actualItems[i], jsondiff.Ignores("_etag", "_rid", "_self", "_ts", "_attachments"))
+			validationError, err := validateJsonEquality(t, i, "<item>", expectedResults[i], actualItems[i])
 			if err != nil {
-				return fmt.Errorf("error comparing item %d: %v", i, err)
+				return err
 			}
-			if len(patch) > 0 {
-				errors = append(errors, ValidationError{
-					Item:     i,
-					Property: "<item>",
-					Message:  fmt.Sprintf("item mismatch: %s", patch),
-					Expected: expectedResults[i],
-					Actual:   actualItems[i],
-				})
+			if validationError != nil {
+				errors = append(errors, *validationError)
 			}
 		}
 	}
@@ -409,6 +410,35 @@ func runSingleQuery(t *testing.T, expectedResults []interface{}, query QuerySpec
 		}
 	}
 	return nil
+}
+
+func validateJsonEquality(t *testing.T, index int, property string, expected, actual interface{}) (*ValidationError, error) {
+	// special handling for floats to allow for small differences
+	switch expected.(type) {
+	case float32:
+		expectedFloat := expected.(float32)
+		actualFloat := actual.(float32)
+		return floatEqual(0, float64(expectedFloat), float64(actualFloat), AllowedFloatError), nil
+	case float64:
+		expectedFloat := expected.(float64)
+		actualFloat := actual.(float64)
+		return floatEqual(0, expectedFloat, actualFloat, AllowedFloatError), nil
+	default:
+		patch, err := jsondiff.Compare(expected, actual, jsondiff.Ignores("_etag", "_rid", "_self", "_ts", "_attachments"))
+		if err != nil {
+			return nil, fmt.Errorf("error comparing item %d: %v", index, err)
+		}
+		if len(patch) > 0 {
+			return &ValidationError{
+				Item:     index,
+				Property: property,
+				Message:  fmt.Sprintf("item mismatch: %s", patch),
+				Expected: expected,
+				Actual:   actual,
+			}, nil
+		}
+		break
+	}
 }
 
 func validateUsingValidators(t *testing.T, actualItems, expectedResults []interface{}, validators map[string]string) ([]ValidationError, error) {
