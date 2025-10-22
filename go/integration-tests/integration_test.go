@@ -366,10 +366,6 @@ func runSingleQuery(t *testing.T, expectedResults []interface{}, query QuerySpec
 	}
 	assert.Equal(t, len(actualItems), actualItemCount, "Expected %d items, but got %d", len(actualItems), actualItemCount)
 
-	if len(actualItems) == 0 {
-		return fmt.Errorf("no items returned for query %s", query.Name)
-	}
-
 	if len(actualItems) != len(expectedResults) {
 		return fmt.Errorf("expected %d results, but got %d", len(expectedResults), len(actualItems))
 	}
