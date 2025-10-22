@@ -96,7 +96,7 @@ dependencies = [
 
 [[package]]
 name = "azure_cosmoscx_python"
-version = "0.0.6"
+version = "0.1.0"
 dependencies = [
  "azure_data_cosmos_engine",
  "pyo3",
@@ -122,7 +122,7 @@ dependencies = [
 
 [[package]]
 name = "azure_data_cosmos_engine"
-version = "0.0.6"
+version = "0.1.0"
 dependencies = [
  "azure_core",
  "azure_data_cosmos",
@@ -242,7 +242,7 @@ checksum = "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b"
 
 [[package]]
 name = "cosmoscx"
-version = "0.0.6"
+version = "0.1.0"
 dependencies = [
  "azure_data_cosmos_engine",
  "serde",
@@ -1206,7 +1206,7 @@ dependencies = [
 
 [[package]]
 name = "query-tests"
-version = "0.0.6"
+version = "0.1.0"
 dependencies = [
  "azure_core",
  "azure_data_cosmos",

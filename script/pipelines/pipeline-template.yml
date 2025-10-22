@@ -2,7 +2,12 @@ parameters:
   - name: IsReleaseBuild
     type: boolean
     default: false
+  - name: UseMicrosoftToolChain
+    type: boolean
+    default: false
   - name: LinuxPool
+    type: object
+  - name: LinuxARM64Pool
     type: object
   - name: MacPool
     type: object
@@ -25,6 +30,8 @@ stages:
         pool: ${{ parameters.LinuxPool }}
         steps:
           - template: prep-agent.yml
+            parameters:
+              IsReleaseBuild: ${{ parameters.IsReleaseBuild }}
           - pwsh: script/check-headers.ps1
             displayName: "Check headers"
           - script: just check
@@ -47,6 +54,8 @@ stages:
           - template: prep-agent.yml
             parameters:
               HostIsWindows: true
+              IsReleaseBuild: ${{ parameters.IsReleaseBuild }}
+              UseMicrosoftToolchain: ${{ parameters.UseMicrosoftToolchain }}
 
           - template: emulator-setup.yml
 
@@ -68,9 +77,10 @@ stages:
               RustTarget: x86_64-pc-windows-msvc
               HostIsWindows: true
               PublishArtifacts: ${{ parameters.IsReleaseBuild }}
+              UseMicrosoftToolchain: ${{ parameters.UseMicrosoftToolchain }}
 
               # Go doesn't support MSVC-built libraries, we'll test it in the x86_64-pc-windows-gnu build
-              RunGoTests: false 
+              RunGoTests: false
               VendorForGo: false
 
       - job: x86_64_pc_windows_gnu
@@ -82,6 +92,7 @@ stages:
               RustTarget: x86_64-pc-windows-gnu
               HostIsWindows: true
               PublishArtifacts: ${{ parameters.IsReleaseBuild }}
+              UseMicrosoftToolchain: false # There is no internal x86_64-pc-windows-gnu toolchain
 
       - job: x86_64_linux_gnu
         displayName: "Linux x86_64"
@@ -91,6 +102,7 @@ stages:
             parameters:
               RustTarget: x86_64-unknown-linux-gnu
               PublishArtifacts: ${{ parameters.IsReleaseBuild }}
+              UseMicrosoftToolchain: ${{ parameters.UseMicrosoftToolchain }}
 
       - job: x86_64_apple_darwin
         displayName: "macOS x86_64"
@@ -100,6 +112,7 @@ stages:
             parameters:
               RustTarget: x86_64-apple-darwin
               PublishArtifacts: ${{ parameters.IsReleaseBuild }}
+              UseMicrosoftToolchain: ${{ parameters.UseMicrosoftToolchain }}
 
       - job: aarch64_apple_darwin
         displayName: "macOS aarch64"
@@ -109,10 +122,11 @@ stages:
             parameters:
               RustTarget: aarch64-apple-darwin
               PublishArtifacts: ${{ parameters.IsReleaseBuild }}
+              UseMicrosoftToolchain: ${{ parameters.UseMicrosoftToolchain }}
 
               # The job runs on an x86_64 machine, so we can't run tests.
-              RunGoTests: false 
-              RunRustTests: false 
+              RunGoTests: false
+              RunRustTests: false
 
   - ${{ if eq(parameters.IsReleaseBuild, true) }}:
       - stage: Package
@@ -150,3 +164,63 @@ stages:
               - publish: output
                 displayName: "Publish packages"
                 artifact: "packages"
+
+      - stage: Stage
+        dependsOn:
+          - Package
+          - Validate
+        jobs:
+          - job: publish_go
+            displayName: "Publish Go Wrapper"
+            pool: ${{ parameters.LinuxPool }}
+            steps:
+              - checkout: self
+                fetchTags: true
+                persistCredentials: true
+              - download: current
+                artifact: packages
+                patterns: "**"
+              - bash: |
+                  version=$(cargo metadata --format-version 1 | jq -r '.packages[] | select(.name == "cosmoscx") | .version')
+                  tag_name="go/azcosmoscx/v$version"
+                  branch_name="azp-release-staging/v$version"
+                  echo "##vso[task.setvariable variable=ReleaseVersion]$version"
+                  echo "##vso[task.setvariable variable=ReleaseTag]$tag_name"
+                  echo "##vso[task.setvariable variable=ReleaseBranch]$branch_name"
+                displayName: "Detecting package version"
+              - bash: |
+                  echo "Preparing Go wrapper release tag '$(ReleaseTag)'"
+                  if git rev-parse -q --verify "refs/tags/$(ReleaseTag)" >/dev/null; then
+                    echo "Error: Git tag '$(ReleaseTag)' already exists. Aborting release."
+                    exit 1
+                  fi
+
+                  git checkout -b "$(ReleaseBranch)"
+
+                  src_dir="$(Pipeline.Workspace)/packages/vendored"
+                  dest_dir="./go/azcosmoscx/libcosmoscx-vendor"
+
+                  echo "Creating destination directory '$dest_dir'"
+                  mkdir -p "$dest_dir"
+
+                  # Ensure there is at least one subdirectory to copy
+                  if ! find "$src_dir" -maxdepth 1 -mindepth 1 -type d -print -quit >/dev/null 2>&1; then
+                    echo "No subdirectories found in '$src_dir' to copy."
+                    exit 1
+                  fi
+
+                  echo "Copying subdirectories from '$src_dir' into '$dest_dir' (subdirs become direct children)"
+                  # rsync copies the contents of src_dir into dest_dir, making each top-level subdirectory a direct child
+                  rsync -a --chmod=ugo=rwX "$src_dir"/ "$dest_dir"/
+
+                  echo "Copy complete."
+                displayName: "Place vendored binaries"
+              - bash: |
+                  git add go/azcosmoscx/libcosmoscx-vendor
+                  git config --global user.name "Azure CosmosDB SDK Automation"
+                  git config --global user.email "azurecosmossdk@microsoft.com"
+                  git commit -m"Updating vendored binaries to $(ReleaseVersion)"
+
+                  # It's OK to force push here. Any time we're running this pipeline, we want to replace any bits in the release branch with the new ones.
+                  git push --force origin $(ReleaseBranch)
+                displayName: Commit to release staging branch

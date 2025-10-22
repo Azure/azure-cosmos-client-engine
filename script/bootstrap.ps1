@@ -17,27 +17,33 @@ function Test-Command {
 # Check for dependencies we don't automatically install
 Test-Command cargo -Require
 Test-Command go -Require
-Test-Command python -Require
 
-Write-Host "Installing Python build tools..."
-if (-not (Test-Command "maturin")) {
-    pip install maturin
+if (!(Test-Command just)) {
+    Write-Host "Installing just..."
+    cargo install just
 }
-if (-not (Test-Command "poetry")) {
-    pip install poetry
-}
-poetry config virtualenvs.in-project true
 
-Write-Host "Installing Python dependencies..."
-poetry -C "./python" install
+if (Test-Command python) {
+    Write-Host "Installing Python build tools..."
+    if (-not (Test-Command "maturin")) {
+        pip install maturin
+    }
+    if (-not (Test-Command "poetry")) {
+        pip install poetry
+    }
+    poetry config virtualenvs.in-project true
+
+    Write-Host "Installing Python dependencies..."
+    poetry -C "./python" install
+}
 
 $hostTarget = ((rustc -vV | Select-String "host: ") -split ':')[1].Trim()
 Write-Host "Installing Rust dependencies using host target '$hostTarget' ..."
 if (-not (Test-Command "cbindgen")) {
-    cargo install --target "$hostTarget" --locked cbindgen@0.29.0
+    cargo install --target "$hostTarget" --locked cbindgen@0.29.0 --config .cargo/config.toml
 }
 if (-not (Test-Command "just")) {
-    cargo install --target "$hostTarget" --locked just@1.42.4
+    cargo install --target "$hostTarget" --locked just@1.42.4 --config .cargo/config.toml
 }
 
 Write-Host "Installing addlicense..."

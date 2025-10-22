@@ -1,0 +1,7 @@
+# This config file gets "activated" (by renaming it to `config.toml` during Release builds
+# It's used to ensure that when we produce native binaries, we use the Microsoft-approved toolchain and dependencies.
+[source.crates-io]
+replace-with = 'ms-crates-io'
+
+[registries.ms-crates-io]
+index = "sparse+https://pkgs.dev.azure.com/msdata/CosmosDB/_packaging/CosmosClientEngine_PublicPackages/Cargo/index/"

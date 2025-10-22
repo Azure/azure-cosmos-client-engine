@@ -67,3 +67,21 @@ import_lib_extension := if target_os == "windows" {
 } else {
     ""
 }
+
+# Computes the cross-compiling linker to be used, if we're cross-compiling.
+target_cross_linker := if target_os == "linux" {
+    if target_env == "gnu" {
+        target_arch + "-linux-gnu-gcc"
+    } else {
+        ""
+    }
+} else {
+    ""
+}
+
+# Determines if we're cross-compiling, and activates the linker if we are.
+linker := if host_target != build_target {
+    target_cross_linker
+} else {
+    ""
+}

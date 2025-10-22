@@ -4,10 +4,15 @@ extends:
   template: /script/pipelines/pipeline-template.yml
   parameters:
     IsReleaseBuild: true
+    UseMicrosoftToolchain: true
     LinuxPool:
       name: SDK-RustClientEngine
       demands:
         - ImageOverride -equals client-engine-linux-x86_64
+    LinuxARM64Pool:
+      name: SDK-RustClientEngine-ARM64
+      demands:
+        - ImageOverride -equals client-engine-linux-aarch64
     MacPool:
       vmImage: macos-15
     WindowsPool:
