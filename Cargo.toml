@@ -11,7 +11,7 @@ pyo3 = "0.24.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["raw_value"] }
 tracing = "0.1.40"
-tracing-subscriber = { version = "0.3.19", features = ["fmt", "env-filter"] }
+tracing-subscriber = { version = "0.3.20", features = ["fmt", "env-filter"] }
 uuid = "1.16.0"
 futures = "0.3.31"
 tokio = "1.45.0"
