@@ -187,6 +187,7 @@ stages:
                   echo "##vso[task.setvariable variable=ReleaseVersion]$version"
                   echo "##vso[task.setvariable variable=ReleaseTag]$tag_name"
                   echo "##vso[task.setvariable variable=ReleaseBranch]$branch_name"
+                displayName: "Detecting package version"
               - bash: |
                   echo "Preparing Go wrapper release tag '$(ReleaseTag)'"
                   if git rev-parse -q --verify "refs/tags/$(ReleaseTag)" >/dev/null; then
