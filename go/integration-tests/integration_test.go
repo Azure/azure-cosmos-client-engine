@@ -334,11 +334,11 @@ func floatEqual(index int, expected, actual, allowedError float64) *ValidationEr
 	delta := math.Abs(expected - actual)
 	if delta > allowedError {
 		return &ValidationError{
-			Item:     i,
+			Item:     index,
 			Property: "<item>",
-			Message:  fmt.Sprintf("float mismatch: expected %f, got %f (delta %f exceeds allowed error %f)", expectedFloat, actualFloat, delta, AllowedFloatError),
-			Expected: expectedFloat,
-			Actual:   actualFloat,
+			Message:  fmt.Sprintf("float mismatch: expected %f, got %f (delta %f exceeds allowed error %f)", expected, actual, delta, AllowedFloatError),
+			Expected: expected,
+			Actual:   actual,
 		}
 	}
 	return nil
@@ -439,6 +439,7 @@ func validateJsonEquality(t *testing.T, index int, property string, expected, ac
 		}
 		break
 	}
+	return nil, nil
 }
 
 func validateUsingValidators(t *testing.T, actualItems, expectedResults []interface{}, validators map[string]string) ([]ValidationError, error) {
