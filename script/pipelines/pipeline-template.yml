@@ -180,13 +180,12 @@ stages:
               - download: current
                 artifact: packages
                 patterns: "**"
-              - bash: |
-                  version=$(cargo metadata --format-version 1 | jq -r '.packages[] | select(.name == "cosmoscx") | .version')
-                  tag_name="go/azcosmoscx/v$version"
-                  branch_name="azp-release-staging/v$version"
-                  echo "##vso[task.setvariable variable=ReleaseVersion]$version"
-                  echo "##vso[task.setvariable variable=ReleaseTag]$tag_name"
-                  echo "##vso[task.setvariable variable=ReleaseBranch]$branch_name"
+              - pwsh: |
+                  $Version=(& ./script/helpers/Get-CurrentVersion.ps1)
+                  $TagName = "go/azcosmoscx/v$Version"
+
+                  Write-Host "##vso[task.setvariable variable=ReleaseVersion]$Version"
+                  Write-Host "##vso[task.setvariable variable=ReleaseTag]$TagName"
                 displayName: "Detecting package version"
               - bash: |
                   echo "Preparing Go wrapper release tag '$(ReleaseTag)'"
@@ -194,8 +193,6 @@ stages:
                     echo "Error: Git tag '$(ReleaseTag)' already exists. Aborting release."
                     exit 1
                   fi
-
-                  git checkout -b "$(ReleaseBranch)"
 
                   src_dir="$(Pipeline.Workspace)/packages/vendored"
                   dest_dir="./go/azcosmoscx/libcosmoscx-vendor"
@@ -220,7 +217,8 @@ stages:
                   git config --global user.name "Azure CosmosDB SDK Automation"
                   git config --global user.email "azurecosmossdk@microsoft.com"
                   git commit -m"Updating vendored binaries to $(ReleaseVersion)"
+                  git tag "$(ReleaseTag)"
 
                   # It's OK to force push here. Any time we're running this pipeline, we want to replace any bits in the release branch with the new ones.
-                  git push --force origin $(ReleaseBranch)
-                displayName: Commit to release staging branch
+                  git push --force origin $(ReleaseTag)
+                displayName: "Commit to release staging branch"
