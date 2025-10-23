@@ -179,14 +179,21 @@ impl ProducerStrategy {
                 ..
             } => {
                 let value = items.pop_front();
+                let current_partition =
+                    partitions.get(*current_partition_index).ok_or_else(|| {
+                        ErrorKind::InternalError.with_message(format!(
+                            "no current partition at index: {}",
+                            *current_partition_index
+                        ))
+                    })?;
                 let terminated = items.is_empty()
                     && (*current_partition_index == partitions.len() - 1)
-                    && partitions[*current_partition_index].done();
-                tracing::trace!(if value.is_some() {
-                    "producing item from unordered queue"
+                    && current_partition.done();
+                if value.is_some() {
+                    tracing::debug!(pkrange_id = ?current_partition.pkrange.id, terminated, "producing item from unordered queue");
                 } else {
-                    "no more items in unordered queue"
-                });
+                    tracing::debug!(pkrange_id = ?current_partition.pkrange.id, terminated, "no items to produce from unordered queue");
+                }
                 Ok(PipelineNodeResult { value, terminated })
             }
             ProducerStrategy::Streaming { sorting, buffers } => {
