@@ -7,7 +7,6 @@ use crate::{query::aggregators::Aggregator, ErrorKind};
 
 use super::{producer::ItemProducer, QueryResult};
 
-#[derive(Debug)]
 pub struct PipelineNodeResult {
     /// The produced result, if any.
     ///
