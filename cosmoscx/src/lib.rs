@@ -39,3 +39,11 @@ pub extern "C" fn cosmoscx_v0_query_supported_features() -> *const std::ffi::c_c
 #[no_mangle]
 /// cbindgen:ignore
 pub static BUILD_IDENTIFIER: &str = env!("BUILD_IDENTIFIER");
+
+// For testing panic behavior in wrappers.
+/// cbindgen:ignore
+#[cfg(debug_assertions)]
+#[no_mangle]
+pub extern "C" fn cosmoscx_v0_panic() {
+    panic!("This is a test panic from the Cosmos Client Engine");
+}

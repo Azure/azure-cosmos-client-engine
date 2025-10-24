@@ -95,12 +95,22 @@ stages:
               UseMicrosoftToolchain: false # There is no internal x86_64-pc-windows-gnu toolchain
 
       - job: x86_64_linux_gnu
-        displayName: "Linux x86_64"
+        displayName: "Linux x86_64 (GNU)"
         pool: ${{ parameters.LinuxPool }}
         steps:
           - template: /script/pipelines/build-job.yml
             parameters:
               RustTarget: x86_64-unknown-linux-gnu
+              PublishArtifacts: ${{ parameters.IsReleaseBuild }}
+              UseMicrosoftToolchain: ${{ parameters.UseMicrosoftToolchain }}
+
+      - job: x86_64_linux_musl
+        displayName: "Linux x86_64 (MUSL)"
+        pool: ${{ parameters.LinuxPool }}
+        steps:
+          - template: /script/pipelines/build-job.yml
+            parameters:
+              RustTarget: x86_64-unknown-linux-musl
               PublishArtifacts: ${{ parameters.IsReleaseBuild }}
               UseMicrosoftToolchain: ${{ parameters.UseMicrosoftToolchain }}
 

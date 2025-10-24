@@ -29,7 +29,11 @@ go_tags := (if go_library_mode == "shared" {
   "debug,azcosmoscx_local,"
 } else {
   "azcosmoscx_local,"
-})
+}) + (if target_env == "musl" {
+  "musl,"
+} else {
+  ""
+}) + env("COSMOSCX_GOTAGS", "")
 
 # Set library load paths so that we can run shared library tests
 # This uses the host os, since if we're going to run tests, it's going to be on the host OS.
@@ -59,6 +63,22 @@ export CGO_LDFLAGS := if target_os == "windows" {
   } else {
     ""
   }
+} else {
+  ""
+}
+
+export CC := if target_env == "musl" {
+  if host_env != "musl" {
+    "musl-gcc"
+  } else {
+    ""
+  }
+} else {
+  ""
+}
+
+go_ldflags := if target_env == "musl" {
+  "-linkmode external -extldflags '-static'"
 } else {
   ""
 }
