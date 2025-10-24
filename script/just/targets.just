@@ -24,10 +24,31 @@ target_env := if build_target =~ ".*-gnu" {
     "gnu"
 } else if build_target =~ ".*-msvc" {
     "msvc"
+} else if build_target =~ ".*-musl" {
+    "musl"
 } else if build_target =~ ".*-apple-darwin" {
     "apple"
 } else {
-    error("Unrecognized target: " + build_target)
+    error("Unrecognized build target: " + build_target)
+}
+
+host_env := if host_target =~ ".*-gnu" {
+    "gnu"
+} else if host_target =~ ".*-msvc" {
+    "msvc"
+} else if host_target =~ ".*-musl" {
+    "musl"
+} else if host_target =~ ".*-apple-darwin" {
+    "apple"
+} else {
+    error("Unrecognized host target: " + host_target)
+}
+
+build_static_lib := "true"
+build_shared_lib := if target_env == "musl" {
+    "false"
+} else {
+    "true"
 }
 
 # Detect some properties about the target
