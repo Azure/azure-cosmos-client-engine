@@ -1,5 +1,5 @@
-github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.5.0-beta.0 h1:fVg7KuVtJeDe4yGNjaY3w0smiTMoIxC6fnFD7DSz4TM=
-github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.5.0-beta.0/go.mod h1:Krtog/7tz27z75TwM5cIS8bxEH4dcBUezcq+kGVeZEo=
+github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.5.0-beta.1 h1:FCI1VUDkf9yNCk2cyDaFHENKO/r+bBerA32p/6FJ8JI=
+github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.5.0-beta.1/go.mod h1:gR3JSlhrklE5ZMyzW7gEIz2VOpEeXRInTrL2P/E8lLc=
 github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=

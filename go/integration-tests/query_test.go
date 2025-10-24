@@ -14,3 +14,7 @@ func TestOrderBy(t *testing.T) {
 func TestAggregates(t *testing.T) {
 	runIntegrationTest(t, "aggregates.json")
 }
+
+func TestVector(t *testing.T) {
+	runIntegrationTest(t, "vector.json")
+}
