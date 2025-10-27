@@ -9,7 +9,7 @@ if (-not $CargoTomlPath) {
 }
 
 if (-not $NewVersion) {
-    $CargoMetadata = cargo metadata --format-version 1 | ConvertFrom-Json
+    $CargoMetadata = cargo metadata --manifest-file $CargoTomlPath --format-version 1 | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to get cargo metadata"
         exit 1
