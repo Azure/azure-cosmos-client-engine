@@ -1,4 +1,15 @@
-trigger: none
+trigger:
+  - main
+  - feature/*
+  - hotfix/*
+  - release/*
+
+# Run the build nightly to ensure our CodeQL and other compliance checks run regularly.
+schedules:
+  # https://crontab.guru/#42_7_*_*_*
+  # 07:42 UTC => 00:42 PST / 23:42 PDT
+  - cron: 42 7 * * *
+    displayName: Nightly Check build
 
 pr:
   branches:
