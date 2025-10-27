@@ -10,6 +10,9 @@ schedules:
   # 07:42 UTC => 00:42 PST / 23:42 PDT
   - cron: 42 7 * * *
     displayName: Nightly Check build
+    branches:
+      include:
+        - main
 
 pr:
   branches:
