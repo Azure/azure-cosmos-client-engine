@@ -3,12 +3,11 @@
 
 use std::vec;
 
-use azure_data_cosmos_engine::query::{
-    DataRequest, JsonQueryClauseItem, QueryInfo, QueryPlan, QueryRange, QueryResult,
-};
+use azure_data_cosmos_engine::query::{DataRequest, QueryInfo, QueryPlan, QueryRange, QueryResult};
 use pretty_assertions::assert_eq;
 
 use mock_engine::{Container, Engine};
+use serde_json::json;
 
 mod mock_engine;
 
@@ -32,9 +31,13 @@ impl Item {
     }
 }
 
-impl From<Item> for QueryResult<Item, JsonQueryClauseItem> {
+impl From<Item> for QueryResult {
     fn from(item: Item) -> Self {
-        QueryResult::from_payload(item)
+        let raw = serde_json::value::to_raw_value(&item.title).unwrap();
+        QueryResult {
+            payload: Some(raw),
+            ..Default::default()
+        }
     }
 }
 
@@ -113,16 +116,15 @@ pub fn pkranges_filtered_by_query_ranges() -> Result<(), Box<dyn std::error::Err
         requested_partitions
     );
 
-    let all_items: Vec<String> = results
+    let all_items = results
         .into_iter()
         .flat_map(|response| response.items)
-        .map(|item| item.title)
-        .collect();
+        .collect::<Vec<_>>();
 
     let expected_items = vec![
-        "partition1/item0".to_string(),
-        "partition1/item1".to_string(),
-        "partition1/item2".to_string(),
+        json!("partition1/item0"),
+        json!("partition1/item1"),
+        json!("partition1/item2"),
     ];
 
     assert_eq!(
@@ -209,29 +211,24 @@ pub fn pkranges_filtered_by_overlapping_query_ranges() -> Result<(), Box<dyn std
         requested_partitions
     );
 
-    let all_items: Vec<String> = results
+    let actual_items = results
         .into_iter()
         .flat_map(|response| response.items)
-        .map(|item| item.title)
-        .collect();
+        .collect::<Vec<_>>();
 
-    let mut expected_items = vec![
-        "partition1/item0".to_string(),
-        "partition1/item1".to_string(),
-        "partition1/item2".to_string(),
-        "partition2/item0".to_string(),
-        "partition2/item1".to_string(),
-        "partition2/item2".to_string(),
+    let expected_items = vec![
+        json!("partition1/item0"),
+        json!("partition1/item1"),
+        json!("partition1/item2"),
+        json!("partition2/item0"),
+        json!("partition2/item1"),
+        json!("partition2/item2"),
     ];
     // Sort for deterministic comparison since execution order may vary
-    expected_items.sort();
-    let mut sorted_items = all_items;
-    sorted_items.sort();
-
     assert_eq!(
-        sorted_items, expected_items,
+        actual_items, expected_items,
         "Expected only items from partition1 and partition2, but got: {:?}",
-        sorted_items
+        actual_items
     );
 
     Ok(())
@@ -307,35 +304,30 @@ pub fn pkranges_filtered_by_all_partitions_query_range() -> Result<(), Box<dyn s
         requested_partitions
     );
 
-    let all_items: Vec<String> = results
+    let actual_items = results
         .into_iter()
         .flat_map(|response| response.items)
-        .map(|item| item.title)
-        .collect();
+        .collect::<Vec<_>>();
 
-    let mut expected_items = vec![
-        "partition0/item0".to_string(),
-        "partition0/item1".to_string(),
-        "partition0/item2".to_string(),
-        "partition1/item0".to_string(),
-        "partition1/item1".to_string(),
-        "partition1/item2".to_string(),
-        "partition2/item0".to_string(),
-        "partition2/item1".to_string(),
-        "partition2/item2".to_string(),
-        "partition3/item0".to_string(),
-        "partition3/item1".to_string(),
-        "partition3/item2".to_string(),
+    let expected_items = vec![
+        json!("partition0/item0"),
+        json!("partition0/item1"),
+        json!("partition0/item2"),
+        json!("partition1/item0"),
+        json!("partition1/item1"),
+        json!("partition1/item2"),
+        json!("partition2/item0"),
+        json!("partition2/item1"),
+        json!("partition2/item2"),
+        json!("partition3/item0"),
+        json!("partition3/item1"),
+        json!("partition3/item2"),
     ];
-    // Sort for deterministic comparison since execution order may vary
-    expected_items.sort();
-    let mut sorted_items = all_items;
-    sorted_items.sort();
 
     assert_eq!(
-        sorted_items, expected_items,
+        actual_items, expected_items,
         "Expected items from all partitions, but got: {:?}",
-        sorted_items
+        actual_items
     );
 
     Ok(())
@@ -406,35 +398,30 @@ pub fn pkranges_no_query_ranges_queries_all_partitions() -> Result<(), Box<dyn s
         requested_partitions
     );
 
-    let all_items: Vec<String> = results
+    let actual_items = results
         .into_iter()
         .flat_map(|response| response.items)
-        .map(|item| item.title)
-        .collect();
+        .collect::<Vec<_>>();
 
-    let mut expected_items = vec![
-        "partition0/item0".to_string(),
-        "partition0/item1".to_string(),
-        "partition0/item2".to_string(),
-        "partition1/item0".to_string(),
-        "partition1/item1".to_string(),
-        "partition1/item2".to_string(),
-        "partition2/item0".to_string(),
-        "partition2/item1".to_string(),
-        "partition2/item2".to_string(),
-        "partition3/item0".to_string(),
-        "partition3/item1".to_string(),
-        "partition3/item2".to_string(),
+    let expected_items = vec![
+        json!("partition0/item0"),
+        json!("partition0/item1"),
+        json!("partition0/item2"),
+        json!("partition1/item0"),
+        json!("partition1/item1"),
+        json!("partition1/item2"),
+        json!("partition2/item0"),
+        json!("partition2/item1"),
+        json!("partition2/item2"),
+        json!("partition3/item0"),
+        json!("partition3/item1"),
+        json!("partition3/item2"),
     ];
-    // Sort for deterministic comparison since execution order may vary
-    expected_items.sort();
-    let mut sorted_items = all_items;
-    sorted_items.sort();
 
     assert_eq!(
-        sorted_items, expected_items,
+        actual_items, expected_items,
         "Expected items from all partitions, but got: {:?}",
-        sorted_items
+        actual_items
     );
 
     Ok(())

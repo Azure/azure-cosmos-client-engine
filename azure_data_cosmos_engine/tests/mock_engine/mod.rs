@@ -17,7 +17,6 @@ use tracing_subscriber::EnvFilter;
 
 pub struct Engine {
     container: Container,
-    partitions: Vec<PartitionKeyRange>,
     pipeline: QueryPipeline,
     request_page_size: usize,
 }
@@ -70,17 +69,12 @@ impl Engine {
                 )
             });
         let partitions = partitions.collect::<Vec<_>>();
-        let pipeline = QueryPipeline::new(query, plan, partitions.clone())?;
+        let pipeline = QueryPipeline::new(query, plan, partitions)?;
         Ok(Engine {
             container,
-            partitions,
             pipeline,
             request_page_size,
         })
-    }
-
-    pub fn partition_key_ranges(&self) -> &[PartitionKeyRange] {
-        &self.partitions
     }
 
     /// Executes the query, returning the result in individual batches.
