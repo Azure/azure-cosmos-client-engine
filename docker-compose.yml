@@ -18,4 +18,5 @@ services:
       - "10255:10255"
       - "10350:10350"
     environment:
-      AZURE_COSMOS_EMULATOR_ARGS: "/enablepreview /EnableFabricLogs"
+      AZURE_COSMOS_EMULATOR_PARTITION_COUNT: "50"
+      AZURE_COSMOS_EMULATOR_ARGS: "/enablepreview /EnableFabricLogs /disableratelimiting"

@@ -2,16 +2,18 @@
 // Licensed under the MIT License.
 
 use crate::query::{
-    node::PipelineNodeResult, query_result::QueryResultShape, DataRequest, PartitionKeyRange,
-    SortOrder,
+    node::PipelineNodeResult, plan::HybridSearchQueryInfo, query_result::QueryResultShape,
+    DataRequest, PartitionKeyRange, SortOrder,
 };
 
+mod hybrid;
 mod non_streaming;
 mod sorting;
 mod state;
 mod streaming;
 mod unordered;
 
+use hybrid::HybridSearchStrategy;
 use non_streaming::NonStreamingStrategy;
 use state::PartitionState;
 use streaming::StreamingStrategy;
@@ -30,6 +32,7 @@ use unordered::UnorderedStrategy;
 // Since this is an internal API, we can use an enum to select the strategy at runtime and delegate methods to the appropriate concrete strategy type.
 // This dispatch should be no worse than a virtual function call, and is often quite a lot better.
 // See https://crates.io/crates/enum_dispatch for more on this pattern (we're not using that crate, but we're doing what it does manually).
+#[derive(Debug)]
 pub enum ItemProducer {
     /// Results are not re-ordered by the query and should be ordered by the partition key range minimum.
     Unordered(UnorderedStrategy),
@@ -37,6 +40,8 @@ pub enum ItemProducer {
     Streaming(StreamingStrategy),
     /// Results should be merged by comparing the sort order of the `ORDER BY` items. Results cannot be streamed, because each partition will provide data in a local order.
     NonStreaming(NonStreamingStrategy),
+    /// The query is a hybrid search query.
+    Hybrid(HybridSearchStrategy),
 }
 
 pub fn create_partition_state(
@@ -100,21 +105,33 @@ impl ItemProducer {
         Self::NonStreaming(NonStreamingStrategy::new(pkranges, sorting))
     }
 
+    /// Creates a producer for Hybrid search queries (which include Full-Text searches, and Rank Fusion operations)
+    pub fn hybrid(
+        pkranges: impl IntoIterator<Item = PartitionKeyRange>,
+        hybrid_search_query_info: HybridSearchQueryInfo,
+    ) -> crate::Result<Self> {
+        Ok(Self::Hybrid(HybridSearchStrategy::new(
+            pkranges,
+            hybrid_search_query_info,
+        )))
+    }
+
     /// Gets the [`DataRequest`]s that must be performed in order to add additional data to the partition buffers.
-    pub fn data_requests(&mut self) -> Vec<DataRequest> {
+    pub fn data_requests(&mut self) -> crate::Result<Vec<DataRequest>> {
         // The default value for Vec is an empty vec, which doesn't allocate until items are added.
         match self {
-            ItemProducer::Unordered(s) => s.requests(),
-            ItemProducer::Streaming(s) => s.requests(),
-            ItemProducer::NonStreaming(s) => s.requests(),
+            ItemProducer::Unordered(s) => Ok(s.requests()),
+            ItemProducer::Streaming(s) => Ok(s.requests()),
+            ItemProducer::NonStreaming(s) => Ok(s.requests()),
+            ItemProducer::Hybrid(s) => s.requests(),
         }
-        .unwrap_or_default()
     }
 
     /// Provides additional data for the given partition.
     pub fn provide_data(
         &mut self,
         pkrange_id: &str,
+        request_id: u64,
         data: &[u8],
         continuation: Option<String>,
     ) -> crate::Result<()> {
@@ -122,6 +139,7 @@ impl ItemProducer {
             ItemProducer::Unordered(s) => s.provide_data(pkrange_id, data, continuation),
             ItemProducer::Streaming(s) => s.provide_data(pkrange_id, data, continuation),
             ItemProducer::NonStreaming(s) => s.provide_data(pkrange_id, data, continuation),
+            ItemProducer::Hybrid(s) => s.provide_data(pkrange_id, request_id, data, continuation),
         }
     }
 
@@ -132,6 +150,7 @@ impl ItemProducer {
             ItemProducer::Unordered(s) => s.produce_item(),
             ItemProducer::Streaming(s) => s.produce_item(),
             ItemProducer::NonStreaming(s) => s.produce_item(),
+            ItemProducer::Hybrid(s) => s.produce_item(),
         }
     }
 }
@@ -215,7 +234,7 @@ mod tests {
     ) -> crate::Result<Vec<Item>> {
         let mut items = Vec::new();
         loop {
-            let requests = producer.data_requests();
+            let requests = producer.data_requests()?;
             for request in requests {
                 let pkrange_id = request.pkrange_id.to_string();
                 if let Some(pages) = partitions.get_mut(&pkrange_id) {

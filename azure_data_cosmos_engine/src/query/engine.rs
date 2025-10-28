@@ -48,7 +48,7 @@ impl From<crate::Error> for azure_core::Error {
             _ => azure_core::error::ErrorKind::Other,
         };
         let message = format!("{}", &err);
-        azure_core::Error::full(kind, err, message)
+        azure_core::Error::with_error(kind, err, message)
     }
 }
 
@@ -72,8 +72,12 @@ impl azure_data_cosmos::query::QueryPipeline for QueryPipelineAdapter {
                 .requests
                 .into_iter()
                 .map(|request| azure_data_cosmos::query::QueryRequest {
+                    index: request.id as usize,
                     partition_key_range_id: request.pkrange_id.into_owned(),
                     continuation: request.continuation,
+                    query: request.query,
+                    include_parameters: request.include_parameters,
+                    drain: false,
                 })
                 .collect(),
         })
@@ -81,15 +85,17 @@ impl azure_data_cosmos::query::QueryPipeline for QueryPipelineAdapter {
 
     fn provide_data(
         &mut self,
-        data: azure_data_cosmos::query::QueryResult,
+        data: Vec<azure_data_cosmos::query::QueryResult>,
     ) -> azure_core::Result<()> {
         tracing::debug!("providing data to pipeline");
-        // Pass the raw bytes directly to the pipeline
-        self.0.provide_data(
-            data.partition_key_range_id,
-            data.result,
-            data.next_continuation,
-        )?;
+        for data in data {
+            self.0.provide_data(
+                data.partition_key_range_id,
+                data.request_index as u64,
+                data.result,
+                data.next_continuation,
+            )?;
+        }
         Ok(())
     }
 }

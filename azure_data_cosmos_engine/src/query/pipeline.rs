@@ -4,7 +4,10 @@
 use std::ffi::CStr;
 
 use crate::{
-    query::{node::AggregatePipelineNode, query_result::QueryResultShape},
+    query::{
+        node::AggregatePipelineNode, plan::HybridSearchQueryInfo, query_result::QueryResultShape,
+        QueryInfo,
+    },
     ErrorKind,
 };
 
@@ -43,7 +46,7 @@ impl SupportedFeatures {
 }
 
 macro_rules! supported_features {
-    ($($feature:ident),*) => {
+    ($($feature:ident,)*) => {
         #[doc = "A [`SupportedFeatures`](SupportedFeatures) describing the features supported by this query engine."]
         pub const SUPPORTED_FEATURES: SupportedFeatures = SupportedFeatures {
             supported_features: &[$(QueryFeature::$feature),*],
@@ -60,7 +63,8 @@ supported_features!(
     MultipleOrderBy,
     Top,
     NonStreamingOrderBy,
-    Aggregate
+    Aggregate,
+    HybridSearch,
 );
 
 /// Represents a query pipeline capable of accepting single-partition results for a query and returning a cross-partition stream of results.
@@ -114,6 +118,18 @@ pub struct QueryPipeline {
     terminated: bool,
 }
 
+impl std::fmt::Debug for QueryPipeline {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("QueryPipeline")
+            .field("query", &self.query)
+            .field("pipeline", &self.pipeline)
+            .field("producer", &self.producer)
+            .field("result_shape", &self.result_shape)
+            .field("terminated", &self.terminated)
+            .finish()
+    }
+}
+
 impl QueryPipeline {
     /// Creates a new query pipeline.
     ///
@@ -132,8 +148,47 @@ impl QueryPipeline {
 
         tracing::trace!(?query, ?plan, "creating query pipeline");
 
+        let pipeline = if let Some(hybrid_search_query_info) = plan.hybrid_search_query_info {
+            // This is a hybrid search query, which requires special handling.
+            Self::from_hybrid_search_query_info(query, hybrid_search_query_info, pkranges)?
+        } else if let Some(query_info) = plan.query_info {
+            Self::from_query_info(query, query_info, pkranges)?
+        } else {
+            return Err(ErrorKind::UnsupportedQueryPlan.with_message(
+                "query plan is missing both hybrid_search_query_info and query_info sections",
+            ));
+        };
+
+        tracing::debug!(pipeline = ?pipeline, "created query pipeline");
+
+        Ok(pipeline)
+    }
+
+    fn from_hybrid_search_query_info(
+        query: &str,
+        hybrid_search_query_info: HybridSearchQueryInfo,
+        pkranges: impl IntoIterator<Item = PartitionKeyRange>,
+    ) -> crate::Result<Self> {
+        let producer = ItemProducer::hybrid(pkranges, hybrid_search_query_info)?;
+
+        // A hybrid search has no pipeline nodes, so we can just leave that empty.
+        Ok(Self {
+            query: query.to_string(), // The query is somewhat irrelevant, since each request will have it's own override query.
+            pipeline: Vec::new(),
+            producer,
+            terminated: false,
+        })
+    }
+
+    fn from_query_info(
+        query: &str,
+        query_info: QueryInfo,
+        pkranges: impl IntoIterator<Item = PartitionKeyRange>,
+    ) -> crate::Result<Self> {
+        let mut result_shape = QueryResultShape::RawPayload;
+
         // We don't support non-value aggregates, so make sure the query doesn't have any.
-        if !plan.query_info.aggregates.is_empty() && !plan.query_info.has_select_value {
+        if !query_info.aggregates.is_empty() && !query_info.has_select_value {
             return Err(ErrorKind::UnsupportedQueryPlan
                 .with_message("non-value aggregates are not supported"));
         }
@@ -158,8 +213,8 @@ impl QueryPipeline {
                 ItemProducer::non_streaming(pkranges, plan.query_info.order_by)
             } else {
                 // We can stream results, there's no vector or full-text search in the query.
-                tracing::debug!(?plan.query_info.order_by, "using streaming ORDER BY pipeline");
-                ItemProducer::streaming(pkranges, plan.query_info.order_by)
+                tracing::debug!(?query_info.order_by, "using streaming ORDER BY pipeline");
+                ItemProducer::streaming(pkranges, query_info.order_by)
             }
         };
 
@@ -169,46 +224,46 @@ impl QueryPipeline {
         let mut pipeline: Vec<Box<dyn PipelineNode>> = Vec::new();
 
         // We have to do limiting at right at the outside of the pipeline, so that OFFSET can skip items without affecting the LIMIT counter.
-        if let Some(limit) = plan.query_info.limit {
+        if let Some(limit) = query_info.limit {
             tracing::debug!(limit, "adding LIMIT node to pipeline");
             pipeline.push(Box::new(LimitPipelineNode::new(limit)));
         }
 
-        if let Some(top) = plan.query_info.top {
+        if let Some(top) = query_info.top {
             tracing::debug!(top, "adding TOP node to pipeline");
             pipeline.push(Box::new(LimitPipelineNode::new(top)));
         }
 
-        if let Some(offset) = plan.query_info.offset {
+        if let Some(offset) = query_info.offset {
             tracing::debug!(offset, "adding OFFSET node to pipeline");
             pipeline.push(Box::new(OffsetPipelineNode::new(offset)));
         }
 
         if !plan.query_info.aggregates.is_empty() {
             pipeline.push(Box::new(AggregatePipelineNode::from_names(
-                plan.query_info.aggregates.clone(),
+                query_info.aggregates.clone(),
             )?));
         }
 
-        if !plan.query_info.group_by_expressions.is_empty()
-            || !plan.query_info.group_by_alias_to_aggregate_type.is_empty()
-            || !plan.query_info.group_by_aliases.is_empty()
+        if !query_info.group_by_expressions.is_empty()
+            || !query_info.group_by_alias_to_aggregate_type.is_empty()
+            || !query_info.group_by_aliases.is_empty()
         {
             return Err(
                 ErrorKind::UnsupportedQueryPlan.with_message("GROUP BY queries are not supported")
             );
         }
 
-        if plan.query_info.distinct_type != DistinctType::None {
+        if query_info.distinct_type != DistinctType::None {
             return Err(
                 ErrorKind::UnsupportedQueryPlan.with_message("DISTINCT queries are not supported")
             );
         }
 
-        let query = if plan.query_info.rewritten_query.is_empty() {
+        let query = if query_info.rewritten_query.is_empty() {
             query.to_string()
         } else {
-            let rewritten = format_query(&plan.query_info.rewritten_query);
+            let rewritten = format_query(&query_info.rewritten_query);
             tracing::debug!(
                 original = ?query,
                 ?rewritten,
@@ -239,14 +294,16 @@ impl QueryPipeline {
     }
 
     /// Provides more data for the specified partition key range.
-    #[tracing::instrument(level = "debug", skip_all, err, fields(pkrange_id = pkrange_id, data_len = data.len(), continuation = continuation.as_deref()))]
+    #[tracing::instrument(level = "debug", skip_all, err, fields(request_id, pkrange_id, data_len = data.len(), continuation = continuation.as_deref()))]
     pub fn provide_data(
         &mut self,
         pkrange_id: &str,
+        request_id: u64,
         data: &[u8],
         continuation: Option<String>,
     ) -> crate::Result<()> {
-        self.producer.provide_data(pkrange_id, data, continuation)
+        self.producer
+            .provide_data(pkrange_id, request_id, data, continuation)
     }
 
     /// Advances the pipeline to the next batch of results.
@@ -295,7 +352,7 @@ impl QueryPipeline {
             }
         }
 
-        let requests = self.producer.data_requests();
+        let requests = self.producer.data_requests()?;
 
         Ok(PipelineResponse {
             items,

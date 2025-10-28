@@ -46,6 +46,9 @@ pub enum ErrorKind {
     /// Indicates that an arithmetic overflow occurred during query execution.
     ArithmeticOverflow,
 
+    /// Indicates that a request ID provided to [`QueryPipeline::provide_data`](crate::query::QueryPipeline::provide_data) was invalid.
+    InvalidRequestId,
+
     /// Indicates that a Python error occurred. The source of the error will be the original Python error.
     PythonError,
 }
@@ -61,6 +64,7 @@ impl Display for ErrorKind {
             ErrorKind::InvalidUtf8String => write!(f, "invalid UTF-8 string"),
             ErrorKind::ArgumentNull => write!(f, "provided argument was null"),
             ErrorKind::ArithmeticOverflow => write!(f, "arithmetic overflow occurred"),
+            ErrorKind::InvalidRequestId => write!(f, "invalid request ID provided"),
             ErrorKind::PythonError => write!(f, "python error"),
         }
     }

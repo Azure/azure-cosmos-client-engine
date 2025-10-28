@@ -11,14 +11,19 @@ pyo3 = "0.24.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["raw_value"] }
 tracing = "0.1.40"
-tracing-subscriber = { version = "0.3.19", features = ["fmt", "env-filter"] }
+tracing-subscriber = { version = "0.3.19", features = ["fmt", "env-filter", "json"] }
 uuid = "1.16.0"
 futures = "0.3.31"
 tokio = "1.45.0"
+reqwest = "0.12.23"
 
-azure_core = "0.25.0"
-azure_identity = "0.25.0"
-azure_data_cosmos = { version = "0.24.0", features = [ "preview_query_engine" ] }
+# azure_core = "0.25.0"
+# azure_identity = "0.25.0"
+# azure_data_cosmos = { version = "0.24.0", features = [ "preview_query_engine" ] }
+
+azure_core = { git = "https://github.com/Azure/azure-sdk-for-rust.git" }
+azure_identity = { git = "https://github.com/Azure/azure-sdk-for-rust.git" }
+azure_data_cosmos = { git = "https://github.com/Azure/azure-sdk-for-rust.git" }
 
 # Optimizations for the cosmoscx binary embedded in the Go package.
 # Because it's embedded in the Go module, we want it to be fairly small, without sacrificing performance.
