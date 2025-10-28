@@ -4,7 +4,10 @@
 use std::ffi::CStr;
 
 use crate::{
-    query::{node::AggregatePipelineNode, query_result::QueryResultShape},
+    query::{
+        node::AggregatePipelineNode, plan::HybridSearchQueryInfo, query_result::QueryResultShape,
+        QueryInfo,
+    },
     ErrorKind,
 };
 
@@ -116,6 +119,18 @@ pub struct QueryPipeline {
     terminated: bool,
 }
 
+impl std::fmt::Debug for QueryPipeline {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("QueryPipeline")
+            .field("query", &self.query)
+            .field("pipeline", &self.pipeline)
+            .field("producer", &self.producer)
+            .field("result_shape", &self.result_shape)
+            .field("terminated", &self.terminated)
+            .finish()
+    }
+}
+
 impl QueryPipeline {
     /// Creates a new query pipeline.
     ///
@@ -129,13 +144,47 @@ impl QueryPipeline {
         plan: QueryPlan,
         pkranges: impl IntoIterator<Item = PartitionKeyRange>,
     ) -> crate::Result<Self> {
-        let mut result_shape = QueryResultShape::RawPayload;
-
         tracing::trace!(?query, ?plan, "creating query pipeline");
 
-        let query_info = plan.query_info.ok_or_else(|| {
-            ErrorKind::UnsupportedQueryPlan.with_message("query plan is missing query_info section")
-        })?;
+        let pipeline = if let Some(hybrid_search_query_info) = plan.hybrid_search_query_info {
+            // This is a hybrid search query, which requires special handling.
+            Self::from_hybrid_search_query_info(query, hybrid_search_query_info, pkranges)?
+        } else if let Some(query_info) = plan.query_info {
+            Self::from_query_info(query, query_info, pkranges)?
+        } else {
+            return Err(ErrorKind::UnsupportedQueryPlan.with_message(
+                "query plan is missing both hybrid_search_query_info and query_info sections",
+            ));
+        };
+
+        tracing::debug!(pipeline = ?pipeline, "created query pipeline");
+
+        Ok(pipeline)
+    }
+
+    fn from_hybrid_search_query_info(
+        query: &str,
+        hybrid_search_query_info: HybridSearchQueryInfo,
+        pkranges: impl IntoIterator<Item = PartitionKeyRange>,
+    ) -> crate::Result<Self> {
+        let producer = ItemProducer::hybrid(hybrid_search_query_info, pkranges)?;
+
+        // A hybrid search has no pipeline nodes, so we can just leave that empty.
+        Ok(Self {
+            query: query.to_string(), // The query is somewhat irrelevant, since each request will have it's own override query.
+            result_shape: QueryResultShape::RawPayload, // TODO: Determine the correct result shape for hybrid search.
+            pipeline: Vec::new(),
+            producer,
+            terminated: false,
+        })
+    }
+
+    fn from_query_info(
+        query: &str,
+        query_info: QueryInfo,
+        pkranges: impl IntoIterator<Item = PartitionKeyRange>,
+    ) -> crate::Result<Self> {
+        let mut result_shape = QueryResultShape::RawPayload;
 
         // We don't support non-value aggregates, so make sure the query doesn't have any.
         if !query_info.aggregates.is_empty() && !query_info.has_select_value {

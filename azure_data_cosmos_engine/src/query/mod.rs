@@ -96,6 +96,8 @@ impl PartitionKeyRange {
 pub struct DataRequest {
     pub pkrange_id: Cow<'static, str>,
     pub continuation: Option<String>,
+    pub query: Option<String>,
+    pub include_parameters: bool,
 }
 
 impl DataRequest {
@@ -103,6 +105,22 @@ impl DataRequest {
         Self {
             pkrange_id: pkrange_id.into(),
             continuation,
+            query: None,
+            include_parameters: true,
+        }
+    }
+
+    pub fn with_query(
+        pkrange_id: impl Into<Cow<'static, str>>,
+        continuation: Option<String>,
+        query: impl Into<String>,
+        include_parameters: bool,
+    ) -> Self {
+        Self {
+            pkrange_id: pkrange_id.into(),
+            continuation,
+            query: Some(query.into()),
+            include_parameters,
         }
     }
 }
@@ -128,5 +146,17 @@ impl PipelineResponse {
         items: Vec::new(),
         requests: Vec::new(),
         terminated: true,
+    };
+}
+
+/// A macro to panic in debug builds and return an internal error in release builds.
+#[macro_export]
+macro_rules! debug_panic {
+    ($msg:expr) => {
+        #[cfg(debug_assertions)]
+        {
+            panic!($msg);
+        }
+        return Err(ErrorKind::InternalError.with_message($msg));
     };
 }

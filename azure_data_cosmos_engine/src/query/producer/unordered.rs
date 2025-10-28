@@ -17,6 +17,17 @@ pub struct UnorderedStrategy {
     pub items: VecDeque<QueryResult>,
 }
 
+impl std::fmt::Debug for UnorderedStrategy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("UnorderedStrategy")
+            .field("partitions", &self.partitions)
+            .field("current_partition_index", &self.current_partition_index)
+            .field("current_pkrange_id", &self.current_pkrange_id)
+            .field("items_len", &self.items.len())
+            .finish()
+    }
+}
+
 impl UnorderedStrategy {
     pub fn new(pkranges: impl IntoIterator<Item = PartitionKeyRange>) -> Self {
         let partitions = create_partition_state(pkranges);

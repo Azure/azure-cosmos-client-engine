@@ -37,6 +37,11 @@ pub struct QueryPlan {
 }
 
 #[derive(Debug, Deserialize)]
+#[cfg_attr(
+    feature = "python_conversions",
+    derive(pyo3::FromPyObject),
+    pyo3(from_item_all)
+)]
 #[serde(rename_all = "camelCase")]
 pub struct HybridSearchQueryInfo {
     /// Provides the query to be used for global statistics gathering.
@@ -51,16 +56,14 @@ pub struct HybridSearchQueryInfo {
     // TODO
     pub projection_query_info: Option<QueryInfo>,
 
-    // TODO
-    pub component_weights: Vec<serde_json::Value>,
-
+    // TODO: component_weights
     /// The number of results to skip.
     pub skip: Option<u64>,
 
     /// The number of results to take.
     ///
-    /// This will always be present, because hybrid search queries require a TOP clause.
-    pub take: u64,
+    /// This should always be present, because hybrid search queries require a TOP clause.
+    pub take: Option<u64>,
 
     /// Indicates if global statistics are required for this query.
     pub requires_global_statistics: bool,

@@ -2,15 +2,18 @@
 // Licensed under the MIT License.
 
 use crate::query::{
-    node::PipelineNodeResult, DataRequest, PartitionKeyRange, QueryResult, SortOrder,
+    node::PipelineNodeResult, plan::HybridSearchQueryInfo, DataRequest, PartitionKeyRange,
+    QueryResult, SortOrder,
 };
 
+mod hybrid;
 mod non_streaming;
 mod sorting;
 mod state;
 mod streaming;
 mod unordered;
 
+use hybrid::HybridSearchStrategy;
 use non_streaming::NonStreamingStrategy;
 use state::PartitionState;
 use streaming::StreamingStrategy;
@@ -29,6 +32,7 @@ use unordered::UnorderedStrategy;
 // Since this is an internal API, we can use an enum to select the strategy at runtime and delegate methods to the appropriate concrete strategy type.
 // This dispatch should be no worse than a virtual function call, and is often quite a lot better.
 // See https://crates.io/crates/enum_dispatch for more on this pattern (we're not using that crate, but we're doing what it does manually).
+#[derive(Debug)]
 pub enum ItemProducer {
     /// Results are not re-ordered by the query and should be ordered by the partition key range minimum.
     Unordered(UnorderedStrategy),
@@ -36,6 +40,8 @@ pub enum ItemProducer {
     Streaming(StreamingStrategy),
     /// Results should be merged by comparing the sort order of the `ORDER BY` items. Results cannot be streamed, because each partition will provide data in a local order.
     NonStreaming(NonStreamingStrategy),
+    /// The query is a hybrid search query.
+    Hybrid(HybridSearchStrategy),
 }
 
 pub fn create_partition_state(
@@ -96,6 +102,14 @@ impl ItemProducer {
         Self::NonStreaming(NonStreamingStrategy::new(pkranges, sorting))
     }
 
+    /// Creates a producer for Hybrid search queries (which include Full-Text searches, and Rank Fusion operations)
+    pub fn hybrid(
+        _hybrid_search_query_info: HybridSearchQueryInfo,
+        _pkranges: impl IntoIterator<Item = PartitionKeyRange>,
+    ) -> crate::Result<Self> {
+        Ok(Self::Hybrid(HybridSearchStrategy {}))
+    }
+
     /// Gets the [`DataRequest`]s that must be performed in order to add additional data to the partition buffers.
     pub fn data_requests(&mut self) -> Vec<DataRequest> {
         // The default value for Vec is an empty vec, which doesn't allocate until items are added.
@@ -103,6 +117,7 @@ impl ItemProducer {
             ItemProducer::Unordered(s) => s.requests(),
             ItemProducer::Streaming(s) => s.requests(),
             ItemProducer::NonStreaming(s) => s.requests(),
+            ItemProducer::Hybrid(s) => s.requests(),
         }
         .unwrap_or_default()
     }
@@ -118,6 +133,7 @@ impl ItemProducer {
             ItemProducer::Unordered(s) => s.provide_data(pkrange_id, data, continuation),
             ItemProducer::Streaming(s) => s.provide_data(pkrange_id, data, continuation),
             ItemProducer::NonStreaming(s) => s.provide_data(pkrange_id, data, continuation),
+            ItemProducer::Hybrid(s) => s.provide_data(pkrange_id, data, continuation),
         }
     }
 
@@ -128,6 +144,7 @@ impl ItemProducer {
             ItemProducer::Unordered(s) => s.produce_item(),
             ItemProducer::Streaming(s) => s.produce_item(),
             ItemProducer::NonStreaming(s) => s.produce_item(),
+            ItemProducer::Hybrid(s) => s.produce_item(),
         }
     }
 }

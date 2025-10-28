@@ -45,7 +45,7 @@ impl From<SortableResult> for QueryResult {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Sorting(Arc<[SortOrder]>);
 
 impl Sorting {
