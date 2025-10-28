@@ -90,7 +90,7 @@ query_test: query_test_rust query_test_go
 
 # Runs end-to-end query tests for the Rust engine.
 query_test_rust test="":
-  cargo test --profile {{ cargo_profile }} --package query-tests -- --test-threads 1 {{ test }}
+  cargo test --profile {{ cargo_profile }} --package query-tests -- --nocapture --test-threads 1 {{ test }}
 
 # Runs end-to-end query tests for the Python wrapper. (Currently disabled)
 query_test_python:

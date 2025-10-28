@@ -43,7 +43,7 @@ impl SupportedFeatures {
 }
 
 macro_rules! supported_features {
-    ($($feature:ident),*) => {
+    ($($feature:ident,)*) => {
         #[doc = "A [`SupportedFeatures`](SupportedFeatures) describing the features supported by this query engine."]
         pub const SUPPORTED_FEATURES: SupportedFeatures = SupportedFeatures {
             supported_features: &[$(QueryFeature::$feature),*],
@@ -60,7 +60,8 @@ supported_features!(
     MultipleOrderBy,
     Top,
     NonStreamingOrderBy,
-    Aggregate
+    Aggregate,
+    HybridSearch,
 );
 
 /// Represents a query pipeline capable of accepting single-partition results for a query and returning a cross-partition stream of results.
@@ -132,24 +133,28 @@ impl QueryPipeline {
 
         tracing::trace!(?query, ?plan, "creating query pipeline");
 
+        let query_info = plan.query_info.ok_or_else(|| {
+            ErrorKind::UnsupportedQueryPlan.with_message("query plan is missing query_info section")
+        })?;
+
         // We don't support non-value aggregates, so make sure the query doesn't have any.
-        if !plan.query_info.aggregates.is_empty() && !plan.query_info.has_select_value {
+        if !query_info.aggregates.is_empty() && !query_info.has_select_value {
             return Err(ErrorKind::UnsupportedQueryPlan
                 .with_message("non-value aggregates are not supported"));
         }
 
-        let producer = if plan.query_info.order_by.is_empty() {
+        let producer = if query_info.order_by.is_empty() {
             tracing::debug!("using unordered pipeline");
             ItemProducer::unordered(pkranges)
         } else {
             result_shape = QueryResultShape::OrderBy;
-            if plan.query_info.has_non_streaming_order_by {
-                tracing::debug!(?plan.query_info.order_by, "using non-streaming ORDER BY pipeline");
-                ItemProducer::non_streaming(pkranges, plan.query_info.order_by)
+            if query_info.has_non_streaming_order_by {
+                tracing::debug!(?query_info.order_by, "using non-streaming ORDER BY pipeline");
+                ItemProducer::non_streaming(pkranges, query_info.order_by)
             } else {
                 // We can stream results, there's no vector or full-text search in the query.
-                tracing::debug!(?plan.query_info.order_by, "using streaming ORDER BY pipeline");
-                ItemProducer::streaming(pkranges, plan.query_info.order_by)
+                tracing::debug!(?query_info.order_by, "using streaming ORDER BY pipeline");
+                ItemProducer::streaming(pkranges, query_info.order_by)
             }
         };
 
@@ -159,51 +164,51 @@ impl QueryPipeline {
         let mut pipeline: Vec<Box<dyn PipelineNode>> = Vec::new();
 
         // We have to do limiting at right at the outside of the pipeline, so that OFFSET can skip items without affecting the LIMIT counter.
-        if let Some(limit) = plan.query_info.limit {
+        if let Some(limit) = query_info.limit {
             tracing::debug!(limit, "adding LIMIT node to pipeline");
             pipeline.push(Box::new(LimitPipelineNode::new(limit)));
         }
 
-        if let Some(top) = plan.query_info.top {
+        if let Some(top) = query_info.top {
             tracing::debug!(top, "adding TOP node to pipeline");
             pipeline.push(Box::new(LimitPipelineNode::new(top)));
         }
 
-        if let Some(offset) = plan.query_info.offset {
+        if let Some(offset) = query_info.offset {
             tracing::debug!(offset, "adding OFFSET node to pipeline");
             pipeline.push(Box::new(OffsetPipelineNode::new(offset)));
         }
 
-        if !plan.query_info.aggregates.is_empty() {
+        if !query_info.aggregates.is_empty() {
             if result_shape != QueryResultShape::RawPayload {
                 return Err(ErrorKind::UnsupportedQueryPlan
                     .with_message("cannot mix aggregates with ORDER BY"));
             }
             result_shape = QueryResultShape::ValueAggregate;
             pipeline.push(Box::new(AggregatePipelineNode::from_names(
-                plan.query_info.aggregates.clone(),
+                query_info.aggregates.clone(),
             )?));
         }
 
-        if !plan.query_info.group_by_expressions.is_empty()
-            || !plan.query_info.group_by_alias_to_aggregate_type.is_empty()
-            || !plan.query_info.group_by_aliases.is_empty()
+        if !query_info.group_by_expressions.is_empty()
+            || !query_info.group_by_alias_to_aggregate_type.is_empty()
+            || !query_info.group_by_aliases.is_empty()
         {
             return Err(
                 ErrorKind::UnsupportedQueryPlan.with_message("GROUP BY queries are not supported")
             );
         }
 
-        if plan.query_info.distinct_type != DistinctType::None {
+        if query_info.distinct_type != DistinctType::None {
             return Err(
                 ErrorKind::UnsupportedQueryPlan.with_message("DISTINCT queries are not supported")
             );
         }
 
-        let query = if plan.query_info.rewritten_query.is_empty() {
+        let query = if query_info.rewritten_query.is_empty() {
             query.to_string()
         } else {
-            let rewritten = format_query(&plan.query_info.rewritten_query);
+            let rewritten = format_query(&query_info.rewritten_query);
             tracing::debug!(
                 original = ?query,
                 ?rewritten,

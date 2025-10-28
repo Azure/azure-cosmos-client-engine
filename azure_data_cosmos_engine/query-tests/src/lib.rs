@@ -32,4 +32,14 @@ baseline_tests! {
         sum_price,
         sum_where,
     },
+    hybrid {
+        top_10_by_fulltext_rank,
+        offset_limit,
+        top_20_rrf,
+        top_10_rrf,
+        offset_limit_rrf,
+        order_by_rrf_unfiltered,
+        offset_limit_rrf_unfiltered,
+        offset_limit_rrf_ft_with_vector,
+    },
 }
