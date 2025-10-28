@@ -3,7 +3,7 @@ resolver = "2"
 members = ["azure_data_cosmos_engine", "azure_data_cosmos_engine/query-tests", "cosmoscx", "python"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 
 [workspace.dependencies]
 azure_data_cosmos_engine = { path = "azure_data_cosmos_engine" }
