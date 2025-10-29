@@ -1,9 +1,8 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-use crate::{
-    query::{node::PipelineNodeResult, DataRequest, PartitionKeyRange, QueryResult, SortOrder},
-    ErrorKind,
+use crate::query::{
+    node::PipelineNodeResult, DataRequest, PartitionKeyRange, QueryResult, SortOrder,
 };
 
 mod non_streaming;
