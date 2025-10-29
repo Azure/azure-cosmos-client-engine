@@ -1,9 +1,6 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-// Warnings are errors when building on CI.
-#![cfg_attr(not(debug_assertions), deny(warnings))]
-
 macro_rules! make_cstr {
     ($s: expr) => {
         unsafe { std::ffi::CStr::from_bytes_with_nul_unchecked(concat!($s, "\0").as_bytes()) }

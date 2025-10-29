@@ -139,7 +139,10 @@ mod tests {
     use serde::{Deserialize, Serialize};
     use serde_json::json;
 
-    use crate::query::{PartitionKeyRange, QueryResult};
+    use crate::{
+        query::{PartitionKeyRange, QueryResult},
+        ErrorKind,
+    };
 
     use super::*;
 
