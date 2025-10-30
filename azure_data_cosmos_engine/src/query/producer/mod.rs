@@ -2,7 +2,8 @@
 // Licensed under the MIT License.
 
 use crate::query::{
-    node::PipelineNodeResult, DataRequest, PartitionKeyRange, QueryResult, SortOrder,
+    node::PipelineNodeResult, query_result::QueryResultShape, DataRequest, PartitionKeyRange,
+    SortOrder,
 };
 
 mod non_streaming;
@@ -57,8 +58,11 @@ impl ItemProducer {
     /// exhausting one partition completely before moving to the next.
     ///
     /// Use this for queries that don't require global ordering across partitions.
-    pub fn unordered(pkranges: impl IntoIterator<Item = PartitionKeyRange>) -> Self {
-        Self::Unordered(UnorderedStrategy::new(pkranges))
+    pub fn unordered(
+        pkranges: impl IntoIterator<Item = PartitionKeyRange>,
+        result_shape: QueryResultShape,
+    ) -> Self {
+        Self::Unordered(UnorderedStrategy::new(pkranges, result_shape))
     }
 
     /// Creates a producer for ORDER BY queries where each partition returns globally sorted results.
@@ -111,7 +115,7 @@ impl ItemProducer {
     pub fn provide_data(
         &mut self,
         pkrange_id: &str,
-        data: Vec<QueryResult>,
+        data: &[u8],
         continuation: Option<String>,
     ) -> crate::Result<()> {
         match self {
@@ -140,7 +144,7 @@ mod tests {
     use serde_json::json;
 
     use crate::{
-        query::{PartitionKeyRange, QueryResult},
+        query::{query_result::QueryResultShape, PartitionKeyRange, QueryResult},
         ErrorKind,
     };
 
@@ -187,8 +191,17 @@ mod tests {
         }
     }
 
+    /// Helper function to serialize QueryResult items back into the JSON format expected by the gateway
+    fn serialize_query_results(
+        shape: QueryResultShape,
+        results: &[QueryResult],
+    ) -> crate::Result<Vec<u8>> {
+        shape.results_to_vec(results)
+    }
+
     fn run_producer(
         producer: &mut ItemProducer,
+        result_shape: QueryResultShape,
         mut partitions: HashMap<String, VecDeque<TestPage>>,
     ) -> crate::Result<Vec<Item>> {
         let mut items = Vec::new();
@@ -197,13 +210,17 @@ mod tests {
             for request in requests {
                 let pkrange_id = request.pkrange_id.to_string();
                 if let Some(pages) = partitions.get_mut(&pkrange_id) {
-                    let (token, items) = pages.pop_front().unwrap_or_else(|| (None, Vec::new()));
+                    let (token, query_results) =
+                        pages.pop_front().unwrap_or_else(|| (None, Vec::new()));
                     assert_eq!(
                         request.continuation, token,
                         "continuation token should match the one provided in the request"
                     );
                     let next_token = pages.front().and_then(|(t, _)| t.clone());
-                    producer.provide_data(&pkrange_id, items, next_token)?;
+
+                    // Serialize QueryResult items to JSON bytes in the appropriate shape
+                    let json_bytes = serialize_query_results(result_shape, &query_results)?;
+                    producer.provide_data(&pkrange_id, &json_bytes, next_token)?;
                 } else {
                     return Err(ErrorKind::UnknownPartitionKeyRange
                         .with_message(format!("unknown partition key range ID: {pkrange_id}")));
@@ -278,13 +295,17 @@ mod tests {
             Some("p1c0".to_string()),
         )?;
 
-        let mut producer = ItemProducer::unordered(vec![
-            PartitionKeyRange::new("partition0", "00", "99"),
-            PartitionKeyRange::new("partition1", "99", "FF"),
-        ]);
+        let mut producer = ItemProducer::unordered(
+            vec![
+                PartitionKeyRange::new("partition0", "00", "99"),
+                PartitionKeyRange::new("partition1", "99", "FF"),
+            ],
+            QueryResultShape::RawPayload,
+        );
 
         let items = run_producer(
             &mut producer,
+            QueryResultShape::RawPayload,
             HashMap::from([
                 ("partition0".to_string(), partition0),
                 ("partition1".to_string(), partition1),
@@ -397,6 +418,7 @@ mod tests {
         // We should stop once any partition's queue is empty.
         let items = run_producer(
             &mut producer,
+            QueryResultShape::OrderBy,
             HashMap::from([
                 ("partition0".to_string(), partition0),
                 ("partition1".to_string(), partition1),
@@ -500,6 +522,7 @@ mod tests {
         // We should stop once any partition's queue is empty.
         let items = run_producer(
             &mut producer,
+            QueryResultShape::OrderBy,
             HashMap::from([
                 ("partition0".to_string(), partition0),
                 ("partition1".to_string(), partition1),

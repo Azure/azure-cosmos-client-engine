@@ -3,7 +3,7 @@
 
 use std::vec;
 
-use azure_data_cosmos_engine::query::{DataRequest, QueryPlan, QueryResult};
+use azure_data_cosmos_engine::query::{DataRequest, QueryPlan, QueryResult, QueryResultShape};
 use pretty_assertions::assert_eq;
 
 use mock_engine::{Container, Engine};
@@ -79,6 +79,7 @@ pub fn unordered_query() -> Result<(), Box<dyn std::error::Error>> {
             query_ranges: Vec::new(),
         },
         3,
+        QueryResultShape::RawPayload,
     )?;
 
     // Execute the query, and flatten the response down to just the title for easier comparison.

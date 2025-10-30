@@ -20,7 +20,7 @@ pub use engine::*;
 
 pub use pipeline::{QueryPipeline, SupportedFeatures, SUPPORTED_FEATURES};
 pub use plan::{DistinctType, QueryInfo, QueryPlan, QueryRange, SortOrder};
-pub use query_result::{QueryClauseItem, QueryResult};
+pub use query_result::{QueryClauseItem, QueryResult, QueryResultShape};
 
 /// Features that may be required by the Query Engine.
 ///

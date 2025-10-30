@@ -4,7 +4,7 @@
 use std::vec;
 
 use azure_data_cosmos_engine::query::{
-    DataRequest, QueryClauseItem, QueryInfo, QueryPlan, QueryResult, SortOrder,
+    DataRequest, QueryClauseItem, QueryInfo, QueryPlan, QueryResult, QueryResultShape, SortOrder,
 };
 use pretty_assertions::assert_eq;
 
@@ -97,6 +97,7 @@ pub fn streaming_order_by() -> Result<(), Box<dyn std::error::Error>> {
             query_ranges: Vec::new(),
         },
         3,
+        QueryResultShape::OrderBy,
     )?;
 
     // Execute the query, and flatten the response down to just the title for easier comparison.
