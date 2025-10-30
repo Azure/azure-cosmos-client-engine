@@ -4,7 +4,10 @@
 use std::{cmp::Ordering, collections::VecDeque};
 
 use crate::{
-    query::{node::PipelineNodeResult, DataRequest, PartitionKeyRange, QueryResult, SortOrder},
+    query::{
+        node::PipelineNodeResult, query_result::QueryResultShape, DataRequest, PartitionKeyRange,
+        QueryResult, SortOrder,
+    },
     ErrorKind,
 };
 
@@ -50,7 +53,7 @@ impl StreamingStrategy {
     pub fn provide_data(
         &mut self,
         pkrange_id: &str,
-        data: Vec<QueryResult>,
+        data: &[u8],
         continuation: Option<String>,
     ) -> crate::Result<()> {
         let partition_index = self
@@ -72,8 +75,11 @@ impl StreamingStrategy {
             "buffer ID should match partition key range ID",
         );
 
+        // Parse the raw bytes using the result shape
+        let parsed_data = QueryResultShape::OrderBy.results_from_slice(data)?;
+
         // We assume the data is coming from the server pre-sorted, so we can just extend the buffer with the data.
-        buffer.extend(data);
+        buffer.extend(parsed_data);
 
         self.partitions[partition_index].update_state(continuation);
 

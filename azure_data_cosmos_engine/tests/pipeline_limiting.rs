@@ -4,7 +4,7 @@
 use std::vec;
 
 use azure_data_cosmos_engine::query::{
-    DataRequest, QueryClauseItem, QueryInfo, QueryPlan, QueryResult, SortOrder,
+    DataRequest, QueryClauseItem, QueryInfo, QueryPlan, QueryResult, QueryResultShape, SortOrder,
 };
 use pretty_assertions::assert_eq;
 
@@ -96,6 +96,7 @@ pub fn top() -> Result<(), Box<dyn std::error::Error>> {
             query_ranges: Vec::new(),
         },
         3,
+        QueryResultShape::OrderBy,
     )?;
 
     // Execute the query, and flatten the response down to just the title for easier comparison.
@@ -171,6 +172,7 @@ pub fn offset_limit() -> Result<(), Box<dyn std::error::Error>> {
             query_ranges: Vec::new(),
         },
         2, // Really force the engine to make lots of requests.
+        QueryResultShape::OrderBy,
     )?;
 
     // Execute the query, and flatten the response down to just the title for easier comparison.

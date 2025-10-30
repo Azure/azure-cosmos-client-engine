@@ -4,7 +4,10 @@
 use std::collections::BinaryHeap;
 
 use crate::{
-    query::{node::PipelineNodeResult, DataRequest, PartitionKeyRange, QueryResult, SortOrder},
+    query::{
+        node::PipelineNodeResult, query_result::QueryResultShape, DataRequest, PartitionKeyRange,
+        SortOrder,
+    },
     ErrorKind,
 };
 
@@ -50,11 +53,13 @@ impl NonStreamingStrategy {
     pub fn provide_data(
         &mut self,
         pkrange_id: &str,
-        data: Vec<QueryResult>,
+        data: &[u8],
         continuation: Option<String>,
     ) -> crate::Result<()> {
+        let parsed_data = QueryResultShape::OrderBy.results_from_slice(data)?;
+
         // Insert the items into the heap as we go, which will keep them sorted
-        for item in data {
+        for item in parsed_data {
             // We need to sort the items by the order by items, so we create a SortableResult.
             self.items
                 .push(SortableResult::new(self.sorting.clone(), item));

@@ -11,7 +11,7 @@
 use std::{collections::BTreeMap, fmt::Debug};
 
 use azure_data_cosmos_engine::query::{
-    DataRequest, PartitionKeyRange, QueryPipeline, QueryPlan, QueryResult,
+    DataRequest, PartitionKeyRange, QueryPipeline, QueryPlan, QueryResult, QueryResultShape,
 };
 use tracing_subscriber::EnvFilter;
 
@@ -19,6 +19,7 @@ pub struct Engine {
     container: Container,
     pipeline: QueryPipeline,
     request_page_size: usize,
+    result_shape: QueryResultShape,
 }
 
 impl Engine {
@@ -29,6 +30,7 @@ impl Engine {
     /// * `container` - The container to query.
     /// * `plan` - The query plan to execute.
     /// * `request_page_size` - Limits the number of items returned in each page of results when querying a partition, see pagination below.
+    /// * `result_shape` - The shape of the query results (RawPayload, OrderBy, or ValueAggregate)
     ///
     /// # Pagination
     ///
@@ -43,6 +45,7 @@ impl Engine {
         query: &str,
         plan: QueryPlan,
         request_page_size: usize,
+        result_shape: QueryResultShape,
     ) -> Result<Self, azure_data_cosmos_engine::Error> {
         // Divide the EPK space evenly among the partitions we have
         const MAX_EPK: u32 = 0xFFFF_FFFF;
@@ -74,6 +77,7 @@ impl Engine {
             container,
             pipeline,
             request_page_size,
+            result_shape,
         })
     }
 
@@ -111,13 +115,23 @@ impl Engine {
                     request.continuation.as_deref(),
                     self.request_page_size,
                 );
+                // Serialize the QueryResult items to bytes
+                let json_bytes = serialize_query_results(self.result_shape, &page.items)?;
                 self.pipeline
-                    .provide_data(&request.pkrange_id, page.items, page.continuation)?;
+                    .provide_data(&request.pkrange_id, &json_bytes, page.continuation)?;
             }
         }
 
         Ok(responses)
     }
+}
+
+/// Helper function to serialize QueryResult items back into the JSON format expected by the gateway
+fn serialize_query_results(
+    shape: QueryResultShape,
+    results: &[QueryResult],
+) -> Result<Vec<u8>, azure_data_cosmos_engine::Error> {
+    shape.results_to_vec(results)
 }
 
 /// Equivalent of [`PipelineResponse`], but with the raw items as [`Value`](serde_json::Value) for easier testing.

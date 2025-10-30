@@ -1,10 +1,25 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::fmt::Debug;
 
 use crate::ErrorKind;
+
+/// Helper struct for wrapping document results in the gateway format
+#[derive(Deserialize, Serialize)]
+struct DocumentResult<T> {
+    #[serde(rename = "Documents")]
+    documents: Vec<T>,
+}
+
+/// Helper struct for ORDER BY query results
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct OrderByItem {
+    order_by_items: Vec<QueryClauseItem>,
+    payload: Box<serde_json::value::RawValue>,
+}
 
 /// Describes the expected shape of the query result.
 ///
@@ -25,12 +40,6 @@ pub enum QueryResultShape {
 
 impl QueryResultShape {
     pub fn results_from_slice(self, buffer: &[u8]) -> crate::Result<Vec<QueryResult>> {
-        #[derive(Deserialize)]
-        struct DocumentResult<T> {
-            #[serde(rename = "Documents")]
-            documents: Vec<T>,
-        }
-
         match self {
             QueryResultShape::RawPayload => {
                 let results: DocumentResult<Box<serde_json::value::RawValue>> =
@@ -47,12 +56,6 @@ impl QueryResultShape {
                     .collect())
             }
             QueryResultShape::OrderBy => {
-                #[derive(Deserialize)]
-                #[serde(rename_all = "camelCase")]
-                struct OrderByItem {
-                    order_by_items: Vec<QueryClauseItem>,
-                    payload: Box<serde_json::value::RawValue>,
-                }
                 let results: DocumentResult<OrderByItem> = serde_json::from_slice(buffer)
                     .map_err(|e| ErrorKind::InvalidGatewayResponse.with_source(e))?;
                 Ok(results
@@ -80,6 +83,63 @@ impl QueryResultShape {
             }
         }
     }
+
+    /// Serializes a list of [`QueryResult`]s back into the JSON format expected by the gateway.
+    ///
+    /// This method converts normalized [`QueryResult`]s back into the raw JSON format that the gateway expects,
+    /// based on the shape of the query. This is primarily useful for testing, where we need to simulate
+    /// gateway responses.
+    ///
+    /// # Parameters
+    /// * `results` - The list of [`QueryResult`]s to serialize
+    ///
+    /// # Returns
+    /// A `Vec<u8>` containing the JSON-serialized results in the gateway format.
+    ///
+    /// # Errors
+    /// Returns an error if:
+    /// - The results contain both aggregates and order_by_items (invalid combination)
+    /// - JSON serialization fails
+    pub fn results_to_vec(self, results: &[QueryResult]) -> crate::Result<Vec<u8>> {
+        if results.is_empty() {
+            return Ok(br#"{"Documents":[]}"#.to_vec());
+        }
+
+        let has_order_by = !results[0].order_by_items.is_empty();
+        let has_aggregates = !results[0].aggregates.is_empty();
+
+        if has_aggregates && has_order_by {
+            return Err(ErrorKind::InternalError
+                .with_message("cannot serialize results with both aggregates and order_by_items"));
+        }
+
+        match self {
+            QueryResultShape::RawPayload => {
+                let documents = results.iter().map(|r| r.payload.clone().unwrap()).collect();
+
+                serde_json::to_vec(&DocumentResult { documents })
+                    .map_err(|e| ErrorKind::InternalError.with_source(e))
+            }
+            QueryResultShape::OrderBy => {
+                let documents = results
+                    .iter()
+                    .map(|r| OrderByItem {
+                        order_by_items: r.order_by_items.clone(),
+                        payload: r.payload.clone().unwrap(),
+                    })
+                    .collect();
+
+                serde_json::to_vec(&DocumentResult { documents })
+                    .map_err(|e| ErrorKind::InternalError.with_source(e))
+            }
+            QueryResultShape::ValueAggregate => {
+                let documents = results.iter().map(|r| r.aggregates.clone()).collect();
+
+                serde_json::to_vec(&DocumentResult { documents })
+                    .map_err(|e| ErrorKind::InternalError.with_source(e))
+            }
+        }
+    }
 }
 
 /// Represents the result of a rewritten query.
@@ -100,7 +160,7 @@ pub struct QueryResult {
 
 /// Many of the gateway-rewritten queries cause the backend to produce `{"item": <value>}` objects for order by and group by items.
 /// This struct represents that shape, and provides comparison logic for ordering.
-#[derive(Clone, Debug, Deserialize, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Deserialize, Serialize, Default, PartialEq, Eq)]
 pub struct QueryClauseItem {
     #[serde(default, deserialize_with = "deserialize_item")]
     pub item: Option<serde_json::Value>,
