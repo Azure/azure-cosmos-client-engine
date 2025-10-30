@@ -10,7 +10,7 @@ use crate::{
 
 use super::{
     node::{LimitPipelineNode, OffsetPipelineNode, PipelineNode, PipelineSlice},
-    plan::DistinctType,
+    plan::{DistinctType, QueryRange},
     producer::ItemProducer,
     PartitionKeyRange, PipelineResponse, QueryFeature, QueryPlan, QueryResult,
 };
@@ -128,6 +128,9 @@ impl QueryPipeline {
         plan: QueryPlan,
         pkranges: impl IntoIterator<Item = PartitionKeyRange>,
     ) -> crate::Result<Self> {
+        let mut pkranges: Vec<PartitionKeyRange> = pkranges.into_iter().collect();
+        get_overlapping_pk_ranges(&mut pkranges, &plan.query_ranges);
+
         let mut result_shape = QueryResultShape::RawPayload;
 
         tracing::trace!(?query, ?plan, "creating query pipeline");
@@ -309,5 +312,370 @@ fn format_query(original: &str) -> String {
     original.replace("{documentdb-formattableorderbyquery-filter}", "true")
 }
 
+/// Filters the partition key ranges to include only those that overlap with the query ranges.
+/// If no query ranges are provided, all partition key ranges are retained.
+fn get_overlapping_pk_ranges(pkranges: &mut Vec<PartitionKeyRange>, query_ranges: &[QueryRange]) {
+    if query_ranges.is_empty() {
+        return;
+    }
+
+    debug_assert!(
+        pkranges.is_sorted_by_key(|pkrange| pkrange.min_inclusive.clone()),
+        "partition key ranges must be sorted by minInclusive"
+    );
+
+    debug_assert!(
+        query_ranges.is_sorted_by_key(|query_range| query_range.min.clone()),
+        "query ranges must be sorted by min"
+    );
+
+    // Walks through both lists, finding overlaps.
+    // We produce the final list by swapping overlapping ranges to the front of the list and then truncating the list to remove the remaining, non-overlapping, ranges.
+    let mut write_idx = 0;
+    let mut query_idx = 0;
+    for read_idx in 0..pkranges.len() {
+        let pkrange = &pkranges[read_idx];
+
+        // Advance query_idx to skip query ranges that end before this pkrange starts
+        while query_idx < query_ranges.len() {
+            let query_range = &query_ranges[query_idx];
+            if query_range.max < pkrange.min_inclusive
+                || (query_range.max == pkrange.min_inclusive && !query_range.is_max_inclusive)
+            {
+                query_idx += 1;
+            } else {
+                break;
+            }
+        }
+
+        // Check if any remaining query ranges overlap with this pkrange
+        let mut found_overlap = false;
+        for query_range in &query_ranges[query_idx..] {
+            // If this query range starts after the pkrange ends, no more overlaps possible
+            if query_range.min >= pkrange.max_exclusive {
+                break;
+            }
+
+            // Check for actual overlap using simplified logic
+            if pkrange_overlaps_query_range(pkrange, query_range) {
+                found_overlap = true;
+                break;
+            }
+        }
+
+        if found_overlap {
+            if write_idx != read_idx {
+                pkranges.swap(write_idx, read_idx);
+            }
+            write_idx += 1;
+        }
+    }
+
+    pkranges.truncate(write_idx);
+}
+
+/// Determines if a partition key range overlaps with a query range.
+/// PartitionKeyRange is always [min_inclusive, max_exclusive).
+fn pkrange_overlaps_query_range(pkrange: &PartitionKeyRange, query_range: &QueryRange) -> bool {
+    // Check for non-overlap cases (easier to reason about)
+
+    // PKRange ends before query starts
+    if pkrange.max_exclusive < query_range.min {
+        return false;
+    }
+    if pkrange.max_exclusive == query_range.min && !query_range.is_min_inclusive {
+        return false;
+    }
+
+    // Query ends before PKRange starts
+    if query_range.max < pkrange.min_inclusive {
+        return false;
+    }
+    if query_range.max == pkrange.min_inclusive && !query_range.is_max_inclusive {
+        return false;
+    }
+
+    true
+}
+
 // The tests for the pipeline are found in integration tests (in the `tests`) directory, since we want to test an end-to-end experience that matches what the user will see.
 // Individual components of the pipeline are tested in the other modules.
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn create_pkrange(id: &str, min: &str, max: &str) -> PartitionKeyRange {
+        PartitionKeyRange::new(id, min, max)
+    }
+
+    fn create_query_range(
+        min: &str,
+        max: &str,
+        min_inclusive: bool,
+        max_inclusive: bool,
+    ) -> QueryRange {
+        QueryRange {
+            min: min.to_string(),
+            max: max.to_string(),
+            is_min_inclusive: min_inclusive,
+            is_max_inclusive: max_inclusive,
+        }
+    }
+
+    #[test]
+    fn test_empty_query_ranges() {
+        let mut pkranges = vec![
+            create_pkrange("pk1", "00000000", "40000000"),
+            create_pkrange("pk2", "40000000", "80000000"),
+        ];
+        let query_ranges = vec![];
+
+        get_overlapping_pk_ranges(&mut pkranges, &query_ranges);
+
+        assert_eq!(pkranges.len(), 2);
+        assert_eq!(pkranges[0].id, "pk1");
+        assert_eq!(pkranges[1].id, "pk2");
+    }
+
+    #[test]
+    fn test_no_overlaps() {
+        let mut pkranges = vec![
+            create_pkrange("pk1", "00000000", "20000000"),
+            create_pkrange("pk2", "20000000", "40000000"),
+            create_pkrange("pk3", "40000000", "60000000"),
+        ];
+        let query_ranges = vec![
+            create_query_range("70000000", "80000000", true, true),
+            create_query_range("90000000", "A0000000", true, true),
+        ];
+
+        get_overlapping_pk_ranges(&mut pkranges, &query_ranges);
+
+        assert_eq!(pkranges.len(), 0);
+    }
+
+    #[test]
+    fn test_single_exact_overlap() {
+        let mut pkranges = vec![
+            create_pkrange("pk1", "00000000", "40000000"),
+            create_pkrange("pk2", "40000000", "80000000"),
+            create_pkrange("pk3", "80000000", "C0000000"),
+        ];
+        let query_ranges = vec![
+            create_query_range("40000000", "80000000", true, false), // Exactly matches pk2
+        ];
+
+        get_overlapping_pk_ranges(&mut pkranges, &query_ranges);
+
+        assert_eq!(pkranges.len(), 1);
+        assert_eq!(pkranges[0].id, "pk2");
+    }
+
+    #[test]
+    fn test_multiple_overlaps() {
+        let mut pkranges = vec![
+            create_pkrange("pk1", "00000000", "20000000"),
+            create_pkrange("pk2", "20000000", "40000000"),
+            create_pkrange("pk3", "40000000", "60000000"),
+            create_pkrange("pk4", "60000000", "80000000"),
+        ];
+        let query_ranges = vec![
+            create_query_range("10000000", "30000000", true, true), // Overlaps pk1, pk2
+            create_query_range("50000000", "70000000", true, true), // Overlaps pk3, pk4
+        ];
+
+        get_overlapping_pk_ranges(&mut pkranges, &query_ranges);
+
+        assert_eq!(pkranges.len(), 4);
+        let ids: Vec<&str> = pkranges.iter().map(|pk| pk.id.as_str()).collect();
+        assert_eq!(ids, vec!["pk1", "pk2", "pk3", "pk4"]);
+    }
+
+    #[test]
+    fn test_partial_overlap_start() {
+        let mut pkranges = vec![
+            create_pkrange("pk1", "00000000", "40000000"),
+            create_pkrange("pk2", "40000000", "80000000"),
+        ];
+        let query_ranges = vec![
+            create_query_range("20000000", "60000000", true, true), // Overlaps end of pk1, start of pk2
+        ];
+
+        get_overlapping_pk_ranges(&mut pkranges, &query_ranges);
+
+        assert_eq!(pkranges.len(), 2);
+        let ids: Vec<&str> = pkranges.iter().map(|pk| pk.id.as_str()).collect();
+        assert_eq!(ids, vec!["pk1", "pk2"]);
+    }
+
+    #[test]
+    fn test_boundary_conditions_inclusive_exclusive() {
+        let mut pkranges = vec![
+            create_pkrange("pk1", "00000000", "40000000"),
+            create_pkrange("pk2", "40000000", "80000000"),
+        ];
+
+        // Query range ends exactly where pk2 starts, but pk2 is min-inclusive
+        let query_ranges = vec![
+            create_query_range("20000000", "40000000", true, true), // max_inclusive=true
+        ];
+
+        get_overlapping_pk_ranges(&mut pkranges, &query_ranges);
+
+        assert_eq!(pkranges.len(), 2); // Should overlap both pk1 and pk2
+        let ids: Vec<&str> = pkranges.iter().map(|pk| pk.id.as_str()).collect();
+        assert_eq!(ids, vec!["pk1", "pk2"]);
+    }
+
+    #[test]
+    fn test_boundary_conditions_exclusive() {
+        let mut pkranges = vec![
+            create_pkrange("pk1", "00000000", "40000000"),
+            create_pkrange("pk2", "40000000", "80000000"),
+        ];
+
+        // Query range ends exactly where pk2 starts, but query is max-exclusive
+        let query_ranges = vec![
+            create_query_range("20000000", "40000000", true, false), // max_inclusive=false
+        ];
+
+        get_overlapping_pk_ranges(&mut pkranges, &query_ranges);
+
+        assert_eq!(pkranges.len(), 1); // Should only overlap pk1
+        assert_eq!(pkranges[0].id, "pk1");
+    }
+
+    #[test]
+    fn test_query_range_spans_multiple_partitions() {
+        let mut pkranges = vec![
+            create_pkrange("pk1", "00000000", "20000000"),
+            create_pkrange("pk2", "20000000", "40000000"),
+            create_pkrange("pk3", "40000000", "60000000"),
+            create_pkrange("pk4", "60000000", "80000000"),
+        ];
+        let query_ranges = vec![
+            create_query_range("10000000", "70000000", true, true), // Spans pk1 through pk4
+        ];
+
+        get_overlapping_pk_ranges(&mut pkranges, &query_ranges);
+
+        assert_eq!(pkranges.len(), 4);
+        let ids: Vec<&str> = pkranges.iter().map(|pk| pk.id.as_str()).collect();
+        assert_eq!(ids, vec!["pk1", "pk2", "pk3", "pk4"]);
+    }
+
+    #[test]
+    fn test_query_range_contained_within_partition() {
+        let mut pkranges = vec![
+            create_pkrange("pk1", "00000000", "40000000"),
+            create_pkrange("pk2", "40000000", "80000000"),
+            create_pkrange("pk3", "80000000", "C0000000"),
+        ];
+        let query_ranges = vec![
+            create_query_range("50000000", "60000000", true, true), // Entirely within pk2
+        ];
+
+        get_overlapping_pk_ranges(&mut pkranges, &query_ranges);
+
+        assert_eq!(pkranges.len(), 1);
+        assert_eq!(pkranges[0].id, "pk2");
+    }
+
+    #[test]
+    fn test_multiple_query_ranges_different_overlaps() {
+        let mut pkranges = vec![
+            create_pkrange("pk1", "00000000", "20000000"),
+            create_pkrange("pk2", "20000000", "40000000"),
+            create_pkrange("pk3", "40000000", "60000000"),
+            create_pkrange("pk4", "60000000", "80000000"),
+            create_pkrange("pk5", "80000000", "A0000000"),
+        ];
+        let query_ranges = vec![
+            create_query_range("10000000", "30000000", true, true), // Overlaps pk1, pk2
+            create_query_range("70000000", "90000000", true, true), // Overlaps pk4, pk5
+                                                                    // pk3 should not be included
+        ];
+
+        get_overlapping_pk_ranges(&mut pkranges, &query_ranges);
+
+        assert_eq!(pkranges.len(), 4);
+        let ids: Vec<&str> = pkranges.iter().map(|pk| pk.id.as_str()).collect();
+        assert_eq!(ids, vec!["pk1", "pk2", "pk4", "pk5"]);
+    }
+
+    #[test]
+    fn test_query_ranges_out_of_order_should_panic() {
+        let pkranges = vec![create_pkrange("pk1", "00000000", "40000000")];
+        let query_ranges = vec![
+            create_query_range("60000000", "80000000", true, true),
+            create_query_range("40000000", "50000000", true, true), // Out of order
+        ];
+
+        // This should panic in debug mode due to the debug_assert!
+        // We'll test this by making a copy to avoid UnwindSafe issues
+        let result = std::panic::catch_unwind(|| {
+            let mut test_pkranges = pkranges.clone();
+            get_overlapping_pk_ranges(&mut test_pkranges, &query_ranges);
+        });
+
+        // In debug mode, this should panic. In release mode, it might not.
+        if cfg!(debug_assertions) {
+            assert!(
+                result.is_err(),
+                "Should panic in debug mode with unsorted query ranges"
+            );
+        } else {
+            // In release mode, just ensure it doesn't crash
+            assert!(result.is_ok(), "Should not crash in release mode");
+        }
+    }
+
+    #[test]
+    fn test_edge_case_single_point_overlap() {
+        let mut pkranges = vec![
+            create_pkrange("pk1", "00000000", "40000000"),
+            create_pkrange("pk2", "40000000", "80000000"),
+        ];
+
+        // Query range that touches the boundary point
+        let query_ranges = vec![
+            create_query_range("40000000", "40000000", true, true), // Single point at boundary
+        ];
+
+        get_overlapping_pk_ranges(&mut pkranges, &query_ranges);
+
+        assert_eq!(pkranges.len(), 1);
+        assert_eq!(pkranges[0].id, "pk2"); // pk2 includes 40000000, pk1 excludes it
+    }
+
+    #[test]
+    fn test_query_range_before_all_partitions() {
+        let mut pkranges = vec![
+            create_pkrange("pk1", "40000000", "80000000"),
+            create_pkrange("pk2", "80000000", "C0000000"),
+        ];
+        let query_ranges = vec![
+            create_query_range("00000000", "20000000", true, true), // Before all partitions
+        ];
+
+        get_overlapping_pk_ranges(&mut pkranges, &query_ranges);
+
+        assert_eq!(pkranges.len(), 0);
+    }
+
+    #[test]
+    fn test_query_range_after_all_partitions() {
+        let mut pkranges = vec![
+            create_pkrange("pk1", "00000000", "40000000"),
+            create_pkrange("pk2", "40000000", "80000000"),
+        ];
+        let query_ranges = vec![
+            create_query_range("A0000000", "C0000000", true, true), // After all partitions
+        ];
+
+        get_overlapping_pk_ranges(&mut pkranges, &query_ranges);
+
+        assert_eq!(pkranges.len(), 0);
+    }
+}

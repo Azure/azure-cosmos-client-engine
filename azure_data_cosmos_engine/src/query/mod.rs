@@ -57,7 +57,7 @@ pub struct Query {
     pub encoded_parameters: Option<Box<serde_json::value::RawValue>>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[cfg_attr(
     feature = "python_conversions",
     derive(pyo3::FromPyObject),
