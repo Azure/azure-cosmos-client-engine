@@ -191,10 +191,7 @@ impl PipelineNode for AggregatePipelineNode {
         ) -> crate::Result<PipelineNodeResult> {
             if let Some(value) = results.pop_front() {
                 Ok(PipelineNodeResult::result(
-                    QueryResult {
-                        payload: Some(value),
-                        ..Default::default()
-                    },
+                    QueryResult::RawPayload(value),
                     results.is_empty(),
                 ))
             } else {
@@ -211,8 +208,12 @@ impl PipelineNode for AggregatePipelineNode {
 
         let result = rest.run()?;
         if let Some(item) = result.value {
+            let aggregates = item.as_value_aggregates().ok_or_else(|| {
+                ErrorKind::InvalidGatewayResponse
+                    .with_message("expected single-partition aggregate results")
+            })?;
             tracing::debug!(aggregator_count = self.aggregators.len(), "processing item");
-            for clause_item in item.aggregates {
+            for clause_item in aggregates {
                 for aggregator in &mut self.aggregators {
                     aggregator.aggregate(&clause_item)?
                 }

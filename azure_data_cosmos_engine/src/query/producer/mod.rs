@@ -180,28 +180,37 @@ mod tests {
             pkrange_id.to_string(),
             format!("{pkrange_id} / {id}"),
         );
-        let order_by_items = order_by_items
-            .into_iter()
-            .map(|value| serde_json::from_value(value).unwrap())
-            .collect();
-        QueryResult {
-            order_by_items,
-            payload: Some(serde_json::value::to_raw_value(&item).unwrap()),
-            ..Default::default()
+        if order_by_items.is_empty() {
+            QueryResult::RawPayload(serde_json::value::to_raw_value(&item).unwrap())
+        } else {
+            let order_by_items = order_by_items
+                .into_iter()
+                .map(|value| serde_json::from_value(value).unwrap())
+                .collect();
+            QueryResult::OrderBy {
+                order_by_items,
+                payload: serde_json::value::to_raw_value(&item).unwrap(),
+            }
         }
     }
 
     /// Helper function to serialize QueryResult items back into the JSON format expected by the gateway
-    fn serialize_query_results(
-        shape: QueryResultShape,
-        results: &[QueryResult],
-    ) -> crate::Result<Vec<u8>> {
-        shape.results_to_vec(results)
+    fn serialize_query_results(results: &[QueryResult]) -> crate::Result<Vec<u8>> {
+        #[derive(Serialize)]
+        struct DocumentsWrapper<'a> {
+            #[serde(rename = "Documents")]
+            results: &'a [QueryResult],
+        }
+        let wrapper = DocumentsWrapper { results };
+        let json = serde_json::to_vec(&wrapper).map_err(|e| {
+            ErrorKind::InternalError
+                .with_message(format!("failed to serialize query results: {}", e))
+        })?;
+        Ok(json)
     }
 
     fn run_producer(
         producer: &mut ItemProducer,
-        result_shape: QueryResultShape,
         mut partitions: HashMap<String, VecDeque<TestPage>>,
     ) -> crate::Result<Vec<Item>> {
         let mut items = Vec::new();
@@ -219,7 +228,7 @@ mod tests {
                     let next_token = pages.front().and_then(|(t, _)| t.clone());
 
                     // Serialize QueryResult items to JSON bytes in the appropriate shape
-                    let json_bytes = serialize_query_results(result_shape, &query_results)?;
+                    let json_bytes = serialize_query_results(&query_results)?;
                     producer.provide_data(&pkrange_id, &json_bytes, next_token)?;
                 } else {
                     return Err(ErrorKind::UnknownPartitionKeyRange
@@ -232,7 +241,8 @@ mod tests {
                 let result = producer.produce_item()?;
                 let has_value = result.value.is_some(); // Capture Some/None state before we consume it.
                 if let Some(value) = result.value {
-                    let item = serde_json::from_str(value.payload.unwrap().get()).unwrap();
+                    let payload = value.into_payload().unwrap();
+                    let item = serde_json::from_str(payload.get()).unwrap();
                     items.push(item);
                 }
 
@@ -305,7 +315,6 @@ mod tests {
 
         let items = run_producer(
             &mut producer,
-            QueryResultShape::RawPayload,
             HashMap::from([
                 ("partition0".to_string(), partition0),
                 ("partition1".to_string(), partition1),
@@ -418,7 +427,6 @@ mod tests {
         // We should stop once any partition's queue is empty.
         let items = run_producer(
             &mut producer,
-            QueryResultShape::OrderBy,
             HashMap::from([
                 ("partition0".to_string(), partition0),
                 ("partition1".to_string(), partition1),
@@ -522,7 +530,6 @@ mod tests {
         // We should stop once any partition's queue is empty.
         let items = run_producer(
             &mut producer,
-            QueryResultShape::OrderBy,
             HashMap::from([
                 ("partition0".to_string(), partition0),
                 ("partition1".to_string(), partition1),

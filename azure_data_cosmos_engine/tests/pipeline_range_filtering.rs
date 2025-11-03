@@ -3,7 +3,9 @@
 
 use std::vec;
 
-use azure_data_cosmos_engine::query::{DataRequest, QueryInfo, QueryPlan, QueryRange, QueryResult};
+use azure_data_cosmos_engine::query::{
+    DataRequest, QueryInfo, QueryPlan, QueryRange, QueryResult, QueryResultShape,
+};
 use pretty_assertions::assert_eq;
 
 use mock_engine::{Container, Engine};
@@ -34,10 +36,7 @@ impl Item {
 impl From<Item> for QueryResult {
     fn from(item: Item) -> Self {
         let raw = serde_json::value::to_raw_value(&item.title).unwrap();
-        QueryResult {
-            payload: Some(raw),
-            ..Default::default()
-        }
+        QueryResult::RawPayload(raw)
     }
 }
 
@@ -95,6 +94,7 @@ pub fn pkranges_filtered_by_query_ranges() -> Result<(), Box<dyn std::error::Err
         "SELECT * FROM c WHERE c.partitionKey = 'specific_value'",
         query_plan,
         3,
+        QueryResultShape::RawPayload,
     )?;
 
     let results = engine.execute()?;
@@ -190,6 +190,7 @@ pub fn pkranges_filtered_by_overlapping_query_ranges() -> Result<(), Box<dyn std
         "SELECT * FROM c WHERE c.someField BETWEEN 'value1' AND 'value2'",
         query_plan,
         3,
+        QueryResultShape::RawPayload,
     )?;
 
     let results = engine.execute()?;
@@ -283,7 +284,13 @@ pub fn pkranges_filtered_by_all_partitions_query_range() -> Result<(), Box<dyn s
         }],
     };
 
-    let engine = Engine::new(container, "SELECT * FROM c", query_plan, 3)?;
+    let engine = Engine::new(
+        container,
+        "SELECT * FROM c",
+        query_plan,
+        3,
+        QueryResultShape::RawPayload,
+    )?;
 
     let results = engine.execute()?;
 
@@ -377,7 +384,13 @@ pub fn pkranges_no_query_ranges_queries_all_partitions() -> Result<(), Box<dyn s
         query_ranges: Vec::new(),
     };
 
-    let engine = Engine::new(container, "SELECT * FROM c", query_plan, 3)?;
+    let engine = Engine::new(
+        container,
+        "SELECT * FROM c",
+        query_plan,
+        3,
+        QueryResultShape::RawPayload,
+    )?;
 
     let results = engine.execute()?;
 

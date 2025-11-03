@@ -126,10 +126,14 @@ impl StreamingStrategy {
                     current_match = Some((i, buffer.front()));
                 }
                 Some((current_index, current_item)) => {
-                    match self.sorting.compare(
-                        current_item.map(|r| r.order_by_items.as_slice()),
-                        buffer.front().map(|r| r.order_by_items.as_slice()),
-                    )? {
+                    let current_order_by_items =
+                        current_item.and_then(|r| r.as_order_by()).map(|(i, _)| i);
+                    let new_order_by_items =
+                        buffer.front().and_then(|r| r.as_order_by()).map(|(i, _)| i);
+                    match self
+                        .sorting
+                        .compare(current_order_by_items, new_order_by_items)?
+                    {
                         Ordering::Greater => {
                             // The current item sorts higher than the new item, so we keep the current match.
                             continue;

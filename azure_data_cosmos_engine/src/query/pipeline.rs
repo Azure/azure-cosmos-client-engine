@@ -284,8 +284,11 @@ impl QueryPipeline {
             }
 
             if let Some(item) = result.value {
-                // TODO: Handle scenarios where there is no payload (aggregates)
-                items.push(item.payload.unwrap());
+                let payload = item.into_payload().ok_or_else(|| {
+                    ErrorKind::InternalError
+                        .with_message("items yielded by the pipeline must have a payload")
+                })?;
+                items.push(payload);
             } else {
                 // The pipeline has finished for now, but we're not terminated yet.
                 break;

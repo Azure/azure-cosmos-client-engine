@@ -13,6 +13,7 @@ use std::{collections::BTreeMap, fmt::Debug};
 use azure_data_cosmos_engine::query::{
     DataRequest, PartitionKeyRange, QueryPipeline, QueryPlan, QueryResult, QueryResultShape,
 };
+use serde::Serialize;
 use tracing_subscriber::EnvFilter;
 
 pub struct Engine {
@@ -116,7 +117,7 @@ impl Engine {
                     self.request_page_size,
                 );
                 // Serialize the QueryResult items to bytes
-                let json_bytes = serialize_query_results(self.result_shape, &page.items)?;
+                let json_bytes = serialize_query_results(&page.items)?;
                 self.pipeline
                     .provide_data(&request.pkrange_id, &json_bytes, page.continuation)?;
             }
@@ -128,10 +129,17 @@ impl Engine {
 
 /// Helper function to serialize QueryResult items back into the JSON format expected by the gateway
 fn serialize_query_results(
-    shape: QueryResultShape,
     results: &[QueryResult],
 ) -> Result<Vec<u8>, azure_data_cosmos_engine::Error> {
-    shape.results_to_vec(results)
+    #[derive(Serialize)]
+    struct DocumentResults<'a, T> {
+        #[serde(rename = "Documents")]
+        documents: &'a [T],
+    }
+    serde_json::to_vec(&DocumentResults { documents: results }).map_err(|e| {
+        azure_data_cosmos_engine::ErrorKind::InternalError
+            .with_message(format!("failed to serialize query results: {}", e))
+    })
 }
 
 /// Equivalent of [`PipelineResponse`], but with the raw items as [`Value`](serde_json::Value) for easier testing.
