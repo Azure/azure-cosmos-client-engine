@@ -113,7 +113,7 @@ impl ItemProducer {
         Ok(Self::Hybrid(HybridSearchStrategy::new(
             pkranges,
             hybrid_search_query_info,
-        )))
+        )?))
     }
 
     /// Gets the [`DataRequest`]s that must be performed in order to add additional data to the partition buffers.
@@ -248,7 +248,7 @@ mod tests {
 
                     // Serialize QueryResult items to JSON bytes in the appropriate shape
                     let json_bytes = serialize_query_results(&query_results)?;
-                    producer.provide_data(&pkrange_id, &json_bytes, next_token)?;
+                    producer.provide_data(&pkrange_id, request.id, &json_bytes, next_token)?;
                 } else {
                     return Err(ErrorKind::UnknownPartitionKeyRange
                         .with_message(format!("unknown partition key range ID: {pkrange_id}")));

@@ -75,6 +75,7 @@ impl QueryResultShape {
                     .map(QueryResult::ValueAggregates)
                     .collect())
             }
+            QueryResultShape::HybridComponent => todo!(),
         }
     }
 }

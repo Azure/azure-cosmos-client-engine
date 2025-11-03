@@ -200,12 +200,14 @@ pub unsafe extern "C" fn cosmoscx_v0_query_pipeline_free_result(result: *mut Pip
 pub extern "C" fn cosmoscx_v0_query_pipeline_provide_data<'a>(
     pipeline: *mut Pipeline,
     pkrange_id: Str<'a>,
+    request_id: u64,
     data: Str<'a>,
     continuation: Str<'a>,
 ) -> ResultCode {
     fn inner<'a>(
         pipeline: *mut Pipeline,
         pkrange_id: Str<'a>,
+        request_id: u64,
         data: Str<'a>,
         continuation: Str<'a>,
     ) -> Result<(), azure_data_cosmos_engine::Error> {
@@ -223,8 +225,8 @@ pub extern "C" fn cosmoscx_v0_query_pipeline_provide_data<'a>(
         };
 
         // Pass the raw bytes directly to the pipeline
-        pipeline.provide_data(pkrange_id, data.as_bytes(), continuation)
+        pipeline.provide_data(pkrange_id, request_id, data.as_bytes(), continuation)
     }
 
-    inner(pipeline, pkrange_id, data, continuation).into()
+    inner(pipeline, pkrange_id, request_id, data, continuation).into()
 }

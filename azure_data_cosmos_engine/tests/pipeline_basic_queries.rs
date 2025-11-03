@@ -74,6 +74,7 @@ pub fn unordered_query() -> Result<(), Box<dyn std::error::Error>> {
             partitioned_query_execution_info_version: 1,
             query_info: Default::default(),
             query_ranges: Vec::new(),
+            ..Default::default()
         },
         3,
     )?;
@@ -84,7 +85,7 @@ pub fn unordered_query() -> Result<(), Box<dyn std::error::Error>> {
         vec![
             EngineResult {
                 items: vec![],
-                requests: vec![DataRequest::new("partition0", None),],
+                requests: vec![DataRequest::new(0, "partition0", None),],
                 terminated: false,
             },
             EngineResult {
@@ -93,7 +94,7 @@ pub fn unordered_query() -> Result<(), Box<dyn std::error::Error>> {
                     json!("partition0/item1"),
                     json!("partition0/item2"),
                 ],
-                requests: vec![DataRequest::new("partition0", Some("3".into())),],
+                requests: vec![DataRequest::new(1, "partition0", Some("3".into())),],
                 terminated: false,
             },
             EngineResult {
@@ -102,7 +103,7 @@ pub fn unordered_query() -> Result<(), Box<dyn std::error::Error>> {
                     json!("partition0/item4"),
                     json!("partition0/item5"),
                 ],
-                requests: vec![DataRequest::new("partition1", None),],
+                requests: vec![DataRequest::new(2, "partition1", None),],
                 terminated: false,
             },
             EngineResult {
@@ -111,7 +112,7 @@ pub fn unordered_query() -> Result<(), Box<dyn std::error::Error>> {
                     json!("partition1/item1"),
                     json!("partition1/item2"),
                 ],
-                requests: vec![DataRequest::new("partition1", Some("3".into())),],
+                requests: vec![DataRequest::new(3, "partition1", Some("3".into())),],
                 terminated: false,
             },
             EngineResult {

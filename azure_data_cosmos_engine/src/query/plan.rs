@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use serde::Deserialize;
 
 /// Models the response returned by the Gateway when making a query plan request.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 #[cfg_attr(
     feature = "python_conversions",
     derive(pyo3::FromPyObject),
@@ -181,17 +181,17 @@ pub struct QueryInfo {
     /// Indicates if the query contains a `SELECT VALUE` clause.
     #[cfg_attr(feature = "python_conversions", pyo3(item("hasSelectValue"), default))]
     pub has_select_value: bool,
+
+    /// Indicates if the query contains a non-streaming `ORDER BY`.
     #[cfg_attr(
         feature = "python_conversions",
         pyo3(item("hasNonStreamingOrderBy"), default)
     )]
-
-    /// Indicates if the query contains a non-streaming `ORDER BY`.
     pub has_non_streaming_order_by: bool,
 }
 
 /// The sort order used by a particular `ORDER BY` expression.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
 pub enum SortOrder {
     Ascending,
     Descending,

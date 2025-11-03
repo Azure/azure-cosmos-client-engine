@@ -124,7 +124,6 @@ impl std::fmt::Debug for QueryPipeline {
             .field("query", &self.query)
             .field("pipeline", &self.pipeline)
             .field("producer", &self.producer)
-            .field("result_shape", &self.result_shape)
             .field("terminated", &self.terminated)
             .finish()
     }
@@ -185,32 +184,30 @@ impl QueryPipeline {
         query_info: QueryInfo,
         pkranges: impl IntoIterator<Item = PartitionKeyRange>,
     ) -> crate::Result<Self> {
-        let mut result_shape = QueryResultShape::RawPayload;
-
         // We don't support non-value aggregates, so make sure the query doesn't have any.
         if !query_info.aggregates.is_empty() && !query_info.has_select_value {
             return Err(ErrorKind::UnsupportedQueryPlan
                 .with_message("non-value aggregates are not supported"));
         }
 
-        if !plan.query_info.aggregates.is_empty() && !plan.query_info.order_by.is_empty() {
+        if !query_info.aggregates.is_empty() && !query_info.order_by.is_empty() {
             return Err(ErrorKind::UnsupportedQueryPlan
                 .with_message("queries with both ORDER BY and aggregates are not supported"));
         }
 
-        let producer = if plan.query_info.order_by.is_empty() {
+        let producer = if query_info.order_by.is_empty() {
             tracing::debug!("using unordered pipeline");
             // Determine the shape for unordered queries
-            let result_shape = if !plan.query_info.aggregates.is_empty() {
+            let result_shape = if !query_info.aggregates.is_empty() {
                 QueryResultShape::ValueAggregate
             } else {
                 QueryResultShape::RawPayload
             };
             ItemProducer::unordered(pkranges, result_shape)
         } else {
-            if plan.query_info.has_non_streaming_order_by {
-                tracing::debug!(?plan.query_info.order_by, "using non-streaming ORDER BY pipeline");
-                ItemProducer::non_streaming(pkranges, plan.query_info.order_by)
+            if query_info.has_non_streaming_order_by {
+                tracing::debug!(?query_info.order_by, "using non-streaming ORDER BY pipeline");
+                ItemProducer::non_streaming(pkranges, query_info.order_by)
             } else {
                 // We can stream results, there's no vector or full-text search in the query.
                 tracing::debug!(?query_info.order_by, "using streaming ORDER BY pipeline");
@@ -239,7 +236,7 @@ impl QueryPipeline {
             pipeline.push(Box::new(OffsetPipelineNode::new(offset)));
         }
 
-        if !plan.query_info.aggregates.is_empty() {
+        if !query_info.aggregates.is_empty() {
             pipeline.push(Box::new(AggregatePipelineNode::from_names(
                 query_info.aggregates.clone(),
             )?));

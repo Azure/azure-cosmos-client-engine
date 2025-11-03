@@ -87,12 +87,12 @@ pub fn top() -> Result<(), Box<dyn std::error::Error>> {
         "SELECT * FROM c",
         QueryPlan {
             partitioned_query_execution_info_version: 1,
-            query_info: QueryInfo {
+            query_info: Some(QueryInfo {
                 order_by: vec![SortOrder::Ascending, SortOrder::Descending],
                 top: Some(6),
                 ..Default::default()
-            },
-            query_ranges: Vec::new(),
+            }),
+            ..Default::default()
         },
         3,
     )?;
@@ -104,8 +104,8 @@ pub fn top() -> Result<(), Box<dyn std::error::Error>> {
             EngineResult {
                 items: vec![],
                 requests: vec![
-                    DataRequest::new("partition0", None),
-                    DataRequest::new("partition1", None),
+                    DataRequest::new(0, "partition0", None),
+                    DataRequest::new(1, "partition1", None),
                 ],
                 terminated: false,
             },
@@ -117,7 +117,7 @@ pub fn top() -> Result<(), Box<dyn std::error::Error>> {
                     json!("partition1/item1"),
                     json!("partition1/item2"),
                 ],
-                requests: vec![DataRequest::new("partition1", Some("3".into())),],
+                requests: vec![DataRequest::new(2, "partition1", Some("3".into())),],
                 terminated: false,
             },
             EngineResult {
@@ -161,13 +161,13 @@ pub fn offset_limit() -> Result<(), Box<dyn std::error::Error>> {
         "SELECT * FROM c",
         QueryPlan {
             partitioned_query_execution_info_version: 1,
-            query_info: QueryInfo {
+            query_info: Some(QueryInfo {
                 order_by: vec![SortOrder::Ascending, SortOrder::Descending],
                 offset: Some(3),
                 limit: Some(3),
                 ..Default::default()
-            },
-            query_ranges: Vec::new(),
+            }),
+            ..Default::default()
         },
         2, // Really force the engine to make lots of requests.
     )?;
@@ -179,16 +179,16 @@ pub fn offset_limit() -> Result<(), Box<dyn std::error::Error>> {
             EngineResult {
                 items: vec![],
                 requests: vec![
-                    DataRequest::new("partition0", None),
-                    DataRequest::new("partition1", None),
+                    DataRequest::new(0, "partition0", None),
+                    DataRequest::new(1, "partition1", None),
                 ],
                 terminated: false
             },
             EngineResult {
                 items: vec![],
                 requests: vec![
-                    DataRequest::new("partition0", Some("2".into())),
-                    DataRequest::new("partition1", Some("2".into()))
+                    DataRequest::new(2, "partition0", Some("2".into())),
+                    DataRequest::new(3, "partition1", Some("2".into()))
                 ],
                 terminated: false
             },
@@ -198,7 +198,7 @@ pub fn offset_limit() -> Result<(), Box<dyn std::error::Error>> {
                     json!("partition1/item2"),
                     json!("partition0/item2"),
                 ],
-                requests: vec![DataRequest::new("partition1", Some("4".into())),],
+                requests: vec![DataRequest::new(4, "partition1", Some("4".into())),],
                 terminated: true
             },
         ],

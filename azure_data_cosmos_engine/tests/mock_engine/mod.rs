@@ -115,8 +115,12 @@ impl Engine {
                 );
                 // Serialize the QueryResult items to bytes
                 let json_bytes = serialize_query_results(page.items)?;
-                self.pipeline
-                    .provide_data(&request.pkrange_id, &json_bytes, page.continuation)?;
+                self.pipeline.provide_data(
+                    &request.pkrange_id,
+                    request.id,
+                    &json_bytes,
+                    page.continuation,
+                )?;
             }
         }
 

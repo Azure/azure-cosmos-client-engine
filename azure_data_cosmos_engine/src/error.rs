@@ -49,6 +49,9 @@ pub enum ErrorKind {
     /// Indicates that a request ID provided to [`QueryPipeline::provide_data`](crate::query::QueryPipeline::provide_data) was invalid.
     InvalidRequestId,
 
+    /// Indicates that the query cannot be executed by this pipeline.
+    InvalidQuery,
+
     /// Indicates that a Python error occurred. The source of the error will be the original Python error.
     PythonError,
 }
@@ -56,7 +59,7 @@ pub enum ErrorKind {
 impl Display for ErrorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            ErrorKind::InvalidGatewayResponse => write!(f, "invalid data recieved from gateway"),
+            ErrorKind::InvalidGatewayResponse => write!(f, "invalid data received from gateway"),
             ErrorKind::DeserializationError => write!(f, "deserialization error"),
             ErrorKind::UnknownPartitionKeyRange => write!(f, "unknown partition key range"),
             ErrorKind::InternalError => write!(f, "internal client engine error"),
@@ -65,6 +68,7 @@ impl Display for ErrorKind {
             ErrorKind::ArgumentNull => write!(f, "provided argument was null"),
             ErrorKind::ArithmeticOverflow => write!(f, "arithmetic overflow occurred"),
             ErrorKind::InvalidRequestId => write!(f, "invalid request ID provided"),
+            ErrorKind::InvalidQuery => write!(f, "invalid query"),
             ErrorKind::PythonError => write!(f, "python error"),
         }
     }

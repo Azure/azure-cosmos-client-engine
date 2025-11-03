@@ -89,11 +89,11 @@ pub fn streaming_order_by() -> Result<(), Box<dyn std::error::Error>> {
         "SELECT * FROM c",
         QueryPlan {
             partitioned_query_execution_info_version: 1,
-            query_info: QueryInfo {
+            query_info: Some(QueryInfo {
                 order_by: vec![SortOrder::Ascending, SortOrder::Descending],
                 ..Default::default()
-            },
-            query_ranges: Vec::new(),
+            }),
+            ..Default::default()
         },
         3,
     )?;
@@ -105,8 +105,8 @@ pub fn streaming_order_by() -> Result<(), Box<dyn std::error::Error>> {
             EngineResult {
                 items: vec![],
                 requests: vec![
-                    DataRequest::new("partition0", None),
-                    DataRequest::new("partition1", None),
+                    DataRequest::new(0, "partition0", None),
+                    DataRequest::new(1, "partition1", None),
                 ],
                 terminated: false
             },
@@ -118,7 +118,7 @@ pub fn streaming_order_by() -> Result<(), Box<dyn std::error::Error>> {
                     json!("partition1/item1"),
                     json!("partition1/item2"),
                 ],
-                requests: vec![DataRequest::new("partition1", Some("3".into())),],
+                requests: vec![DataRequest::new(2, "partition1", Some("3".into())),],
                 terminated: false
             },
             EngineResult {
