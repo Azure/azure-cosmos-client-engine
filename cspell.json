@@ -13,7 +13,8 @@
         "pymodule",
         "cosmoscx",
         "reqwest",
-        "jsondiff"
+        "jsondiff",
+        "documentdb"
     ],
     "ignoreWords": [],
     "import": []
