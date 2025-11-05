@@ -109,3 +109,217 @@ impl ComponentQueryState {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::query::QueryInfo;
+
+    fn create_test_query_info(query: &str) -> QueryInfo {
+        QueryInfo {
+            rewritten_query: query.to_string(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn test_completion_and_remaining_partitions() {
+        let pkrange_ids = vec!["p1".to_string(), "p2".to_string(), "p3".to_string()];
+        let mut state = ComponentQueryState::new(
+            0,
+            create_test_query_info("SELECT * FROM c"),
+            1.0,
+            &pkrange_ids,
+        );
+
+        assert!(!state.complete());
+        assert_eq!(state.remaining_partitions, 3);
+
+        // Continuation tokens should not affect completion or remaining count
+        state
+            .update_partition_state("p1", Some("token1".to_string()))
+            .unwrap();
+        assert!(!state.complete());
+        assert_eq!(state.remaining_partitions, 3);
+
+        state
+            .update_partition_state("p2", Some("token2".to_string()))
+            .unwrap();
+        assert!(!state.complete());
+        assert_eq!(state.remaining_partitions, 3);
+
+        // Multiple continuations on same partition should not change count
+        state
+            .update_partition_state("p1", Some("token1_page2".to_string()))
+            .unwrap();
+        assert!(!state.complete());
+        assert_eq!(state.remaining_partitions, 3);
+
+        // Complete partitions one at a time
+        state.update_partition_state("p1", None).unwrap();
+        assert!(!state.complete());
+        assert_eq!(state.remaining_partitions, 2);
+
+        state.update_partition_state("p2", None).unwrap();
+        assert!(!state.complete());
+        assert_eq!(state.remaining_partitions, 1);
+
+        state.update_partition_state("p3", None).unwrap();
+        assert!(state.complete());
+        assert_eq!(state.remaining_partitions, 0);
+    }
+
+    #[test]
+    fn test_request_generation_lifecycle() {
+        let pkrange_ids = vec!["p1".to_string(), "p2".to_string()];
+        let mut state = ComponentQueryState::new(
+            2,
+            create_test_query_info("SELECT c.value FROM c ORDER BY c.timestamp"),
+            0.7,
+            &pkrange_ids,
+        );
+
+        let query = "SELECT c.value FROM c ORDER BY c.timestamp";
+        let requests = state.requests();
+        let expected_requests = vec![
+            DataRequest::with_query(
+                HybridRequestId::for_component_query(2, 0).into(),
+                "p1",
+                None,
+                query,
+                true,
+            ),
+            DataRequest::with_query(
+                HybridRequestId::for_component_query(2, 0).into(),
+                "p2",
+                None,
+                query,
+                true,
+            ),
+        ];
+        assert_eq!(requests, expected_requests);
+
+        state
+            .update_partition_state("p1", Some("continuation_token".to_string()))
+            .unwrap();
+        let requests = state.requests();
+        let expected_requests = vec![
+            DataRequest::with_query(
+                HybridRequestId::for_component_query(2, 1).into(),
+                "p1",
+                Some("continuation_token".to_string()),
+                query,
+                true,
+            ),
+            DataRequest::with_query(
+                HybridRequestId::for_component_query(2, 0).into(),
+                "p2",
+                None,
+                query,
+                true,
+            ),
+        ];
+        assert_eq!(requests, expected_requests);
+
+        state.update_partition_state("p1", None).unwrap();
+        let requests = state.requests();
+        let expected_requests = vec![DataRequest::with_query(
+            HybridRequestId::for_component_query(2, 0).into(),
+            "p2",
+            None,
+            query,
+            true,
+        )];
+        assert_eq!(requests, expected_requests);
+
+        state.update_partition_state("p2", None).unwrap();
+        let requests = state.requests();
+        let expected_requests: Vec<DataRequest> = vec![];
+        assert_eq!(requests, expected_requests);
+    }
+
+    #[test]
+    fn test_request_id_generation() {
+        let pkrange_ids = vec!["partition1".to_string()];
+        let mut state = ComponentQueryState::new(
+            5,
+            create_test_query_info("SELECT * FROM c"),
+            1.0,
+            &pkrange_ids,
+        );
+
+        let requests = state.requests();
+        let expected_id_page0: u64 = HybridRequestId::for_component_query(5, 0).into();
+        assert_eq!(requests[0].id, expected_id_page0);
+
+        state
+            .update_partition_state("partition1", Some("token1".to_string()))
+            .unwrap();
+        let requests = state.requests();
+        let expected_id_page1: u64 = HybridRequestId::for_component_query(5, 1).into();
+        assert_eq!(requests[0].id, expected_id_page1);
+
+        state
+            .update_partition_state("partition1", Some("token2".to_string()))
+            .unwrap();
+        let requests = state.requests();
+        let expected_id_page2: u64 = HybridRequestId::for_component_query(5, 2).into();
+        assert_eq!(requests[0].id, expected_id_page2);
+    }
+
+    #[test]
+    fn test_mixed_partition_states() {
+        let pkrange_ids = vec!["p1".to_string(), "p2".to_string(), "p3".to_string()];
+        let mut state = ComponentQueryState::new(
+            0,
+            create_test_query_info("SELECT c.data FROM c"),
+            1.0,
+            &pkrange_ids,
+        );
+
+        state
+            .update_partition_state("p2", Some("token_p2".to_string()))
+            .unwrap();
+        state.update_partition_state("p3", None).unwrap();
+
+        let requests = state.requests();
+        let expected_requests = vec![
+            DataRequest::with_query(
+                HybridRequestId::for_component_query(0, 0).into(),
+                "p1",
+                None,
+                "SELECT c.data FROM c",
+                true,
+            ),
+            DataRequest::with_query(
+                HybridRequestId::for_component_query(0, 1).into(),
+                "p2",
+                Some("token_p2".to_string()),
+                "SELECT c.data FROM c",
+                true,
+            ),
+        ];
+        assert_eq!(requests, expected_requests);
+        assert!(!state.complete());
+        assert_eq!(state.remaining_partitions, 2);
+
+        state.update_partition_state("p1", None).unwrap();
+        let requests = state.requests();
+        let expected_requests = vec![DataRequest::with_query(
+            HybridRequestId::for_component_query(0, 1).into(),
+            "p2",
+            Some("token_p2".to_string()),
+            "SELECT c.data FROM c",
+            true,
+        )];
+        assert_eq!(requests, expected_requests);
+        assert_eq!(state.remaining_partitions, 1);
+
+        state.update_partition_state("p2", None).unwrap();
+        let requests = state.requests();
+        let expected_requests: Vec<DataRequest> = vec![];
+        assert_eq!(requests, expected_requests);
+        assert!(state.complete());
+        assert_eq!(state.remaining_partitions, 0);
+    }
+}
