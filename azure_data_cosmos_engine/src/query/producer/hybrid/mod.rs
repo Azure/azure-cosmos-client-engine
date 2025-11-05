@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-use std::collections::{BTreeSet, VecDeque};
+use std::collections::VecDeque;
 
 use serde::Deserialize;
 
@@ -12,7 +12,7 @@ mod models;
 use crate::{
     query::{
         node::PipelineNodeResult, plan::HybridSearchQueryInfo, DataRequest, PartitionKeyRange,
-        QueryResult, SortOrder,
+        QueryResult,
     },
     ErrorKind,
 };
@@ -155,8 +155,7 @@ impl HybridSearchStrategy {
                 let requests = self
                     .pkrange_ids
                     .iter()
-                    .enumerate()
-                    .map(|(_, pkrange_id)| {
+                    .map(|pkrange_id| {
                         DataRequest::with_query(
                             HybridRequestId::GLOBAL_STATISTICS_QUERY_ID.into(),
                             pkrange_id.clone(),
@@ -284,7 +283,7 @@ impl HybridSearchStrategy {
                             .with_message("invalid component query index in request ID")
                     })?;
                 component_query.update_partition_state(pkrange_id, continuation)?;
-                results.provide_data(data);
+                results.provide_data(data)?;
                 if component_query.complete() {
                     *remaining_component_queries -= 1;
                 }
@@ -327,5 +326,509 @@ impl HybridSearchStrategy {
             );
             Ok(PipelineNodeResult::NO_RESULT)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::query::{plan::HybridSearchQueryInfo, QueryInfo};
+    use models::{FullTextStatistics, GlobalStatistics};
+    use pretty_assertions::assert_eq;
+
+    impl PartialEq for HybridSearchPhase {
+        fn eq(&self, other: &Self) -> bool {
+            match (self, other) {
+                (Self::IssuingGlobalStatisticsQuery, Self::IssuingGlobalStatisticsQuery) => true,
+                (
+                    Self::AwaitingGlobalStatistics {
+                        aggregated_global_statistics: a1,
+                        remaining_partitions: r1,
+                    },
+                    Self::AwaitingGlobalStatistics {
+                        aggregated_global_statistics: a2,
+                        remaining_partitions: r2,
+                    },
+                ) => a1 == a2 && r1 == r2,
+                (
+                    Self::ComponentQueries {
+                        remaining_component_queries: r1,
+                        results: _,
+                    },
+                    Self::ComponentQueries {
+                        remaining_component_queries: r2,
+                        results: _,
+                    },
+                ) => r1 == r2,
+                (Self::ResultProduction(r1), Self::ResultProduction(r2)) => r1.len() == r2.len(),
+                _ => false,
+            }
+        }
+    }
+
+    impl PartialEq for PaginationParameters {
+        fn eq(&self, other: &Self) -> bool {
+            self.skip == other.skip && self.take == other.take
+        }
+    }
+
+    fn create_test_query_info(query: &str) -> QueryInfo {
+        QueryInfo {
+            rewritten_query: query.to_string(),
+            ..Default::default()
+        }
+    }
+
+    fn create_hybrid_query_info(
+        requires_global_stats: bool,
+        component_count: usize,
+        take: Option<u64>,
+    ) -> HybridSearchQueryInfo {
+        HybridSearchQueryInfo {
+            global_statistics_query: "SELECT COUNT(c) as documentCount FROM c".to_string(),
+            component_query_infos: (0..component_count)
+                .map(|i| create_test_query_info(&format!(
+                    "SELECT * FROM c WHERE c.type = {} AND c.docCount = {{documentdb-formattablehybridsearchquery-totaldocumentcount}}", 
+                    i
+                )))
+                .collect(),
+            component_without_payload_query_infos: vec![],
+            projection_query_info: None,
+            component_weights: vec![1.0; component_count],
+            skip: Some(0),
+            take,
+            requires_global_statistics: requires_global_stats,
+        }
+    }
+
+    fn create_test_pkranges(count: usize) -> Vec<PartitionKeyRange> {
+        (0..count)
+            .map(|i| PartitionKeyRange {
+                id: format!("partition_{}", i),
+                min_inclusive: "00".to_string(),
+                max_exclusive: "FF".to_string(),
+            })
+            .collect()
+    }
+
+    fn create_global_stats(doc_count: u64) -> GlobalStatistics {
+        GlobalStatistics {
+            document_count: doc_count,
+            full_text_statistics: vec![FullTextStatistics {
+                total_word_count: 100,
+                hit_counts: vec![10, 20, 30],
+            }],
+        }
+    }
+
+    fn create_global_stats_response(stats: &GlobalStatistics) -> Vec<u8> {
+        let response = serde_json::json!({
+            "Documents": [stats]
+        });
+        serde_json::to_vec(&response).unwrap()
+    }
+
+    fn force_strategy_to_phase(strategy: &mut HybridSearchStrategy, phase: HybridSearchPhase) {
+        strategy.phase = phase;
+    }
+
+    #[test]
+    fn test_global_statistics_to_component_queries_transition() {
+        let pkranges = create_test_pkranges(2);
+        let query_info = create_hybrid_query_info(true, 2, Some(10));
+        let mut strategy = HybridSearchStrategy::new(pkranges, query_info).unwrap();
+        assert_eq!(
+            strategy.phase,
+            HybridSearchPhase::IssuingGlobalStatisticsQuery
+        );
+
+        let requests = strategy.requests().unwrap();
+        assert_eq!(
+            vec![
+                DataRequest::with_query(
+                    HybridRequestId::GLOBAL_STATISTICS_QUERY_ID.into(),
+                    "partition_0".to_string(),
+                    None,
+                    strategy.global_statistics_query.clone(),
+                    true,
+                ),
+                DataRequest::with_query(
+                    HybridRequestId::GLOBAL_STATISTICS_QUERY_ID.into(),
+                    "partition_1".to_string(),
+                    None,
+                    strategy.global_statistics_query.clone(),
+                    true,
+                ),
+            ],
+            requests
+        );
+
+        assert_eq!(
+            strategy.phase,
+            HybridSearchPhase::AwaitingGlobalStatistics {
+                aggregated_global_statistics: None,
+                remaining_partitions: 2
+            }
+        );
+
+        let stats1 = create_global_stats(100);
+        let response1 = create_global_stats_response(&stats1);
+        strategy
+            .provide_data("partition_0", 0, &response1, None)
+            .unwrap();
+        assert_eq!(
+            strategy.phase,
+            HybridSearchPhase::AwaitingGlobalStatistics {
+                aggregated_global_statistics: Some(stats1.clone()),
+                remaining_partitions: 1
+            }
+        );
+
+        let stats2 = create_global_stats(200);
+        let response2 = create_global_stats_response(&stats2);
+        strategy
+            .provide_data("partition_1", 0, &response2, None)
+            .unwrap();
+        assert_eq!(
+            strategy.phase,
+            HybridSearchPhase::ComponentQueries {
+                remaining_component_queries: 2,
+                results: QueryResultCollector::multiple()
+            }
+        );
+
+        for component_query in &strategy.component_queries {
+            assert_eq!(
+                component_query.query_info.rewritten_query,
+                format!(
+                    "SELECT * FROM c WHERE c.type = {} AND c.docCount = 300",
+                    component_query.query_index
+                )
+            )
+            // doc_count = 100 + 200
+        }
+    }
+
+    #[test]
+    fn test_component_queries_to_result_production_transition() {
+        let pkranges = create_test_pkranges(1);
+        let query_info = create_hybrid_query_info(false, 2, Some(10));
+        let mut strategy = HybridSearchStrategy::new(pkranges, query_info).unwrap();
+        strategy.phase = HybridSearchPhase::ComponentQueries {
+            remaining_component_queries: 2,
+            results: QueryResultCollector::multiple(),
+        };
+
+        let component_response = serde_json::json!({
+            "Documents": [{
+                "_rid": "doc1",
+                "payload": {
+                    "componentScores": [0.5, 0.3],
+                    "payload": {"test": "data1"}
+                }
+            }]
+        });
+        strategy
+            .provide_data(
+                "partition_0",
+                (0u64 << 32) | 1u64,
+                &serde_json::to_vec(&component_response).unwrap(),
+                None,
+            )
+            .unwrap();
+
+        assert_eq!(
+            strategy.phase,
+            HybridSearchPhase::ComponentQueries {
+                remaining_component_queries: 1,
+                results: QueryResultCollector::multiple()
+            }
+        );
+
+        strategy
+            .provide_data(
+                "partition_0",
+                (1u64 << 32) | 1u64,
+                &serde_json::to_vec(&component_response).unwrap(),
+                None,
+            )
+            .unwrap();
+
+        if let HybridSearchPhase::ResultProduction(results) = &strategy.phase {
+            assert_eq!(
+                results.len(),
+                1,
+                "expected one result after processing both component queries"
+            );
+            assert_eq!(
+                r#"{"test":"data1"}"#,
+                results[0].as_raw_payload().unwrap().get().to_string()
+            );
+        } else {
+            panic!("expected strategy to be in ResultProduction phase");
+        }
+        matches!(strategy.phase, HybridSearchPhase::ResultProduction(_));
+    }
+
+    #[test]
+    fn test_skip_global_statistics_path() {
+        let pkranges = create_test_pkranges(2);
+        let query_info = create_hybrid_query_info(false, 1, Some(10));
+        let strategy = HybridSearchStrategy::new(pkranges, query_info).unwrap();
+        assert_eq!(
+            strategy.phase,
+            HybridSearchPhase::ComponentQueries {
+                remaining_component_queries: 1,
+                results: QueryResultCollector::singleton()
+            }
+        );
+
+        // Query isn't rewritten. In our case this means the placeholders are still present because we always put placeholders in our test query.
+        assert_eq!(
+            vec![
+                "SELECT * FROM c WHERE c.type = 0 AND c.docCount = {documentdb-formattablehybridsearchquery-totaldocumentcount}".to_string()
+            ],
+            strategy.component_queries.iter().map(|q| q.query_info.rewritten_query.clone()).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn test_mixed_component_query_completion() {
+        let pkranges = create_test_pkranges(1);
+        let query_info = create_hybrid_query_info(false, 3, Some(10));
+        let mut strategy = HybridSearchStrategy::new(pkranges, query_info).unwrap();
+
+        // Force into component queries phase
+        force_strategy_to_phase(
+            &mut strategy,
+            HybridSearchPhase::ComponentQueries {
+                remaining_component_queries: 3,
+                results: QueryResultCollector::multiple(),
+            },
+        );
+
+        // Complete component queries in non-sequential order
+        let response = serde_json::json!({
+            "Documents": [{
+                "_rid": "doc1",
+                "payload": {
+                    "componentScores": [0.5, 0.3, 0.8],
+                    "payload": {"test": "data"}
+                }
+            }]
+        });
+
+        // Complete query 1 (middle)
+        strategy
+            .provide_data(
+                "partition_0",
+                (1u64 << 32) | 1u64,
+                &serde_json::to_vec(&response).unwrap(),
+                None,
+            )
+            .unwrap();
+        assert_eq!(
+            strategy.phase,
+            HybridSearchPhase::ComponentQueries {
+                remaining_component_queries: 2,
+                results: QueryResultCollector::multiple()
+            }
+        );
+
+        // Complete query 0 (first)
+        strategy
+            .provide_data(
+                "partition_0",
+                (0u64 << 32) | 1u64,
+                &serde_json::to_vec(&response).unwrap(),
+                None,
+            )
+            .unwrap();
+        assert_eq!(
+            strategy.phase,
+            HybridSearchPhase::ComponentQueries {
+                remaining_component_queries: 1,
+                results: QueryResultCollector::multiple()
+            }
+        );
+
+        // Complete query 2 (last)
+        strategy
+            .provide_data(
+                "partition_0",
+                (2u64 << 32) | 1u64,
+                &serde_json::to_vec(&response).unwrap(),
+                None,
+            )
+            .unwrap();
+
+        // Should transition to result production
+        matches!(strategy.phase, HybridSearchPhase::ResultProduction(_));
+    }
+
+    #[test]
+    fn test_component_queries_request_generation() {
+        let pkranges = create_test_pkranges(2);
+        let query_info = create_hybrid_query_info(false, 2, Some(10));
+        let mut strategy = HybridSearchStrategy::new(pkranges, query_info).unwrap();
+
+        let requests = strategy.requests().unwrap();
+
+        // Should generate 2 partitions × 2 component queries = 4 requests
+        assert_eq!(
+            vec![
+                DataRequest::with_query(
+                    HybridRequestId::for_component_query(0, 0).into(),
+                    "partition_0".to_string(),
+                    None,
+                    strategy.component_queries[0]
+                        .query_info
+                        .rewritten_query
+                        .clone(),
+                    true,
+                ),
+                DataRequest::with_query(
+                    HybridRequestId::for_component_query(0, 0).into(),
+                    "partition_1".to_string(),
+                    None,
+                    strategy.component_queries[0]
+                        .query_info
+                        .rewritten_query
+                        .clone(),
+                    true,
+                ),
+                DataRequest::with_query(
+                    HybridRequestId::for_component_query(1, 0).into(),
+                    "partition_0".to_string(),
+                    None,
+                    strategy.component_queries[1]
+                        .query_info
+                        .rewritten_query
+                        .clone(),
+                    true,
+                ),
+                DataRequest::with_query(
+                    HybridRequestId::for_component_query(1, 0).into(),
+                    "partition_1".to_string(),
+                    None,
+                    strategy.component_queries[1]
+                        .query_info
+                        .rewritten_query
+                        .clone(),
+                    true,
+                ),
+            ],
+            requests
+        );
+    }
+
+    #[test]
+    fn test_no_requests_in_result_production() {
+        let pkranges = create_test_pkranges(1);
+        let query_info = create_hybrid_query_info(false, 1, Some(10));
+        let mut strategy = HybridSearchStrategy::new(pkranges, query_info).unwrap();
+        strategy.phase = HybridSearchPhase::ResultProduction(VecDeque::new());
+
+        let requests = strategy.requests().unwrap();
+        assert_eq!(requests.len(), 0);
+    }
+
+    #[test]
+    fn test_result_production_flow() {
+        let pkranges = create_test_pkranges(1);
+        let query_info = create_hybrid_query_info(false, 1, Some(10));
+        let mut strategy = HybridSearchStrategy::new(pkranges, query_info).unwrap();
+
+        let mut results = VecDeque::new();
+        results.push_back(QueryResult::RawPayload(
+            serde_json::value::RawValue::from_string(r#"{"data": "test1"}"#.to_string()).unwrap(),
+        ));
+        results.push_back(QueryResult::RawPayload(
+            serde_json::value::RawValue::from_string(r#"{"data": "test2"}"#.to_string()).unwrap(),
+        ));
+        strategy.phase = HybridSearchPhase::ResultProduction(results);
+
+        let result1 = strategy.produce_item().unwrap();
+        assert_eq!(
+            r#"{"data": "test1"}"#,
+            result1
+                .value
+                .unwrap()
+                .as_raw_payload()
+                .unwrap()
+                .get()
+                .to_string()
+        );
+        assert!(!result1.terminated);
+
+        let result2 = strategy.produce_item().unwrap();
+        assert_eq!(
+            r#"{"data": "test2"}"#,
+            result2
+                .value
+                .unwrap()
+                .as_raw_payload()
+                .unwrap()
+                .get()
+                .to_string()
+        );
+        assert!(result2.terminated);
+
+        let result3 = strategy.produce_item().unwrap();
+        assert!(result3.value.is_none());
+        assert!(result3.terminated);
+    }
+
+    #[test]
+    fn test_item_production_outside_result_phase() {
+        let pkranges = create_test_pkranges(1);
+        let query_info = create_hybrid_query_info(false, 1, Some(10));
+        let mut strategy = HybridSearchStrategy::new(pkranges, query_info).unwrap();
+
+        let result = strategy.produce_item().unwrap();
+        assert!(result.value.is_none());
+        assert!(!result.terminated);
+    }
+
+    #[test]
+    fn test_component_weight_defaults() {
+        let pkranges = create_test_pkranges(1);
+        let mut query_info = create_hybrid_query_info(false, 3, Some(10));
+        query_info.component_weights = vec![2.0]; // Only one weight for three queries
+
+        let strategy = HybridSearchStrategy::new(pkranges, query_info).unwrap();
+
+        // First component should have explicit weight, others should default to 1.0
+        assert_eq!(strategy.component_queries[0].weight, 2.0);
+        assert_eq!(strategy.component_queries[1].weight, 1.0);
+        assert_eq!(strategy.component_queries[2].weight, 1.0);
+    }
+
+    #[test]
+    fn test_singleton_vs_multiple_collector() {
+        let pkranges = create_test_pkranges(1);
+
+        // Single component query should use singleton collector
+        let query_info_single = create_hybrid_query_info(false, 1, Some(10));
+        let strategy_single =
+            HybridSearchStrategy::new(pkranges.clone(), query_info_single).unwrap();
+        assert_eq!(
+            strategy_single.phase,
+            HybridSearchPhase::ComponentQueries {
+                remaining_component_queries: 1,
+                results: QueryResultCollector::singleton()
+            }
+        );
+
+        // Multiple component queries should use multiple collector
+        let query_info_multiple = create_hybrid_query_info(false, 2, Some(10));
+        let strategy_multiple = HybridSearchStrategy::new(pkranges, query_info_multiple).unwrap();
+        assert_eq!(
+            strategy_multiple.phase,
+            HybridSearchPhase::ComponentQueries {
+                remaining_component_queries: 2,
+                results: QueryResultCollector::multiple()
+            }
+        );
     }
 }

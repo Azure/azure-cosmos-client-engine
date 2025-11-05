@@ -3,7 +3,7 @@
 
 // cSpell:ignore formattablehybridsearchquery formattableorderbyquery hitcountsarray totalwordcount totaldocumentcount
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::{query::QueryInfo, ErrorKind};
 
@@ -53,7 +53,7 @@ impl HybridRequestId {
     }
 }
 
-#[derive(Debug, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Eq, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct GlobalStatistics {
     pub document_count: u64,
@@ -138,7 +138,7 @@ impl GlobalStatistics {
     }
 }
 
-#[derive(Debug, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Eq, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct FullTextStatistics {
     pub total_word_count: u64,

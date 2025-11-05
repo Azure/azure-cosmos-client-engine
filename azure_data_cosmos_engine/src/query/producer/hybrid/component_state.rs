@@ -8,7 +8,7 @@ use crate::query::{
 
 #[derive(Debug)]
 pub struct ComponentQueryState {
-    query_index: u32,
+    pub query_index: u32,
     pub query_info: QueryInfo,
     pub weight: f64,
     partition_states: Vec<(String, PaginationState)>,
