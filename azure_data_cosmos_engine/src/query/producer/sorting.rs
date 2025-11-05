@@ -115,7 +115,7 @@ mod tests {
     use std::cmp::Ordering;
 
     use crate::{
-        query::{producer::sorting::Sorting, QueryClauseItem, QueryResult},
+        query::{producer::sorting::Sorting, QueryClauseItem},
         ErrorKind,
     };
 
