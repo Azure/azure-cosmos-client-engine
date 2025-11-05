@@ -97,9 +97,9 @@ query_test_python:
   poetry -C ./python run python -m pytest -rP ./test/query-tests
 
 # Runs end-to-end query tests for the Go wrapper.
-query_test_go:
+query_test_go test="":
   go -C ./go/integration-tests clean -testcache
-  go -C ./go/integration-tests test -tags {{ go_tags }} -v ./...
+  go -C ./go/integration-tests test -tags {{ go_tags }} {{ if test != "" { "-run " + ".*" + test + ".*" } else { "" } }} -v ./...
 
 # Cleans up build artifacts and caches.
 clean:

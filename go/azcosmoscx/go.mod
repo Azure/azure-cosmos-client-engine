@@ -2,6 +2,11 @@ module github.com/Azure/azure-cosmos-client-engine/go/azcosmoscx
 
 go 1.23.3
 
+replace (
+	github.com/Azure/azure-cosmos-client-engine/go/azcosmoscx => ../azcosmoscx
+	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos => github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.5.0-beta.2.0.20251105172837-c0ac8eac0bcf
+)
+
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.5.0-beta.0
 	github.com/stretchr/testify v1.10.0
