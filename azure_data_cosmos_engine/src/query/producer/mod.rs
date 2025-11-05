@@ -1,293 +1,44 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-use std::{
-    cmp::Ordering,
-    collections::{BinaryHeap, VecDeque},
+use crate::query::{
+    node::PipelineNodeResult, DataRequest, PartitionKeyRange, QueryResult, SortOrder,
 };
 
-use crate::{
-    query::{
-        node::PipelineNodeResult,
-        producer::{
-            sorting::{SortableResult, Sorting},
-            state::PartitionState,
-        },
-        DataRequest, PartitionKeyRange, QueryResult, SortOrder,
-    },
-    ErrorKind,
-};
-
+mod non_streaming;
 mod sorting;
 mod state;
+mod streaming;
+mod unordered;
 
-/// Indicates the way in which multiple partition results should be merged.
-enum ProducerStrategy {
-    /// Results are not re-ordered by the query and should be ordered by the partition key range minimum.
-    Unordered {
-        current_partition_index: usize,
-        current_pkrange_id: Option<String>,
-        items: VecDeque<QueryResult>,
-    },
-
-    /// Results should be merged by comparing the sort order of the `ORDER BY` items. Results can be streamed, because each partition will provide data in a global order.
-    Streaming {
-        sorting: Sorting,
-        buffers: Vec<(String, VecDeque<QueryResult>)>, // (partition key range ID, buffer)
-    },
-    /// Results should be merged by comparing the sort order of the `ORDER BY` items. Results cannot be streamed, because each partition will provide data in a local order.
-    NonStreaming {
-        sorting: Sorting,
-        items: BinaryHeap<SortableResult>,
-    },
-}
-
-impl ProducerStrategy {
-    pub fn requests(&mut self, partitions: &[PartitionState]) -> Option<Vec<DataRequest>> {
-        // Fetches the next set of requests to be made to get additional data.
-        match self {
-            ProducerStrategy::Unordered {
-                ref mut current_partition_index,
-                ref mut current_pkrange_id,
-                ..
-            } => {
-                // In the unordered strategy, we simply return the first partition key range's request.
-                // Once that partition is exhausted, we remove it from the list and return the next one.
-                let mut requests = Vec::new();
-                while requests.is_empty() {
-                    // If there are no more partitions, return None.
-                    let partition = partitions.get(*current_partition_index)?;
-                    match partition.request() {
-                        Some(request) => {
-                            tracing::trace!(pkrange_id = ?partition.pkrange.id, "requesting data for partition");
-                            requests.push(request);
-                        }
-                        None => {
-                            tracing::trace!(pkrange_id = ?partition.pkrange.id, "partition exhausted, removing from list");
-                            *current_partition_index += 1;
-                            *current_pkrange_id = partitions
-                                .get(*current_partition_index)
-                                .map(|p| p.pkrange.id.clone());
-                        }
-                    }
-                }
-                Some(requests)
-            }
-
-            // In the ordered strategies, we return a request for each partition.
-            ProducerStrategy::Streaming { .. } | ProducerStrategy::NonStreaming { .. } => {
-                let requests = partitions
-                    .iter()
-                    .filter_map(|partition| partition.request())
-                    .collect::<Vec<_>>();
-                // If there are no requests, we return None.
-                if requests.is_empty() {
-                    None
-                } else {
-                    Some(requests)
-                }
-            }
-        }
-    }
-
-    pub fn provide_data(
-        &mut self,
-        partition: &PartitionState,
-        data: Vec<QueryResult>,
-    ) -> crate::Result<()> {
-        // Provides data for the given partition key range.
-        match self {
-            ProducerStrategy::Unordered {
-                current_pkrange_id,
-                items,
-                ..
-            } => {
-                match current_pkrange_id {
-                    Some(id) => {
-                        if *id != partition.pkrange.id {
-                            // The caller provided data for a different partition key range ID before draining the current items queue.
-                            return Err(ErrorKind::InternalError.with_message(format!(
-                                    "provided data for partition key range ID: {}, but current partition is: {}",
-                                    partition.pkrange.id, id
-                                )));
-                        }
-                    }
-                    None => {
-                        return Err(ErrorKind::InternalError.with_message(format!(
-                            "provided data for partition key range ID: {}, but all partitions are exhausted",
-                            partition.pkrange.id
-                        )));
-                    }
-                }
-
-                // Add the data to the items queue. There's no ordering to worry about, so we just append the items.
-                items.extend(data);
-            }
-            ProducerStrategy::Streaming { buffers, .. } => {
-                // Find the buffer for the given partition key range ID.
-                let (pkrange_id, buffer) = buffers.get_mut(partition.index).ok_or_else(|| {
-                    ErrorKind::InternalError.with_message(format!(
-                        "missing buffer for partition key range ID: {}",
-                        partition.pkrange.id
-                    ))
-                })?;
-                debug_assert_eq!(
-                    pkrange_id, &partition.pkrange.id,
-                    "buffer ID should match partition key range ID",
-                );
-                // We assume the data is coming from the server pre-sorted, so we can just extend the buffer with the data.
-                buffer.extend(data);
-            }
-            ProducerStrategy::NonStreaming { sorting, items } => {
-                // Insert the items into the heap as we go, which will keep them sorted
-                for item in data {
-                    // We need to sort the items by the order by items, so we create a SortableResult.
-                    items.push(SortableResult::new(sorting.clone(), item));
-                }
-            }
-        }
-        Ok(())
-    }
-
-    pub fn produce_item(
-        &mut self,
-        partitions: &[PartitionState],
-    ) -> crate::Result<PipelineNodeResult> {
-        // Gets the next item from the merge strategy.
-        match self {
-            ProducerStrategy::Unordered {
-                items,
-                current_partition_index,
-                ..
-            } => {
-                let value = items.pop_front();
-                let terminated = items.is_empty()
-                    && (*current_partition_index == partitions.len() - 1)
-                    && partitions[*current_partition_index].done();
-                Ok(PipelineNodeResult { value, terminated })
-            }
-            ProducerStrategy::Streaming { sorting, buffers } => {
-                // Scan through each partition to find the next item to produce.
-                // We do the scan first with an immutable borrow of the buffers, and then end up with the index of the partition that has the next item to produce.
-                // Then we can borrow the buffer mutably after the loop to pop the item out of it.
-                let mut current_match = None;
-                for (i, partition) in partitions.iter().enumerate() {
-                    let (pkrange_id, buffer) = buffers.get(i).ok_or_else(|| {
-                        ErrorKind::InternalError.with_message(format!(
-                            "missing buffer for partition key range ID: {}",
-                            partition.pkrange.id
-                        ))
-                    })?;
-                    debug_assert_eq!(pkrange_id, &partition.pkrange.id); // This should always be true, as the lists are initialized together.
-
-                    if !partition.started() {
-                        // If any partition hasn't started, we have to stop producing items.
-                        // A Partition is considered "started" when we've received at least one `provide_data` call referencing it.
-                        // For a streaming order by, we can't stream ANY results until we've received at least one set of results from each partition.
-                        // The missing partitions may contain values that sort BEFORE items in the partitions we've received.
-                        //
-                        // SDKs could optimize how they call the engine to avoid this scenario (by always making requests first, for example),
-                        // but we can't assume that will always be the case.
-                        tracing::debug!(pkrange_id = ?partition.pkrange.id, "partition not started, stopping item production");
-                        return Ok(PipelineNodeResult::NO_RESULT);
-                    }
-
-                    if partition.done() && buffer.is_empty() {
-                        // If the partition is done and the buffer is empty, we can skip it.
-                        // In fact, we NEED to skip it because we know it won't produce any more items and if we leave it in the set of partitions we consider,
-                        // we might end up trying to query it for more data.
-                        tracing::debug!(pkrange_id = ?partition.pkrange.id, "partition done and buffer empty, skipping");
-                        continue;
-                    }
-
-                    match current_match {
-                        None => {
-                            // If we haven't found a match yet, we set the current match to this partition so that we always pick a partition.
-                            current_match = Some((i, buffer.front()));
-                        }
-                        Some((current_index, current_item)) => {
-                            match sorting.compare(
-                                current_item.map(|r| r.order_by_items.as_slice()),
-                                buffer.front().map(|r| r.order_by_items.as_slice()),
-                            )? {
-                                Ordering::Greater => {
-                                    // The current item sorts higher than the new item, so we keep the current match.
-                                    continue;
-                                }
-                                Ordering::Less => {
-                                    // The new item sorts higher than the current item, so we update the current match to this partition.
-                                    // Note: This might be because the partition's buffer is currently empty.
-                                    // That can result in the selected partition being one with an empty buffer.
-                                    // This is intentional, see below where we return the item.
-                                    current_match = Some((i, buffer.front()));
-                                }
-                                Ordering::Equal => {
-                                    // Compare the index of the partitions to ensure we always return the first partition with the same item.
-                                    if i < current_index {
-                                        // The new item is equal to the current item, but the partition index is lower,
-                                        // so we update the current match to this partition.
-                                        current_match = Some((i, buffer.front()));
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                if let Some((i, _)) = current_match {
-                    // We found a match, pop the item out of the buffer and return it.
-                    debug_assert_eq!(
-                        buffers[i].0, partitions[i].pkrange.id,
-                        "buffer ID should match partition key range ID",
-                    );
-                    // If the buffer is empty, this may return `None`. That's by design!
-                    // It means the partition has an empty buffer, and we may need to fetch more data for it.
-                    // If it was fully exhausted, the check for `done() && buffer.is_empty()` would have excluded it.
-                    // Instead, we have an empty buffer AND the possibility for more data from this partition.
-                    // That means we WANT to return `None` here. We need to check this partition for more data before we can yield an item.
-                    let value = buffers[i].1.pop_front();
-                    let terminated = value.is_none() && partitions.iter().all(|p| p.done());
-                    Ok(PipelineNodeResult { value, terminated })
-                } else {
-                    // No match found, meaning all partitions are either exhausted or waiting for data.
-                    let terminated = partitions.iter().all(|p| p.done());
-                    Ok(PipelineNodeResult {
-                        value: None,
-                        terminated,
-                    })
-                }
-            }
-            ProducerStrategy::NonStreaming { items, .. } => {
-                // We can only produce items when all partitions are done.
-                if partitions.iter().any(|p| !p.done()) {
-                    // If any partition is not done, we cannot produce items yet.
-                    tracing::debug!("not all partitions are done, cannot produce items");
-                    return Ok(PipelineNodeResult::NO_RESULT);
-                }
-
-                // We can just pop the next item from the heap, as it is already sorted.
-                let value = items.pop().map(|r| r.into());
-                Ok(PipelineNodeResult {
-                    value,
-                    terminated: items.is_empty(),
-                })
-            }
-        }
-    }
-}
+use non_streaming::NonStreamingStrategy;
+use state::PartitionState;
+use streaming::StreamingStrategy;
+use unordered::UnorderedStrategy;
 
 /// An item producer handles merging results from several partitions into a single stream of results.
 ///
-/// The single-partition result streams are merged according to a [`ProducerStrategy`] selected when the producer is initialized.
+/// The single-partition result streams are merged according to the variant of the producer selected when the producer is initialized.
 /// The producer is only responsible for handling ordering the results, other query operations like aggregations or offset/limit
 /// are handled by the pipeline that runs after a specific item has been produced.
 /// Ordering can't really be done by the pipeline though, since it may require buffering results from some or all partitions.
 /// So, before the pipeline runs, the producer is responsible for actually organizing the initial set of results in the correct order.
-pub struct ItemProducer {
-    strategy: ProducerStrategy,
-    partitions: Vec<PartitionState>,
+// --
+// This uses a common Rust pattern for internal-only "dynamic dispatch" called "enum dispatch".
+// True dynamic dispatch, using `dyn` has an increased runtime cost and hides information from the optimizer leading to even more performance loss.
+// Since this is an internal API, we can use an enum to select the strategy at runtime and delegate methods to the appropriate concrete strategy type.
+// This dispatch should be no worse than a virtual function call, and is often quite a lot better.
+// See https://crates.io/crates/enum_dispatch for more on this pattern (we're not using that crate, but we're doing what it does manually).
+pub enum ItemProducer {
+    /// Results are not re-ordered by the query and should be ordered by the partition key range minimum.
+    Unordered(UnorderedStrategy),
+    /// Results should be merged by comparing the sort order of the `ORDER BY` items. Results can be streamed, because each partition will provide data in a global order.
+    Streaming(StreamingStrategy),
+    /// Results should be merged by comparing the sort order of the `ORDER BY` items. Results cannot be streamed, because each partition will provide data in a local order.
+    NonStreaming(NonStreamingStrategy),
 }
 
-fn create_partition_state(
+pub fn create_partition_state(
     pkranges: impl IntoIterator<Item = PartitionKeyRange>,
 ) -> Vec<PartitionState> {
     let mut partitions = pkranges
@@ -307,15 +58,7 @@ impl ItemProducer {
     ///
     /// Use this for queries that don't require global ordering across partitions.
     pub fn unordered(pkranges: impl IntoIterator<Item = PartitionKeyRange>) -> Self {
-        let partitions = create_partition_state(pkranges);
-        Self {
-            strategy: ProducerStrategy::Unordered {
-                current_partition_index: 0,
-                current_pkrange_id: partitions.first().map(|p| p.pkrange.id.clone()),
-                items: VecDeque::new(),
-            },
-            partitions,
-        }
+        Self::Unordered(UnorderedStrategy::new(pkranges))
     }
 
     /// Creates a producer for ORDER BY queries where each partition returns globally sorted results.
@@ -332,17 +75,7 @@ impl ItemProducer {
         pkranges: impl IntoIterator<Item = PartitionKeyRange>,
         sorting: Vec<SortOrder>,
     ) -> Self {
-        let partitions = create_partition_state(pkranges);
-        Self {
-            strategy: ProducerStrategy::Streaming {
-                sorting: Sorting::new(sorting),
-                buffers: partitions
-                    .iter()
-                    .map(|p| (p.pkrange.id.clone(), VecDeque::new()))
-                    .collect(),
-            },
-            partitions,
-        }
+        Self::Streaming(StreamingStrategy::new(pkranges, sorting))
     }
 
     /// Creates a producer for ORDER BY queries where partitions return locally sorted results.
@@ -360,20 +93,18 @@ impl ItemProducer {
         pkranges: impl IntoIterator<Item = PartitionKeyRange>,
         sorting: Vec<SortOrder>,
     ) -> Self {
-        let partitions = create_partition_state(pkranges);
-        Self {
-            strategy: ProducerStrategy::NonStreaming {
-                sorting: Sorting::new(sorting),
-                items: BinaryHeap::new(),
-            },
-            partitions,
-        }
+        Self::NonStreaming(NonStreamingStrategy::new(pkranges, sorting))
     }
 
     /// Gets the [`DataRequest`]s that must be performed in order to add additional data to the partition buffers.
     pub fn data_requests(&mut self) -> Vec<DataRequest> {
         // The default value for Vec is an empty vec, which doesn't allocate until items are added.
-        self.strategy.requests(&self.partitions).unwrap_or_default()
+        match self {
+            ItemProducer::Unordered(s) => s.requests(),
+            ItemProducer::Streaming(s) => s.requests(),
+            ItemProducer::NonStreaming(s) => s.requests(),
+        }
+        .unwrap_or_default()
     }
 
     /// Provides additional data for the given partition.
@@ -383,35 +114,35 @@ impl ItemProducer {
         data: Vec<QueryResult>,
         continuation: Option<String>,
     ) -> crate::Result<()> {
-        let partition = self
-            .partitions
-            .iter_mut()
-            .find(|p| p.pkrange.id == pkrange_id)
-            .ok_or_else(|| {
-                ErrorKind::UnknownPartitionKeyRange
-                    .with_message(format!("unknown partition key range ID: {pkrange_id}"))
-            })?;
-        self.strategy.provide_data(partition, data)?;
-        partition.update_state(continuation);
-
-        Ok(())
+        match self {
+            ItemProducer::Unordered(s) => s.provide_data(pkrange_id, data, continuation),
+            ItemProducer::Streaming(s) => s.provide_data(pkrange_id, data, continuation),
+            ItemProducer::NonStreaming(s) => s.provide_data(pkrange_id, data, continuation),
+        }
     }
 
     /// Requests the next item from the cross-partition result stream.
     #[tracing::instrument(level = "trace", skip(self))]
     pub fn produce_item(&mut self) -> crate::Result<PipelineNodeResult> {
-        self.strategy.produce_item(&self.partitions)
+        match self {
+            ItemProducer::Unordered(s) => s.produce_item(),
+            ItemProducer::Streaming(s) => s.produce_item(),
+            ItemProducer::NonStreaming(s) => s.produce_item(),
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
+    use std::collections::{HashMap, VecDeque};
 
     use serde::{Deserialize, Serialize};
     use serde_json::json;
 
-    use crate::query::{PartitionKeyRange, QueryResult};
+    use crate::{
+        query::{PartitionKeyRange, QueryResult},
+        ErrorKind,
+    };
 
     use super::*;
 
