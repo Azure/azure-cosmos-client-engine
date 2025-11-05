@@ -3,9 +3,7 @@
 
 use std::vec;
 
-use azure_data_cosmos_engine::query::{
-    DataRequest, QueryInfo, QueryPlan, QueryRange, QueryResult, QueryResultShape,
-};
+use azure_data_cosmos_engine::query::{DataRequest, QueryInfo, QueryPlan, QueryRange, QueryResult};
 use pretty_assertions::assert_eq;
 
 use mock_engine::{Container, Engine};
@@ -94,7 +92,6 @@ pub fn pkranges_filtered_by_query_ranges() -> Result<(), Box<dyn std::error::Err
         "SELECT * FROM c WHERE c.partitionKey = 'specific_value'",
         query_plan,
         3,
-        QueryResultShape::RawPayload,
     )?;
 
     let results = engine.execute()?;
@@ -190,7 +187,6 @@ pub fn pkranges_filtered_by_overlapping_query_ranges() -> Result<(), Box<dyn std
         "SELECT * FROM c WHERE c.someField BETWEEN 'value1' AND 'value2'",
         query_plan,
         3,
-        QueryResultShape::RawPayload,
     )?;
 
     let results = engine.execute()?;
@@ -284,13 +280,7 @@ pub fn pkranges_filtered_by_all_partitions_query_range() -> Result<(), Box<dyn s
         }],
     };
 
-    let engine = Engine::new(
-        container,
-        "SELECT * FROM c",
-        query_plan,
-        3,
-        QueryResultShape::RawPayload,
-    )?;
+    let engine = Engine::new(container, "SELECT * FROM c", query_plan, 3)?;
 
     let results = engine.execute()?;
 
@@ -384,13 +374,7 @@ pub fn pkranges_no_query_ranges_queries_all_partitions() -> Result<(), Box<dyn s
         query_ranges: Vec::new(),
     };
 
-    let engine = Engine::new(
-        container,
-        "SELECT * FROM c",
-        query_plan,
-        3,
-        QueryResultShape::RawPayload,
-    )?;
+    let engine = Engine::new(container, "SELECT * FROM c", query_plan, 3)?;
 
     let results = engine.execute()?;
 

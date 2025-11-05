@@ -11,7 +11,7 @@
 use std::{collections::BTreeMap, fmt::Debug};
 
 use azure_data_cosmos_engine::query::{
-    DataRequest, PartitionKeyRange, QueryPipeline, QueryPlan, QueryResult, QueryResultShape,
+    DataRequest, PartitionKeyRange, QueryPipeline, QueryPlan, QueryResult,
 };
 use serde::Serialize;
 use tracing_subscriber::EnvFilter;
@@ -20,7 +20,6 @@ pub struct Engine {
     container: Container,
     pipeline: QueryPipeline,
     request_page_size: usize,
-    result_shape: QueryResultShape,
 }
 
 impl Engine {
@@ -46,7 +45,6 @@ impl Engine {
         query: &str,
         plan: QueryPlan,
         request_page_size: usize,
-        result_shape: QueryResultShape,
     ) -> Result<Self, azure_data_cosmos_engine::Error> {
         // Divide the EPK space evenly among the partitions we have
         const MAX_EPK: u32 = 0xFFFF_FFFF;
@@ -78,7 +76,6 @@ impl Engine {
             container,
             pipeline,
             request_page_size,
-            result_shape,
         })
     }
 
