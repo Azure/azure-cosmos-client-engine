@@ -144,7 +144,10 @@ mod tests {
     use serde_json::json;
 
     use crate::{
-        query::{query_result::QueryResultShape, PartitionKeyRange, QueryResult},
+        query::{
+            query_result::{FeedResponse, QueryResultShape},
+            PartitionKeyRange, QueryResult,
+        },
         ErrorKind,
     };
 
@@ -196,12 +199,9 @@ mod tests {
 
     /// Helper function to serialize QueryResult items back into the JSON format expected by the gateway
     fn serialize_query_results(results: &[QueryResult]) -> crate::Result<Vec<u8>> {
-        #[derive(Serialize)]
-        struct DocumentsWrapper<'a> {
-            #[serde(rename = "Documents")]
-            results: &'a [QueryResult],
-        }
-        let wrapper = DocumentsWrapper { results };
+        let wrapper = FeedResponse {
+            documents: results.to_vec(),
+        };
         let json = serde_json::to_vec(&wrapper).map_err(|e| {
             ErrorKind::InternalError
                 .with_message(format!("failed to serialize query results: {}", e))

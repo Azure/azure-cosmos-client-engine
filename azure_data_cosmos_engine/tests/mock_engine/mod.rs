@@ -114,7 +114,7 @@ impl Engine {
                     self.request_page_size,
                 );
                 // Serialize the QueryResult items to bytes
-                let json_bytes = serialize_query_results(&page.items)?;
+                let json_bytes = serialize_query_results(page.items)?;
                 self.pipeline
                     .provide_data(&request.pkrange_id, &json_bytes, page.continuation)?;
             }
@@ -126,12 +126,13 @@ impl Engine {
 
 /// Helper function to serialize QueryResult items back into the JSON format expected by the gateway
 fn serialize_query_results(
-    results: &[QueryResult],
+    results: Vec<QueryResult>,
 ) -> Result<Vec<u8>, azure_data_cosmos_engine::Error> {
+    // Note: This must be defined here because the one in `azure_data_cosmos_engine` is private.
     #[derive(Serialize)]
-    struct DocumentResults<'a, T> {
+    struct DocumentResults {
         #[serde(rename = "Documents")]
-        documents: &'a [T],
+        documents: Vec<QueryResult>,
     }
     serde_json::to_vec(&DocumentResults { documents: results }).map_err(|e| {
         azure_data_cosmos_engine::ErrorKind::InternalError

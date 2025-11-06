@@ -6,17 +6,17 @@ use std::fmt::Debug;
 
 use crate::ErrorKind;
 
-/// Helper struct for wrapping document results in the gateway format
-#[derive(Deserialize, Serialize)]
-struct DocumentResult<T> {
+/// Holds an owned list of items retrieved from the backend
+#[derive(Serialize, Deserialize)]
+pub(crate) struct FeedResponse<T> {
     #[serde(rename = "Documents")]
-    documents: Vec<T>,
+    pub documents: Vec<T>,
 }
 
 /// Helper struct for ORDER BY query results
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct OrderByItem {
+struct OrderByResult {
     order_by_items: Vec<QueryClauseItem>,
     payload: Box<serde_json::value::RawValue>,
 }
@@ -42,7 +42,7 @@ impl QueryResultShape {
     pub fn results_from_slice(self, buffer: &[u8]) -> crate::Result<Vec<QueryResult>> {
         match self {
             QueryResultShape::RawPayload => {
-                let results: DocumentResult<Box<serde_json::value::RawValue>> =
+                let results: FeedResponse<Box<serde_json::value::RawValue>> =
                     serde_json::from_slice(buffer)
                         .map_err(|e| ErrorKind::InvalidGatewayResponse.with_source(e))?;
                 Ok(results
@@ -52,7 +52,7 @@ impl QueryResultShape {
                     .collect())
             }
             QueryResultShape::OrderBy => {
-                let results: DocumentResult<OrderByItem> = serde_json::from_slice(buffer)
+                let results: FeedResponse<OrderByResult> = serde_json::from_slice(buffer)
                     .map_err(|e| ErrorKind::InvalidGatewayResponse.with_source(e))?;
                 Ok(results
                     .documents
@@ -64,7 +64,7 @@ impl QueryResultShape {
                     .collect())
             }
             QueryResultShape::ValueAggregate => {
-                let results: DocumentResult<Vec<QueryClauseItem>> = serde_json::from_slice(buffer)
+                let results: FeedResponse<Vec<QueryClauseItem>> = serde_json::from_slice(buffer)
                     .map_err(|e| ErrorKind::InvalidGatewayResponse.with_source(e))?;
                 Ok(results
                     .documents
