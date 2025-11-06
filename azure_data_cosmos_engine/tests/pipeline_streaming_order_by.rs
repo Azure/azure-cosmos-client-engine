@@ -51,10 +51,9 @@ impl From<Item> for QueryResult {
             serde_json::Number::from(item.sort0),
         ));
         let sort1 = QueryClauseItem::from_value(serde_json::Value::String(item.sort1.clone()));
-        QueryResult {
+        QueryResult::OrderBy {
             order_by_items: vec![sort0, sort1],
-            payload: Some(raw),
-            ..Default::default()
+            payload: raw,
         }
     }
 }

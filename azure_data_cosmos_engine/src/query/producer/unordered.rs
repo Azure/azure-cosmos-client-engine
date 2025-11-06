@@ -4,7 +4,10 @@
 use std::collections::VecDeque;
 
 use crate::{
-    query::{node::PipelineNodeResult, DataRequest, PartitionKeyRange, QueryResult},
+    query::{
+        node::PipelineNodeResult, query_result::QueryResultShape, DataRequest, PartitionKeyRange,
+        QueryResult,
+    },
     ErrorKind,
 };
 
@@ -15,16 +18,21 @@ pub struct UnorderedStrategy {
     pub current_partition_index: usize,
     pub current_pkrange_id: Option<String>,
     pub items: VecDeque<QueryResult>,
+    pub result_shape: QueryResultShape,
 }
 
 impl UnorderedStrategy {
-    pub fn new(pkranges: impl IntoIterator<Item = PartitionKeyRange>) -> Self {
+    pub fn new(
+        pkranges: impl IntoIterator<Item = PartitionKeyRange>,
+        result_shape: QueryResultShape,
+    ) -> Self {
         let partitions = create_partition_state(pkranges);
         Self {
             current_partition_index: 0,
             current_pkrange_id: partitions.first().map(|p| p.pkrange.id.clone()),
             items: VecDeque::new(),
             partitions,
+            result_shape,
         }
     }
 
@@ -56,7 +64,7 @@ impl UnorderedStrategy {
     pub fn provide_data(
         &mut self,
         pkrange_id: &str,
-        data: Vec<QueryResult>,
+        data: &[u8],
         continuation: Option<String>,
     ) -> crate::Result<()> {
         match &self.current_pkrange_id {
@@ -77,8 +85,11 @@ impl UnorderedStrategy {
             }
         }
 
+        // Parse the raw bytes using the result shape
+        let parsed_data = self.result_shape.results_from_slice(data)?;
+
         // Add the data to the items queue. There's no ordering to worry about, so we just append the items.
-        self.items.extend(data);
+        self.items.extend(parsed_data);
 
         // Update the partition state with the continuation token
         let partition = self

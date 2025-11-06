@@ -2,7 +2,8 @@
 // Licensed under the MIT License.
 
 use crate::query::{
-    node::PipelineNodeResult, DataRequest, PartitionKeyRange, QueryResult, SortOrder,
+    node::PipelineNodeResult, query_result::QueryResultShape, DataRequest, PartitionKeyRange,
+    SortOrder,
 };
 
 mod non_streaming;
@@ -57,8 +58,11 @@ impl ItemProducer {
     /// exhausting one partition completely before moving to the next.
     ///
     /// Use this for queries that don't require global ordering across partitions.
-    pub fn unordered(pkranges: impl IntoIterator<Item = PartitionKeyRange>) -> Self {
-        Self::Unordered(UnorderedStrategy::new(pkranges))
+    pub fn unordered(
+        pkranges: impl IntoIterator<Item = PartitionKeyRange>,
+        result_shape: QueryResultShape,
+    ) -> Self {
+        Self::Unordered(UnorderedStrategy::new(pkranges, result_shape))
     }
 
     /// Creates a producer for ORDER BY queries where each partition returns globally sorted results.
@@ -111,7 +115,7 @@ impl ItemProducer {
     pub fn provide_data(
         &mut self,
         pkrange_id: &str,
-        data: Vec<QueryResult>,
+        data: &[u8],
         continuation: Option<String>,
     ) -> crate::Result<()> {
         match self {
@@ -140,7 +144,10 @@ mod tests {
     use serde_json::json;
 
     use crate::{
-        query::{PartitionKeyRange, QueryResult},
+        query::{
+            query_result::{FeedResponse, QueryResultShape},
+            PartitionKeyRange, QueryResult,
+        },
         ErrorKind,
     };
 
@@ -176,15 +183,30 @@ mod tests {
             pkrange_id.to_string(),
             format!("{pkrange_id} / {id}"),
         );
-        let order_by_items = order_by_items
-            .into_iter()
-            .map(|value| serde_json::from_value(value).unwrap())
-            .collect();
-        QueryResult {
-            order_by_items,
-            payload: Some(serde_json::value::to_raw_value(&item).unwrap()),
-            ..Default::default()
+        if order_by_items.is_empty() {
+            QueryResult::RawPayload(serde_json::value::to_raw_value(&item).unwrap())
+        } else {
+            let order_by_items = order_by_items
+                .into_iter()
+                .map(|value| serde_json::from_value(value).unwrap())
+                .collect();
+            QueryResult::OrderBy {
+                order_by_items,
+                payload: serde_json::value::to_raw_value(&item).unwrap(),
+            }
         }
+    }
+
+    /// Helper function to serialize QueryResult items back into the JSON format expected by the gateway
+    fn serialize_query_results(results: &[QueryResult]) -> crate::Result<Vec<u8>> {
+        let wrapper = FeedResponse {
+            documents: results.to_vec(),
+        };
+        let json = serde_json::to_vec(&wrapper).map_err(|e| {
+            ErrorKind::InternalError
+                .with_message(format!("failed to serialize query results: {}", e))
+        })?;
+        Ok(json)
     }
 
     fn run_producer(
@@ -197,13 +219,17 @@ mod tests {
             for request in requests {
                 let pkrange_id = request.pkrange_id.to_string();
                 if let Some(pages) = partitions.get_mut(&pkrange_id) {
-                    let (token, items) = pages.pop_front().unwrap_or_else(|| (None, Vec::new()));
+                    let (token, query_results) =
+                        pages.pop_front().unwrap_or_else(|| (None, Vec::new()));
                     assert_eq!(
                         request.continuation, token,
                         "continuation token should match the one provided in the request"
                     );
                     let next_token = pages.front().and_then(|(t, _)| t.clone());
-                    producer.provide_data(&pkrange_id, items, next_token)?;
+
+                    // Serialize QueryResult items to JSON bytes in the appropriate shape
+                    let json_bytes = serialize_query_results(&query_results)?;
+                    producer.provide_data(&pkrange_id, &json_bytes, next_token)?;
                 } else {
                     return Err(ErrorKind::UnknownPartitionKeyRange
                         .with_message(format!("unknown partition key range ID: {pkrange_id}")));
@@ -215,7 +241,8 @@ mod tests {
                 let result = producer.produce_item()?;
                 let has_value = result.value.is_some(); // Capture Some/None state before we consume it.
                 if let Some(value) = result.value {
-                    let item = serde_json::from_str(value.payload.unwrap().get()).unwrap();
+                    let payload = value.into_payload().unwrap();
+                    let item = serde_json::from_str(payload.get()).unwrap();
                     items.push(item);
                 }
 
@@ -278,10 +305,13 @@ mod tests {
             Some("p1c0".to_string()),
         )?;
 
-        let mut producer = ItemProducer::unordered(vec![
-            PartitionKeyRange::new("partition0", "00", "99"),
-            PartitionKeyRange::new("partition1", "99", "FF"),
-        ]);
+        let mut producer = ItemProducer::unordered(
+            vec![
+                PartitionKeyRange::new("partition0", "00", "99"),
+                PartitionKeyRange::new("partition1", "99", "FF"),
+            ],
+            QueryResultShape::RawPayload,
+        );
 
         let items = run_producer(
             &mut producer,

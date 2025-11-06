@@ -84,9 +84,12 @@ impl azure_data_cosmos::query::QueryPipeline for QueryPipelineAdapter {
         data: azure_data_cosmos::query::QueryResult,
     ) -> azure_core::Result<()> {
         tracing::debug!("providing data to pipeline");
-        let payload = self.0.result_shape().results_from_slice(data.result)?;
-        self.0
-            .provide_data(data.partition_key_range_id, payload, data.next_continuation)?;
+        // Pass the raw bytes directly to the pipeline
+        self.0.provide_data(
+            data.partition_key_range_id,
+            data.result,
+            data.next_continuation,
+        )?;
         Ok(())
     }
 }

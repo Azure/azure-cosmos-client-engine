@@ -34,10 +34,7 @@ impl Item {
 impl From<Item> for QueryResult {
     fn from(item: Item) -> Self {
         let raw = serde_json::value::to_raw_value(&item.title).unwrap();
-        QueryResult {
-            payload: Some(raw),
-            ..Default::default()
-        }
+        QueryResult::RawPayload(raw)
     }
 }
 

@@ -222,12 +222,8 @@ pub extern "C" fn cosmoscx_v0_query_pipeline_provide_data<'a>(
             }
         };
 
-        let query_results = pipeline
-            .result_shape()
-            .results_from_slice(data.as_bytes())?;
-
-        // And insert it!
-        pipeline.provide_data(pkrange_id, query_results, continuation)
+        // Pass the raw bytes directly to the pipeline
+        pipeline.provide_data(pkrange_id, data.as_bytes(), continuation)
     }
 
     inner(pipeline, pkrange_id, data, continuation).into()

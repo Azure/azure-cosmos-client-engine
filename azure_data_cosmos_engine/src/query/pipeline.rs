@@ -12,7 +12,7 @@ use super::{
     node::{LimitPipelineNode, OffsetPipelineNode, PipelineNode, PipelineSlice},
     plan::{DistinctType, QueryRange},
     producer::ItemProducer,
-    PartitionKeyRange, PipelineResponse, QueryFeature, QueryPlan, QueryResult,
+    PartitionKeyRange, PipelineResponse, QueryFeature, QueryPlan,
 };
 
 /// Holds a list of [`QueryFeature`]s and a string representation suitable for being passed to the gateway when requesting a query plan.
@@ -109,7 +109,6 @@ pub struct QueryPipeline {
     query: String,
     pipeline: Vec<Box<dyn PipelineNode>>,
     producer: ItemProducer,
-    result_shape: QueryResultShape,
 
     // Indicates if the pipeline has been terminated early.
     terminated: bool,
@@ -131,8 +130,6 @@ impl QueryPipeline {
         let mut pkranges: Vec<PartitionKeyRange> = pkranges.into_iter().collect();
         get_overlapping_pk_ranges(&mut pkranges, &plan.query_ranges);
 
-        let mut result_shape = QueryResultShape::RawPayload;
-
         tracing::trace!(?query, ?plan, "creating query pipeline");
 
         // We don't support non-value aggregates, so make sure the query doesn't have any.
@@ -141,11 +138,21 @@ impl QueryPipeline {
                 .with_message("non-value aggregates are not supported"));
         }
 
+        if !plan.query_info.aggregates.is_empty() && !plan.query_info.order_by.is_empty() {
+            return Err(ErrorKind::UnsupportedQueryPlan
+                .with_message("queries with both ORDER BY and aggregates are not supported"));
+        }
+
         let producer = if plan.query_info.order_by.is_empty() {
             tracing::debug!("using unordered pipeline");
-            ItemProducer::unordered(pkranges)
+            // Determine the shape for unordered queries
+            let result_shape = if !plan.query_info.aggregates.is_empty() {
+                QueryResultShape::ValueAggregate
+            } else {
+                QueryResultShape::RawPayload
+            };
+            ItemProducer::unordered(pkranges, result_shape)
         } else {
-            result_shape = QueryResultShape::OrderBy;
             if plan.query_info.has_non_streaming_order_by {
                 tracing::debug!(?plan.query_info.order_by, "using non-streaming ORDER BY pipeline");
                 ItemProducer::non_streaming(pkranges, plan.query_info.order_by)
@@ -178,11 +185,6 @@ impl QueryPipeline {
         }
 
         if !plan.query_info.aggregates.is_empty() {
-            if result_shape != QueryResultShape::RawPayload {
-                return Err(ErrorKind::UnsupportedQueryPlan
-                    .with_message("cannot mix aggregates with ORDER BY"));
-            }
-            result_shape = QueryResultShape::ValueAggregate;
             pipeline.push(Box::new(AggregatePipelineNode::from_names(
                 plan.query_info.aggregates.clone(),
             )?));
@@ -217,17 +219,10 @@ impl QueryPipeline {
 
         Ok(Self {
             query,
-            result_shape,
             pipeline,
             producer,
             terminated: false,
         })
-    }
-
-    /// Retrieves the shape of the results produced by this pipeline.
-    /// The shape determines how the pipeline deserializes results from single-partition queries.
-    pub fn result_shape(&self) -> &QueryResultShape {
-        &self.result_shape
     }
 
     /// Retrieves the, possibly rewritten, query that this pipeline is executing.
@@ -248,7 +243,7 @@ impl QueryPipeline {
     pub fn provide_data(
         &mut self,
         pkrange_id: &str,
-        data: Vec<QueryResult>,
+        data: &[u8],
         continuation: Option<String>,
     ) -> crate::Result<()> {
         self.producer.provide_data(pkrange_id, data, continuation)
@@ -289,8 +284,11 @@ impl QueryPipeline {
             }
 
             if let Some(item) = result.value {
-                // TODO: Handle scenarios where there is no payload (aggregates)
-                items.push(item.payload.unwrap());
+                let payload = item.into_payload().ok_or_else(|| {
+                    ErrorKind::InternalError
+                        .with_message("items yielded by the pipeline must have a payload")
+                })?;
+                items.push(payload);
             } else {
                 // The pipeline has finished for now, but we're not terminated yet.
                 break;

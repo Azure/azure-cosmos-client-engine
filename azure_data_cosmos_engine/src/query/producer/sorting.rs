@@ -26,9 +26,12 @@ impl PartialOrd for SortableResult {
 
 impl Ord for SortableResult {
     fn cmp(&self, other: &Self) -> Ordering {
+        let (left_order_by_items, _) = self.1.as_order_by().expect("should have order by items");
+        let (right_order_by_items, _) = other.1.as_order_by().expect("should have order by items");
+
         // Unless the gateway provides invalid data, this shouldn't fail.
         self.0
-            .compare(Some(&self.1.order_by_items), Some(&other.1.order_by_items))
+            .compare(Some(&left_order_by_items), Some(&right_order_by_items))
             .expect("Sorting should not fail")
     }
 }
@@ -112,114 +115,83 @@ mod tests {
     use std::cmp::Ordering;
 
     use crate::{
-        query::{producer::sorting::Sorting, QueryClauseItem, QueryResult},
+        query::{producer::sorting::Sorting, QueryClauseItem},
         ErrorKind,
     };
 
     #[test]
     pub fn compare_query_results_different() {
-        let left = QueryResult {
-            order_by_items: vec![
-                QueryClauseItem::from_value(serde_json::json!(1)),
-                QueryClauseItem::from_value(serde_json::json!("zzzz")),
-            ],
-            ..Default::default()
-        };
-        let right = QueryResult {
-            order_by_items: vec![
-                QueryClauseItem::from_value(serde_json::json!(1)),
-                QueryClauseItem::from_value(serde_json::json!("yyyy")),
-            ],
-            ..Default::default()
-        };
+        let left = vec![
+            QueryClauseItem::from_value(serde_json::json!(1)),
+            QueryClauseItem::from_value(serde_json::json!("zzzz")),
+        ];
+        let right = vec![
+            QueryClauseItem::from_value(serde_json::json!(1)),
+            QueryClauseItem::from_value(serde_json::json!("yyyy")),
+        ];
         let sorting = Sorting::new(vec![
             crate::query::SortOrder::Ascending,
             crate::query::SortOrder::Descending,
         ]);
         assert_eq!(
             Ordering::Greater,
-            sorting
-                .compare(Some(&left.order_by_items), Some(&right.order_by_items))
-                .unwrap()
+            sorting.compare(Some(&left), Some(&right)).unwrap()
         );
     }
 
     #[test]
     pub fn compare_query_results_identical() {
-        let left = QueryResult {
-            order_by_items: vec![
-                QueryClauseItem::from_value(serde_json::json!(1)),
-                QueryClauseItem::from_value(serde_json::json!("zzzz")),
-            ],
-            ..Default::default()
-        };
-        let right = QueryResult {
-            order_by_items: vec![
-                QueryClauseItem::from_value(serde_json::json!(1)),
-                QueryClauseItem::from_value(serde_json::json!("zzzz")),
-            ],
-            ..Default::default()
-        };
+        let left = vec![
+            QueryClauseItem::from_value(serde_json::json!(1)),
+            QueryClauseItem::from_value(serde_json::json!("zzzz")),
+        ];
+        let right = vec![
+            QueryClauseItem::from_value(serde_json::json!(1)),
+            QueryClauseItem::from_value(serde_json::json!("zzzz")),
+        ];
         let sorting = Sorting::new(vec![
             crate::query::SortOrder::Ascending,
             crate::query::SortOrder::Descending,
         ]);
         assert_eq!(
             Ordering::Equal,
-            sorting
-                .compare(Some(&left.order_by_items), Some(&right.order_by_items))
-                .unwrap()
+            sorting.compare(Some(&left), Some(&right)).unwrap()
         );
     }
 
     #[test]
     pub fn compare_with_empty() {
-        let non_empty = QueryResult {
-            order_by_items: vec![
-                QueryClauseItem::from_value(serde_json::json!(1)),
-                QueryClauseItem::from_value(serde_json::json!("zzzz")),
-            ],
-            ..Default::default()
-        };
+        let non_empty = vec![
+            QueryClauseItem::from_value(serde_json::json!(1)),
+            QueryClauseItem::from_value(serde_json::json!("zzzz")),
+        ];
         let sorting = Sorting::new(vec![
             crate::query::SortOrder::Ascending,
             crate::query::SortOrder::Descending,
         ]);
         assert_eq!(
             Ordering::Greater,
-            sorting
-                .compare(None, Some(&non_empty.order_by_items))
-                .unwrap()
+            sorting.compare(None, Some(&non_empty)).unwrap()
         );
         assert_eq!(
             Ordering::Less,
-            sorting
-                .compare(Some(&non_empty.order_by_items), None)
-                .unwrap()
+            sorting.compare(Some(&non_empty), None).unwrap()
         );
         assert_eq!(Ordering::Equal, sorting.compare(None, None).unwrap());
     }
 
     #[test]
     pub fn compare_query_results_inconsistent() {
-        let left = QueryResult {
-            order_by_items: vec![QueryClauseItem::from_value(serde_json::json!(1))],
-            ..Default::default()
-        };
-        let right = QueryResult {
-            order_by_items: vec![
-                QueryClauseItem::from_value(serde_json::json!(1)),
-                QueryClauseItem::from_value(serde_json::json!("zzzz")),
-            ],
-            ..Default::default()
-        };
+        let left = vec![QueryClauseItem::from_value(serde_json::json!(1))];
+        let right = vec![
+            QueryClauseItem::from_value(serde_json::json!(1)),
+            QueryClauseItem::from_value(serde_json::json!("zzzz")),
+        ];
         let sorting = Sorting::new(vec![
             crate::query::SortOrder::Ascending,
             crate::query::SortOrder::Descending,
         ]);
-        let err = sorting
-            .compare(Some(&left.order_by_items), Some(&right.order_by_items))
-            .unwrap_err();
+        let err = sorting.compare(Some(&left), Some(&right)).unwrap_err();
         assert_eq!(ErrorKind::InvalidGatewayResponse, err.kind());
     }
 }

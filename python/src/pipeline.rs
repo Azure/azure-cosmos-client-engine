@@ -63,10 +63,8 @@ impl NativeQueryPipeline {
         let continuation = continuation
             .map(|s| s.to_str().map(|s| s.to_string()))
             .transpose()?;
-        let data = pipeline
-            .result_shape()
-            .results_from_slice(data.as_bytes())?;
-        pipeline.provide_data(pkrange_id, data, continuation)?;
+        // Pass the raw bytes directly to the pipeline
+        pipeline.provide_data(pkrange_id, data.as_bytes(), continuation)?;
         Ok(())
     }
 }
