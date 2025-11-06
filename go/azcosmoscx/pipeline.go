@@ -72,11 +72,16 @@ func (p *Pipeline) ProvideData(results []queryengine.QueryResult) error {
 		return nil
 	}
 
+	// We only need to pin values during the call to the C function
+	// The engine guarantees that it will copy any data it needs over to its own memory during the call
 	var pinner runtime.Pinner
 	defer pinner.Unpin()
 
 	resultsC := make([]C.CosmosCxQueryResponse, len(results))
 	for i, result := range results {
+		// We need to pin these strings because they're held within a C struct.
+		// Normally, the values passed DIRECTLY in to cgo functions are pinned automatically,
+		// but here we're building an array of structs to pass in, so we need to pin them ourselves.
 		pkrangeidC := makeStrPinned(result.PartitionKeyRangeID, &pinner)
 		dataC := makeStrPinned(string(result.Data), &pinner)
 		continuationC := makeStrPinned(result.NextContinuation, &pinner)

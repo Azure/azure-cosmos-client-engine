@@ -157,14 +157,3 @@ impl PipelineResponse {
         terminated: true,
     };
 }
-
-/// A macro to panic in debug builds and return an internal error in release builds.
-#[macro_export]
-macro_rules! debug_panic {
-    ($msg:expr) => {
-        if cfg!(debug_assertions) {
-            panic!($msg);
-        }
-        return Err(ErrorKind::InternalError.with_message($msg));
-    };
-}

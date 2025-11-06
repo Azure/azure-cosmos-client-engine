@@ -171,9 +171,8 @@ impl HybridSearchStrategy {
                 };
                 Ok(requests)
             }
-            HybridSearchPhase::AwaitingGlobalStatistics { .. } => {
-                crate::debug_panic!("no requests should be made in AwaitingGlobalStatistics phase");
-            }
+            HybridSearchPhase::AwaitingGlobalStatistics { .. } => Err(ErrorKind::InternalError
+                .with_message("no requests should be made in AwaitingGlobalStatistics phase")),
             HybridSearchPhase::ComponentQueries { .. } => {
                 let mut requests = Vec::new();
                 for query_state in &self.component_queries {
@@ -196,11 +195,10 @@ impl HybridSearchStrategy {
     ) -> Result<(), crate::Error> {
         let request_id = HybridRequestId::from(request_id);
         match self.phase {
-            HybridSearchPhase::IssuingGlobalStatisticsQuery => {
-                crate::debug_panic!(
-                    "provide_data should not be called in IssuingGlobalStatisticsQuery phase"
-                );
-            }
+            HybridSearchPhase::IssuingGlobalStatisticsQuery => Err(ErrorKind::InternalError
+                .with_message(
+                    "provide_data should not be called in IssuingGlobalStatisticsQuery phase",
+                )),
             HybridSearchPhase::AwaitingGlobalStatistics {
                 ref mut aggregated_global_statistics,
                 ref mut remaining_partitions,
@@ -301,9 +299,8 @@ impl HybridSearchStrategy {
                 }
                 Ok(())
             }
-            HybridSearchPhase::ResultProduction(_) => {
-                crate::debug_panic!("provide_data should not be called in ResultProduction phase");
-            }
+            HybridSearchPhase::ResultProduction(_) => Err(ErrorKind::InternalError
+                .with_message("provide_data should not be called in ResultProduction phase")),
         }
     }
 
@@ -392,8 +389,6 @@ mod tests {
                     i
                 )))
                 .collect(),
-            component_without_payload_query_infos: vec![],
-            projection_query_info: None,
             component_weights: vec![1.0; component_count],
             skip: Some(0),
             take,

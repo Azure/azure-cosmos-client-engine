@@ -9,8 +9,8 @@ use crate::{query::QueryInfo, ErrorKind};
 
 /// A unique identifier for a hybrid search query request.
 ///
-/// In order to correlate incoming responses to the appropriate query, we encode both the partition key range index
-/// and the component query index into a single u64 value. We start the component query index at 1 to distinguish between
+/// In order to correlate incoming responses to the appropriate query, we encode both the component query index and the page number
+/// into a single u64 value. We start the page number at 1 to distinguish between
 /// global statistics queries (which have an index of 0) and component queries.
 ///
 /// We use the high 32 bits for the partition key range index and the low 32 bits for the component query index.

@@ -50,12 +50,6 @@ pub struct HybridSearchQueryInfo {
     /// Provides the individual component queries that make up the hybrid search query.
     pub component_query_infos: Vec<QueryInfo>,
 
-    // TODO
-    pub component_without_payload_query_infos: Vec<QueryInfo>,
-
-    // TODO
-    pub projection_query_info: Option<QueryInfo>,
-
     /// The weights assigned to each component query, if any.
     #[serde(default)]
     pub component_weights: Vec<f64>,
