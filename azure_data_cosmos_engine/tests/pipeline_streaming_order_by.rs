@@ -106,7 +106,7 @@ pub fn streaming_order_by() -> Result<(), Box<dyn std::error::Error>> {
                 items: vec![],
                 requests: vec![
                     DataRequest::new(0, "partition0", None),
-                    DataRequest::new(1, "partition1", None),
+                    DataRequest::new(0, "partition1", None),
                 ],
                 terminated: false
             },
@@ -118,7 +118,7 @@ pub fn streaming_order_by() -> Result<(), Box<dyn std::error::Error>> {
                     json!("partition1/item1"),
                     json!("partition1/item2"),
                 ],
-                requests: vec![DataRequest::new(2, "partition1", Some("3".into())),],
+                requests: vec![DataRequest::new(1, "partition1", Some("3".into())),],
                 terminated: false
             },
             EngineResult {
