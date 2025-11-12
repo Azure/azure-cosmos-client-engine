@@ -75,8 +75,9 @@ checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
 
 [[package]]
 name = "azure_core"
-version = "0.30.0"
-source = "git+https://github.com/Azure/azure-sdk-for-rust.git#3842bdc52394754ccfa50ec3604c5167536ee708"
+version = "0.30.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f35444aeeb91e29ca82d04dbb8ad904570f837c82093454dc1989c64a33554a7"
 dependencies = [
  "async-lock",
  "async-trait",
@@ -96,14 +97,14 @@ dependencies = [
 
 [[package]]
 name = "azure_core_macros"
-version = "0.4.0"
-source = "git+https://github.com/Azure/azure-sdk-for-rust.git#3842bdc52394754ccfa50ec3604c5167536ee708"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "94f7cc1bbae04cfe11de9e39e2c6dc755947901e0f4e76180ab542b6deb5e15e"
 dependencies = [
  "proc-macro2",
  "quote",
  "syn",
  "tracing",
- "typespec_client_core",
 ]
 
 [[package]]
@@ -119,7 +120,8 @@ dependencies = [
 [[package]]
 name = "azure_data_cosmos"
 version = "0.29.0"
-source = "git+https://github.com/Azure/azure-sdk-for-rust.git#3842bdc52394754ccfa50ec3604c5167536ee708"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1c1be6a61e3e1ee0a7065b4b9e1396f485151f5e97d5b364b9d08f81bc982038"
 dependencies = [
  "async-trait",
  "azure_core",
@@ -147,7 +149,8 @@ dependencies = [
 [[package]]
 name = "azure_identity"
 version = "0.30.0"
-source = "git+https://github.com/Azure/azure-sdk-for-rust.git#3842bdc52394754ccfa50ec3604c5167536ee708"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0f07bb0ee212021e75c3645e82d078e436b4b4184bde1295e9e81fcbcef923af"
 dependencies = [
  "async-lock",
  "async-trait",
@@ -1904,8 +1907,9 @@ checksum = "1dccffe3ce07af9386bfd29e80c0ab1a8205a2fc34e4bcd40364df902cfa8f3f"
 
 [[package]]
 name = "typespec"
-version = "0.10.0"
-source = "git+https://github.com/Azure/azure-sdk-for-rust.git#3842bdc52394754ccfa50ec3604c5167536ee708"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "44f91ea93fdd5fd4985fcc0a197ed8e8da18705912bef63c9b9b3148d6f35510"
 dependencies = [
  "base64",
  "bytes",
@@ -1917,8 +1921,9 @@ dependencies = [
 
 [[package]]
 name = "typespec_client_core"
-version = "0.9.0"
-source = "git+https://github.com/Azure/azure-sdk-for-rust.git#3842bdc52394754ccfa50ec3604c5167536ee708"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1a0f6f7345c3389663551a64fc4dca78fa9689ece758c5ca76e82d6da69349dc"
 dependencies = [
  "async-trait",
  "base64",
@@ -1941,8 +1946,9 @@ dependencies = [
 
 [[package]]
 name = "typespec_macros"
-version = "0.9.0"
-source = "git+https://github.com/Azure/azure-sdk-for-rust.git#3842bdc52394754ccfa50ec3604c5167536ee708"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6ecee5b05c459ea4cd97df7685db58699c32e070465f88dc806d7c98a5088edc"
 dependencies = [
  "proc-macro2",
  "quote",

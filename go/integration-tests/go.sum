@@ -2,8 +2,8 @@ github.com/Azure/azure-sdk-for-go/sdk/azcore v1.18.1 h1:Wc1ml6QlJs2BHQ/9Bqu1jiyg
 github.com/Azure/azure-sdk-for-go/sdk/azcore v1.18.1/go.mod h1:Ot/6aikWnKWi4l9QB7qVSwa8iMphQNqkWALMoNT3rzM=
 github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.10.1 h1:B+blDbyVIG3WaikNxPnhPiJ1MThR03b3vKGtER95TP4=
 github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.10.1/go.mod h1:JdM5psgjfBf5fo2uWOZhflPWyDBZ/O/CNAH9CtsuZE4=
-github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.5.0-beta.2.0.20251105172837-c0ac8eac0bcf h1:lvpazTcV9MN2kmsaGgGefbvP3LUllbnZmK/ztGTcFm0=
-github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.5.0-beta.2.0.20251105172837-c0ac8eac0bcf/go.mod h1:gR3JSlhrklE5ZMyzW7gEIz2VOpEeXRInTrL2P/E8lLc=
+github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.5.0-beta.3 h1:pgNrlBJ3j0HBODjF267V6/zDj9QnxZoMkWz7HGdrm/8=
+github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.5.0-beta.3/go.mod h1:gR3JSlhrklE5ZMyzW7gEIz2VOpEeXRInTrL2P/E8lLc=
 github.com/Azure/azure-sdk-for-go/sdk/internal v1.11.1 h1:FPKJS1T+clwv+OLGt13a8UjqeRuh0O4SJ3lUriThc+4=
 github.com/Azure/azure-sdk-for-go/sdk/internal v1.11.1/go.mod h1:j2chePtV91HrC22tGoRX3sGY42uF13WzmmV80/OdVAA=
 github.com/AzureAD/microsoft-authentication-library-for-go v1.4.2 h1:oygO0locgZJe7PpYPXT5A29ZkwJaPqcva7BVeemZOZs=

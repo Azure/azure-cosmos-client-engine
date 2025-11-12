@@ -2,10 +2,7 @@ module github.com/Azure/azure-cosmos-client-engine/go/integration-tests
 
 go 1.23.6
 
-replace (
-	github.com/Azure/azure-cosmos-client-engine/go/azcosmoscx => ../azcosmoscx
-	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos => github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.5.0-beta.2.0.20251105172837-c0ac8eac0bcf
-)
+replace github.com/Azure/azure-cosmos-client-engine/go/azcosmoscx => ../azcosmoscx
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.18.1
@@ -24,7 +21,7 @@ require (
 
 require (
 	github.com/Azure/azure-cosmos-client-engine/go/azcosmoscx v0.0.0-00010101000000-000000000000
-	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.5.0-beta.0
+	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.5.0-beta.3
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect

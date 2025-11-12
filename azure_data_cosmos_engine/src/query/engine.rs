@@ -27,7 +27,6 @@ impl azure_data_cosmos::query::QueryEngine for QueryEngine {
         let plan = serde_json::from_slice(plan)?;
         let pkranges: PartitionKeyRangeResult = serde_json::from_slice(pkranges)?;
         let pipeline = QueryPipeline::new(query, plan, pkranges.ranges)?;
-
         Ok(Box::new(QueryPipelineAdapter(pipeline)))
     }
 
@@ -55,7 +54,7 @@ impl From<crate::Error> for azure_core::Error {
 pub struct QueryPipelineAdapter(crate::query::QueryPipeline);
 
 impl azure_data_cosmos::query::QueryPipeline for QueryPipelineAdapter {
-    fn query(&self) -> &str {
+    fn query(&self) -> Option<&str> {
         self.0.query()
     }
 
@@ -72,7 +71,7 @@ impl azure_data_cosmos::query::QueryPipeline for QueryPipelineAdapter {
                 .requests
                 .into_iter()
                 .map(|request| azure_data_cosmos::query::QueryRequest {
-                    index: request.id as usize,
+                    id: request.id,
                     partition_key_range_id: request.pkrange_id.into_owned(),
                     continuation: request.continuation,
                     query: request.query,
@@ -91,7 +90,7 @@ impl azure_data_cosmos::query::QueryPipeline for QueryPipelineAdapter {
         for data in data {
             self.0.provide_data(
                 data.partition_key_range_id,
-                data.request_index as u64,
+                data.request_id,
                 data.result,
                 data.next_continuation,
             )?;

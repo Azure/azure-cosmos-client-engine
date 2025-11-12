@@ -110,7 +110,7 @@ supported_features!(
 /// If the query was *not* rewritten by the gateway, this method returns the unrewritten query,
 /// so language bindings should *always* use this query when making the signal-partition queries.
 pub struct QueryPipeline {
-    query: String,
+    query: Option<String>,
     pipeline: Vec<Box<dyn PipelineNode>>,
     producer: ItemProducer,
 
@@ -149,7 +149,7 @@ impl QueryPipeline {
 
         let pipeline = if let Some(hybrid_search_query_info) = plan.hybrid_search_query_info {
             // This is a hybrid search query, which requires special handling.
-            Self::from_hybrid_search_query_info(query, hybrid_search_query_info, pkranges)?
+            Self::from_hybrid_search_query_info(hybrid_search_query_info, pkranges)?
         } else if let Some(query_info) = plan.query_info {
             Self::from_query_info(query, query_info, pkranges)?
         } else {
@@ -164,7 +164,6 @@ impl QueryPipeline {
     }
 
     fn from_hybrid_search_query_info(
-        query: &str,
         hybrid_search_query_info: HybridSearchQueryInfo,
         pkranges: impl IntoIterator<Item = PartitionKeyRange>,
     ) -> crate::Result<Self> {
@@ -172,7 +171,7 @@ impl QueryPipeline {
 
         // A hybrid search has no pipeline nodes, so we can just leave that empty.
         Ok(Self {
-            query: query.to_string(), // The query is somewhat irrelevant, since each request will have it's own override query.
+            query: None, // The original query isn't relevant.
             pipeline: Vec::new(),
             producer,
             terminated: false,
@@ -258,7 +257,7 @@ impl QueryPipeline {
         }
 
         let query = if query_info.rewritten_query.is_empty() {
-            query.to_string()
+            Some(query.to_string())
         } else {
             let rewritten = format_query(&query_info.rewritten_query);
             tracing::debug!(
@@ -266,7 +265,7 @@ impl QueryPipeline {
                 ?rewritten,
                 "rewrote query, per gateway query plan"
             );
-            rewritten
+            Some(rewritten)
         };
 
         Ok(Self {
@@ -281,8 +280,8 @@ impl QueryPipeline {
     ///
     /// The pipeline has both the original query, AND the query plan that may have rewritten it.
     /// So, no matter whether or not the query was rewritten, this query will be accurate.
-    pub fn query(&self) -> &str {
-        &self.query
+    pub fn query(&self) -> Option<&str> {
+        self.query.as_deref()
     }
 
     /// Indicates if the pipeline has been completed.

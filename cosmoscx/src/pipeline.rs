@@ -106,7 +106,12 @@ pub extern "C" fn cosmoscx_v0_query_pipeline_query(
         pipeline: *mut Pipeline,
     ) -> Result<Box<Str<'static>>, azure_data_cosmos_engine::Error> {
         let pipeline = unsafe { Pipeline::unwrap_ptr(pipeline) }?;
-        Ok(Box::new(pipeline.query().into()))
+
+        let query = match pipeline.query() {
+            Some(x) => x.into(),
+            None => Str::EMPTY,
+        };
+        Ok(Box::new(query))
     }
 
     inner(pipeline).into()
