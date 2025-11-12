@@ -76,20 +76,11 @@ impl Display for ErrorKind {
 
 impl ErrorKind {
     pub fn with_source(self, source: impl std::error::Error + Send + Sync + 'static) -> Error {
-        let err = Error::with_source(self, source);
-
-        err
+        Error::with_source(self, source)
     }
 
     pub fn with_message(self, message: impl Into<Cow<'static, str>>) -> Error {
-        let err = Error::with_message(self, message);
-
-        #[cfg(debug_assertions)]
-        if self == ErrorKind::InternalError {
-            panic!("internal error: {}", err);
-        }
-
-        err
+        Error::with_message(self, message)
     }
 }
 
