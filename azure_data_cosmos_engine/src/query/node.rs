@@ -76,7 +76,7 @@ impl<'a> PipelineSlice<'a> {
 /// Represents a node in the query pipeline.
 ///
 /// Nodes are the building blocks of the query pipeline. They are used to represent different stages of query execution, such as filtering, sorting, and aggregation.
-pub trait PipelineNode: Send {
+pub trait PipelineNode: Send + Debug {
     /// Retrieves the next item from this node in the pipeline.
     ///
     /// # Parameters
@@ -92,6 +92,7 @@ pub trait PipelineNode: Send {
 /// A pipeline node that limits the number of items that can pass through it by a fixed number.
 ///
 /// This can be used to implement both `TOP` and `LIMIT` clauses in a query.
+#[derive(Debug)]
 pub struct LimitPipelineNode {
     /// The number of items that can pass through this node before it terminates the pipeline.
     remaining: u64,
@@ -135,6 +136,7 @@ impl PipelineNode for LimitPipelineNode {
 /// A pipeline node that skips a fixed number of items before allowing any items to pass through it.
 ///
 /// This can be used to implement both `OFFSET` clauses in a query.
+#[derive(Debug)]
 pub struct OffsetPipelineNode {
     /// The number of items that should be skipped before allowing any items to pass through.
     remaining: u64,
@@ -166,6 +168,7 @@ impl PipelineNode for OffsetPipelineNode {
     }
 }
 
+#[derive(Debug)]
 pub struct AggregatePipelineNode {
     aggregators: Vec<Aggregator>,
     results: Option<VecDeque<Box<serde_json::value::RawValue>>>,

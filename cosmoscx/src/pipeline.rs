@@ -9,7 +9,10 @@ use azure_data_cosmos_engine::{
 };
 use serde::Deserialize;
 
-use crate::{result::ResultExt, slice::OwnedSlice};
+use crate::{
+    result::ResultExt,
+    slice::{OwnedSlice, Slice},
+};
 
 use super::{
     result::{FfiResult, ResultCode},
@@ -103,7 +106,12 @@ pub extern "C" fn cosmoscx_v0_query_pipeline_query(
         pipeline: *mut Pipeline,
     ) -> Result<Box<Str<'static>>, azure_data_cosmos_engine::Error> {
         let pipeline = unsafe { Pipeline::unwrap_ptr(pipeline) }?;
-        Ok(Box::new(pipeline.query().into()))
+
+        let query = match pipeline.query() {
+            Some(x) => x.into(),
+            None => Str::EMPTY,
+        };
+        Ok(Box::new(query))
     }
 
     inner(pipeline).into()
@@ -114,11 +122,22 @@ pub extern "C" fn cosmoscx_v0_query_pipeline_query(
 /// Each `DataRequest` represents a request FROM the query pipeline to the calling SDK to perform a query against a single Cosmos partition.
 #[repr(C)]
 pub struct DataRequest {
+    /// A unique identifier for this request. This must be included in the call to [`cosmoscx_v0_query_pipeline_provide_data`] to fulfill this request.
+    id: u64,
+
     /// An [`OwnedString`] containing the Partition Key Range ID to request data from.
     pkrangeid: OwnedString,
 
     /// An [`OwnedString`] containing the continuation token to provide, or an empty slice (len == 0) if no continuation should be provided.
     continuation: OwnedString,
+
+    /// An [`OwnedString`] containing the query to execute, if any.
+    /// If no query is provided ([`OwnedString::len`] == 0), the query returned by [`cosmoscx_v0_query_pipeline_query`] should be used.
+    query: OwnedString,
+
+    /// A boolean indicating if parameters should be included in the query request.
+    /// If this value is false, the query should be executed without parameters.
+    include_parameters: bool,
 }
 
 /// Represents the result of a single execution of the query pipeline.
@@ -132,6 +151,22 @@ pub struct PipelineResult {
 
     /// An [`OwnedSlice`] of [`DataRequest`]s describing additional requests that must be made and provided to [`cosmoscx_v0_query_pipeline_provide_data`] before retrieving the next batch.
     requests: OwnedSlice<DataRequest>,
+}
+
+/// Represents a response to a single data request from the pipeline.
+#[repr(C)]
+pub struct QueryResponse<'a> {
+    /// The Partition Key Range ID this response is for.
+    pkrange_id: Str<'a>,
+
+    /// The unique identifier for the request this response is for. This must exactly match the [`DataRequest::id`] field of the corresponding [`DataRequest`].
+    request_id: u64,
+
+    /// The raw data being provided to the pipeline in response to the request.
+    data: Str<'a>,
+
+    /// The continuation token to provide, or an empty slice (len == 0) if no continuation should be provided.
+    continuation: Str<'a>,
 }
 
 /// Executes a single turn of the query pipeline.
@@ -164,11 +199,17 @@ pub extern "C" fn cosmoscx_v0_query_pipeline_run(
             .requests
             .into_iter()
             .map(|r| DataRequest {
+                id: r.id,
                 pkrangeid: r.pkrange_id.into_owned().into(),
                 continuation: match r.continuation {
                     None => OwnedSlice::EMPTY,
                     Some(s) => s.into(),
                 },
+                query: match r.query {
+                    None => OwnedSlice::EMPTY,
+                    Some(s) => s.into(),
+                },
+                include_parameters: r.include_parameters,
             })
             .collect::<Vec<_>>()
             .into();
@@ -199,32 +240,39 @@ pub unsafe extern "C" fn cosmoscx_v0_query_pipeline_free_result(result: *mut Pip
 #[no_mangle]
 pub extern "C" fn cosmoscx_v0_query_pipeline_provide_data<'a>(
     pipeline: *mut Pipeline,
-    pkrange_id: Str<'a>,
-    data: Str<'a>,
-    continuation: Str<'a>,
+    responses: Slice<'a, QueryResponse<'a>>,
 ) -> ResultCode {
     fn inner<'a>(
         pipeline: *mut Pipeline,
-        pkrange_id: Str<'a>,
-        data: Str<'a>,
-        continuation: Str<'a>,
+        responses: Slice<'a, QueryResponse<'a>>,
     ) -> Result<(), azure_data_cosmos_engine::Error> {
         let pipeline = unsafe { Pipeline::unwrap_ptr(pipeline) }?;
 
-        // Parse the data
-        let pkrange_id = unsafe { pkrange_id.as_str().not_null()? };
-        let data = unsafe { data.as_str().not_null()? };
-        let continuation = unsafe {
-            match continuation.into_string()? {
-                // Normalize empty strings to 'None'
-                Some(s) if s.is_empty() => None,
-                x => x,
-            }
-        };
+        let responses = unsafe { responses.as_slice() }.ok_or_else(|| {
+            ErrorKind::ArgumentNull.with_message("responses slice pointer was null")
+        })?;
 
-        // Pass the raw bytes directly to the pipeline
-        pipeline.provide_data(pkrange_id, data.as_bytes(), continuation)
+        for response in responses {
+            let pkrange_id = unsafe { response.pkrange_id.as_str().not_null()? };
+            let data = unsafe { response.data.as_str().not_null()? };
+            let continuation = unsafe {
+                match response.continuation.into_string()? {
+                    // Normalize empty strings to 'None'
+                    Some(s) if s.is_empty() => None,
+                    x => x,
+                }
+            };
+
+            // Pass the raw bytes directly to the pipeline
+            pipeline.provide_data(
+                pkrange_id,
+                response.request_id,
+                data.as_bytes(),
+                continuation,
+            )?;
+        }
+        Ok(())
     }
 
-    inner(pipeline, pkrange_id, data, continuation).into()
+    inner(pipeline, responses).into()
 }

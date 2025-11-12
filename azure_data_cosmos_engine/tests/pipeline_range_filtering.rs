@@ -78,13 +78,14 @@ pub fn pkranges_filtered_by_query_ranges() -> Result<(), Box<dyn std::error::Err
     // Target partition1 with EPK range that fits within its boundaries
     let query_plan = QueryPlan {
         partitioned_query_execution_info_version: 1,
-        query_info: QueryInfo::default(),
+        query_info: Some(QueryInfo::default()),
         query_ranges: vec![QueryRange {
             min: "40000000".to_string(),
             max: "7FFFFFFC".to_string(), // Avoids boundary overlap with partition2
             is_min_inclusive: true,
             is_max_inclusive: true,
         }],
+        ..Default::default()
     };
 
     let engine = Engine::new(
@@ -173,13 +174,14 @@ pub fn pkranges_filtered_by_overlapping_query_ranges() -> Result<(), Box<dyn std
     // Query range that spans across two adjacent partitions
     let query_plan = QueryPlan {
         partitioned_query_execution_info_version: 1,
-        query_info: QueryInfo::default(),
+        query_info: Some(QueryInfo::default()),
         query_ranges: vec![QueryRange {
             min: "60000000".to_string(),
             max: "A0000000".to_string(),
             is_min_inclusive: true,
             is_max_inclusive: true,
         }],
+        ..Default::default()
     };
 
     let engine = Engine::new(
@@ -271,13 +273,14 @@ pub fn pkranges_filtered_by_all_partitions_query_range() -> Result<(), Box<dyn s
     // Query range that spans the entire EPK space
     let query_plan = QueryPlan {
         partitioned_query_execution_info_version: 1,
-        query_info: QueryInfo::default(),
+        query_info: Some(QueryInfo::default()),
         query_ranges: vec![QueryRange {
             min: "00000000".to_string(),
             max: "FFFFFFFF".to_string(),
             is_min_inclusive: true,
             is_max_inclusive: true,
         }],
+        ..Default::default()
     };
 
     let engine = Engine::new(container, "SELECT * FROM c", query_plan, 3)?;
@@ -370,8 +373,9 @@ pub fn pkranges_no_query_ranges_queries_all_partitions() -> Result<(), Box<dyn s
     // Empty query ranges should default to querying all partitions
     let query_plan = QueryPlan {
         partitioned_query_execution_info_version: 1,
-        query_info: QueryInfo::default(),
+        query_info: Some(QueryInfo::default()),
         query_ranges: Vec::new(),
+        ..Default::default()
     };
 
     let engine = Engine::new(container, "SELECT * FROM c", query_plan, 3)?;

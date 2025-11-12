@@ -95,8 +95,11 @@ func (p *clientEngineQueryPipeline) Run() (*queryengine.PipelineResult, error) {
 	requests := make([]queryengine.QueryRequest, 0, len(sourceRequests))
 	for _, request := range sourceRequests {
 		requests = append(requests, queryengine.QueryRequest{
+			Id:                  request.Id(),
 			PartitionKeyRangeID: string(request.PartitionKeyRangeID().CloneString()),
 			Continuation:        string(request.Continuation().CloneString()),
+			Query:               string(request.Query().CloneString()),
+			IncludeParameters:   request.IncludeParameters(),
 		})
 	}
 	return &queryengine.PipelineResult{
@@ -107,6 +110,6 @@ func (p *clientEngineQueryPipeline) Run() (*queryengine.PipelineResult, error) {
 }
 
 // ProvideData provides more data for a given partition key range ID, using data retrieved from the server in response to making a DataRequest.
-func (p *clientEngineQueryPipeline) ProvideData(result queryengine.QueryResult) error {
-	return p.pipeline.ProvideData(result.PartitionKeyRangeID, string(result.Data), result.NextContinuation)
+func (p *clientEngineQueryPipeline) ProvideData(results []queryengine.QueryResult) error {
+	return p.pipeline.ProvideData(results)
 }

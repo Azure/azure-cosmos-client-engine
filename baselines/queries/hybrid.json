@@ -34,7 +34,7 @@
         },
         {
             "name": "offset_limit_rrf_unfiltered",
-            "query": "SELECT c.index, c.title FROM c ORDER BY RANK RRF(FullTextScore(c.title, 'John'), FullTextScore(c.text, 'United States')) OFFSET 0 LIMIT 13",
+            "query": "SELECT c.index, c.title FROM c ORDER BY RANK RRF(FullTextScore(c.title, 'John'), FullTextScore(c.text, 'United States')) OFFSET 0 LIMIT 11",
             "container": "FullText"
         },
         {

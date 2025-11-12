@@ -10,7 +10,7 @@ import (
 
 	"github.com/Azure/azure-cosmos-client-engine/go/azcosmoscx"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
-	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos/unstable/queryengine"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos/queryengine"
 )
 
 func getenvOrDefault(key, def string) string {

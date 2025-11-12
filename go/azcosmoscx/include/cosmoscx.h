@@ -54,6 +54,14 @@ enum CosmosCxResultCode {
    * See [`ErrorKind::ArithmeticOverflow`].
    */
   COSMOS_CX_RESULT_CODE_ARITHMETIC_OVERFLOW = -9,
+  /**
+   * See [`ErrorKind::InvalidRequestId`].
+   */
+  COSMOS_CX_RESULT_CODE_INVALID_REQUEST_ID = -10,
+  /**
+   * See [`ErrorKind::InvalidQuery`].
+   */
+  COSMOS_CX_RESULT_CODE_INVALID_QUERY = -11,
 };
 typedef intptr_t CosmosCxResultCode;
 
@@ -196,6 +204,10 @@ typedef struct CosmosCxOwnedSlice_OwnedString {
  */
 typedef struct CosmosCxDataRequest {
   /**
+   * A unique identifier for this request. This must be included in the call to [`cosmoscx_v0_query_pipeline_provide_data`] to fulfill this request.
+   */
+  uint64_t id;
+  /**
    * An [`OwnedString`] containing the Partition Key Range ID to request data from.
    */
   CosmosCxOwnedString pkrangeid;
@@ -203,6 +215,16 @@ typedef struct CosmosCxDataRequest {
    * An [`OwnedString`] containing the continuation token to provide, or an empty slice (len == 0) if no continuation should be provided.
    */
   CosmosCxOwnedString continuation;
+  /**
+   * An [`OwnedString`] containing the query to execute, if any.
+   * If no query is provided ([`OwnedString::len`] == 0), the query returned by [`cosmoscx_v0_query_pipeline_query`] should be used.
+   */
+  CosmosCxOwnedString query;
+  /**
+   * A boolean indicating if parameters should be included in the query request.
+   * If this value is false, the query should be executed without parameters.
+   */
+  bool include_parameters;
 } CosmosCxDataRequest;
 
 /**
@@ -267,6 +289,44 @@ typedef struct CosmosCxFfiResult_PipelineResult {
   CosmosCxResultCode code;
   const struct CosmosCxPipelineResult *value;
 } CosmosCxFfiResult_PipelineResult;
+
+/**
+ * Represents a response to a single data request from the pipeline.
+ */
+typedef struct CosmosCxQueryResponse {
+  /**
+   * The Partition Key Range ID this response is for.
+   */
+  CosmosCxStr pkrange_id;
+  /**
+   * The unique identifier for the request this response is for. This must exactly match the [`DataRequest::id`] field of the corresponding [`DataRequest`].
+   */
+  uint64_t request_id;
+  /**
+   * The raw data being provided to the pipeline in response to the request.
+   */
+  CosmosCxStr data;
+  /**
+   * The continuation token to provide, or an empty slice (len == 0) if no continuation should be provided.
+   */
+  CosmosCxStr continuation;
+} CosmosCxQueryResponse;
+
+/**
+ * Represents a contiguous sequence of objects OWNED BY THE CALLING CODE.
+ *
+ * The language binding owns this memory. It must keep the memory valid for the duration of any function call that receives it.
+ * For example, the [`Slice`]s passed to [`cosmoscx_v0_query_pipeline_create`](super::pipeline::cosmoscx_v0_query_pipeline_create) must remain valid until that function returns.
+ * After the function returns, the language binding may free the memory.
+ * This lifetime is represented by the lifetime parameter `'a`, which should prohibit Rust code from storing the value.
+ *
+ * The C representation of this struct is identical to [`OwnedSlice`], the only difference is that this type indicates that the language binding owns this memory.
+ * The language binding is responsible for ensuring the underlying `data` pointer and `len` are correct and the data is properly aligned such that the `data` pointer is a valid C-style array of `T` values.
+ */
+typedef struct CosmosCxSlice_QueryResponse {
+  const struct CosmosCxQueryResponse *data;
+  uintptr_t len;
+} CosmosCxSlice_QueryResponse;
 
 /**
  * Returns the version of the Cosmos Client Engine in use.
@@ -346,6 +406,4 @@ void cosmoscx_v0_query_pipeline_free_result(struct CosmosCxPipelineResult *resul
  * Inserts additional raw data, in response to a [`DataRequest`] from the pipeline.
  */
 CosmosCxResultCode cosmoscx_v0_query_pipeline_provide_data(struct CosmosCxPipeline *pipeline,
-                                                           CosmosCxStr pkrange_id,
-                                                           CosmosCxStr data,
-                                                           CosmosCxStr continuation);
+                                                           struct CosmosCxSlice_QueryResponse responses);

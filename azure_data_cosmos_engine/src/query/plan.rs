@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use serde::Deserialize;
 
 /// Models the response returned by the Gateway when making a query plan request.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 #[cfg_attr(
     feature = "python_conversions",
     derive(pyo3::FromPyObject),
@@ -23,14 +23,47 @@ pub struct QueryPlan {
 
     /// The query plan itself
     #[cfg_attr(feature = "python_conversions", pyo3(item("queryInfo")))]
-    pub query_info: QueryInfo,
+    #[serde(default)]
+    pub query_info: Option<QueryInfo>,
 
     /// The partition key ranges that this query references.
     ///
     /// These can be used by the pipeline to limit the partition key ranges that get queried.
     #[cfg_attr(feature = "python_conversions", pyo3(item("queryRanges")))]
     pub query_ranges: Vec<QueryRange>,
-    // TODO: hybridSearchQueryInfo
+
+    /// Information about hybrid search queries, if applicable.
+    pub hybrid_search_query_info: Option<HybridSearchQueryInfo>,
+}
+
+#[derive(Debug, Deserialize)]
+#[cfg_attr(
+    feature = "python_conversions",
+    derive(pyo3::FromPyObject),
+    pyo3(from_item_all)
+)]
+#[serde(rename_all = "camelCase")]
+pub struct HybridSearchQueryInfo {
+    /// Provides the query to be used for global statistics gathering.
+    pub global_statistics_query: String,
+
+    /// Provides the individual component queries that make up the hybrid search query.
+    pub component_query_infos: Vec<QueryInfo>,
+
+    /// The weights assigned to each component query, if any.
+    #[serde(default)]
+    pub component_weights: Vec<f64>,
+
+    /// The number of results to skip.
+    pub skip: Option<u64>,
+
+    /// The number of results to take.
+    ///
+    /// This should always be present, because hybrid search queries require a TOP clause.
+    pub take: Option<u64>,
+
+    /// Indicates if global statistics are required for this query.
+    pub requires_global_statistics: bool,
 }
 
 /// The kind of DISTINCT tracking required by the query.
@@ -142,17 +175,17 @@ pub struct QueryInfo {
     /// Indicates if the query contains a `SELECT VALUE` clause.
     #[cfg_attr(feature = "python_conversions", pyo3(item("hasSelectValue"), default))]
     pub has_select_value: bool,
+
+    /// Indicates if the query contains a non-streaming `ORDER BY`.
     #[cfg_attr(
         feature = "python_conversions",
         pyo3(item("hasNonStreamingOrderBy"), default)
     )]
-
-    /// Indicates if the query contains a non-streaming `ORDER BY`.
     pub has_non_streaming_order_by: bool,
 }
 
 /// The sort order used by a particular `ORDER BY` expression.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
 pub enum SortOrder {
     Ascending,
     Descending,

@@ -36,6 +36,9 @@ pub enum QueryResultShape {
 
     /// The result is from a `SELECT VALUE [aggregate function](...)` query.
     ValueAggregate,
+
+    /// The result it is from a hybrid search component query.
+    HybridComponent,
 }
 
 impl QueryResultShape {
@@ -72,6 +75,7 @@ impl QueryResultShape {
                     .map(QueryResult::ValueAggregates)
                     .collect())
             }
+            QueryResultShape::HybridComponent => todo!(),
         }
     }
 }

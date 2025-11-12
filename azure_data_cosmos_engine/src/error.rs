@@ -46,6 +46,12 @@ pub enum ErrorKind {
     /// Indicates that an arithmetic overflow occurred during query execution.
     ArithmeticOverflow,
 
+    /// Indicates that a request ID provided to [`QueryPipeline::provide_data`](crate::query::QueryPipeline::provide_data) was invalid.
+    InvalidRequestId,
+
+    /// Indicates that the query cannot be executed by this pipeline.
+    InvalidQuery,
+
     /// Indicates that a Python error occurred. The source of the error will be the original Python error.
     PythonError,
 }
@@ -53,7 +59,7 @@ pub enum ErrorKind {
 impl Display for ErrorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            ErrorKind::InvalidGatewayResponse => write!(f, "invalid data recieved from gateway"),
+            ErrorKind::InvalidGatewayResponse => write!(f, "invalid data received from gateway"),
             ErrorKind::DeserializationError => write!(f, "deserialization error"),
             ErrorKind::UnknownPartitionKeyRange => write!(f, "unknown partition key range"),
             ErrorKind::InternalError => write!(f, "internal client engine error"),
@@ -61,6 +67,8 @@ impl Display for ErrorKind {
             ErrorKind::InvalidUtf8String => write!(f, "invalid UTF-8 string"),
             ErrorKind::ArgumentNull => write!(f, "provided argument was null"),
             ErrorKind::ArithmeticOverflow => write!(f, "arithmetic overflow occurred"),
+            ErrorKind::InvalidRequestId => write!(f, "invalid request ID provided"),
+            ErrorKind::InvalidQuery => write!(f, "invalid query"),
             ErrorKind::PythonError => write!(f, "python error"),
         }
     }
@@ -68,11 +76,11 @@ impl Display for ErrorKind {
 
 impl ErrorKind {
     pub fn with_source(self, source: impl std::error::Error + Send + Sync + 'static) -> Error {
-        Error::from(self).with_source(source)
+        Error::with_source(self, source)
     }
 
     pub fn with_message(self, message: impl Into<Cow<'static, str>>) -> Error {
-        Error::from(self).with_message(message)
+        Error::with_message(self, message)
     }
 }
 
@@ -85,23 +93,47 @@ pub struct Error {
 
 impl From<ErrorKind> for Error {
     fn from(kind: ErrorKind) -> Self {
-        Self {
+        let err = Self {
             kind,
             source: None,
             message: None,
-        }
+        };
+
+        #[cfg(debug_assertions)]
+        panic_if_internal_error(&err);
+
+        err
     }
 }
 
 impl Error {
-    pub fn with_source(mut self, source: impl std::error::Error + Send + Sync + 'static) -> Self {
-        self.source = Some(Box::new(source));
-        self
+    pub fn with_source(
+        kind: ErrorKind,
+        source: impl std::error::Error + Send + Sync + 'static,
+    ) -> Self {
+        let err = Self {
+            kind,
+            source: Some(Box::new(source)),
+            message: None,
+        };
+
+        #[cfg(debug_assertions)]
+        panic_if_internal_error(&err);
+
+        err
     }
 
-    pub fn with_message(mut self, message: impl Into<Cow<'static, str>>) -> Self {
-        self.message = Some(message.into());
-        self
+    pub fn with_message(kind: ErrorKind, message: impl Into<Cow<'static, str>>) -> Self {
+        let err = Self {
+            kind,
+            source: None,
+            message: Some(message.into()),
+        };
+
+        #[cfg(debug_assertions)]
+        panic_if_internal_error(&err);
+
+        err
     }
 
     pub fn kind(&self) -> ErrorKind {
@@ -152,5 +184,18 @@ impl From<Error> for pyo3::PyErr {
         } else {
             pyo3::PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string())
         }
+    }
+}
+
+#[cfg(debug_assertions)]
+fn panic_if_internal_error(err: &Error) {
+    // Internal errors are critical enough to warrant a panic in debug builds.
+    // The only reason we create an InternalError is if we encounter a panic-worthy error somewhere we can return a `Result`.
+    // We do that, because panics across FFI boundaries make things really messy.
+    // That doesn't mean we're "panic-free" as there are places we still panic because we can't return an error,
+    // and situations where the language injects a panic (bounds checks, for example)
+    // but it does avoid a lot of potential panics.
+    if err.kind() == ErrorKind::InternalError {
+        panic!("internal error: {}", err);
     }
 }
