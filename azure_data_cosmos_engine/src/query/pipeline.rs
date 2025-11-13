@@ -421,23 +421,23 @@ impl ReadManyPipeline {
         pk_version: u32,
     ) -> crate::Result<Self> {
         let mut pkranges: Vec<PartitionKeyRange> = pkranges.into_iter().collect();
-        tracing::trace!(?pkranges, "creating readmany pipeline2");
+        tracing::debug!(?pkranges, "creating readmany pipeline2");
 
         // Grab item identities and start grouping them by partition key range.
         // Output should be a list of tuples of (pkrangeid, query_string) to go over and generate item producers for.
         let item_identities: Vec<ItemIdentity> = item_identities.into_iter().collect();
-        tracing::trace!(?item_identities, "received item identities for read many");
+        tracing::debug!(?item_identities, "received item identities for read many");
         // Group items by their partition key range ID.
         let items_by_range =
             Self::partition_items_by_range(item_identities, &mut pkranges, pk_kind, pk_version);
-        tracing::trace!(
+        tracing::debug!(
             ?items_by_range,
             "grouped item identities by partition key range"
         );
         // Create query chunks from the partitioned items, splitting total list into 1000 max item queries.
         // Each chunk is represented as vector of mappings of partition key range IDs to lists of tuples containing the original index, item ID, and partition key value.
         let query_chunks = Self::create_query_chunks_from_partitioned_items(&items_by_range);
-        tracing::trace!(?query_chunks, "created query chunks from partitioned items");
+        tracing::debug!(?query_chunks, "created query chunks from partitioned items");
 
         // Create the item producer for read many.
         let producer = ItemProducer::read_many(query_chunks);
@@ -496,6 +496,7 @@ impl ReadManyPipeline {
     /// If the pipeline returns no items and no requests, then the query has completed and there are no further results to return.
     #[tracing::instrument(level = "debug", skip(self), err)]
     pub fn run(&mut self) -> crate::Result<PipelineResponse> {
+        tracing::debug!("starting RUN of ReadManyPipeline");
         if self.terminated {
             return Ok(PipelineResponse::TERMINATED);
         }

@@ -97,8 +97,10 @@ impl PartitionKeyRange {
 // TODO: pk values here are all currently strings - we need the same sort of PartitionKeyValue
 // logic used in the main Rust SDK in order to compare and be able to use it within this method.
 pub struct ItemIdentity {
-    id: String,
+    #[serde(rename = "PartitionKeyValue")]
     partition_key_value: String,
+    #[serde(rename = "ID")]
+    id: String,
 }
 
 impl ItemIdentity {

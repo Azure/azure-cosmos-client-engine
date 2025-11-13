@@ -45,12 +45,12 @@ impl ReadManyStrategy {
             };
             match query_chunk_state.request() {
                 Some(request) => {
-                    tracing::trace!(pkrange_id = ?query_chunk_state.pkrange_id, "requesting data for partition");
+                    tracing::debug!(pkrange_id = ?query_chunk_state.pkrange_id, "requesting data for partition");
                     requests.push(request);
                 }
                 None => {
-                    tracing::trace!(pkrange_id = ?query_chunk_state.pkrange_id, "partition exhausted, removing from list");
-                    tracing::trace!(current_query_chunk_index = ?self.current_query_chunk_index, "increasing query chunk index");
+                    tracing::debug!(pkrange_id = ?query_chunk_state.pkrange_id, "partition exhausted, removing from list");
+                    tracing::debug!(current_query_chunk_index = ?self.current_query_chunk_index, "increasing query chunk index");
                     self.current_query_chunk_index += 1;
                 }
             }
