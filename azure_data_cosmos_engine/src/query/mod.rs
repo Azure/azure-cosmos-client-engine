@@ -98,14 +98,14 @@ impl PartitionKeyRange {
 // logic used in the main Rust SDK in order to compare and be able to use it within this method.
 pub struct ItemIdentity {
     id: String,
-    pk: String,
+    partition_key_value: String,
 }
 
 impl ItemIdentity {
-    pub fn new(id: impl Into<String>, pk: impl Into<String>) -> Self {
+    pub fn new(id: impl Into<String>, partition_key_value: impl Into<String>) -> Self {
         Self {
             id: id.into(),
-            pk: pk.into(),
+            partition_key_value: partition_key_value.into(),
         }
     }
 }

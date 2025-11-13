@@ -252,6 +252,40 @@ typedef struct CosmosCxPipelineResult {
 } CosmosCxPipelineResult;
 
 /**
+ * Represents a response to a single data request from the pipeline.
+ */
+typedef struct CosmosCxQueryResponse {
+  /**
+   * The Partition Key Range ID this response is for.
+   */
+  CosmosCxStr pkrange_id;
+  /**
+   * The raw data being provided to the pipeline in response to the request.
+   */
+  CosmosCxStr data;
+  /**
+   * The continuation token to provide, or an empty slice (len == 0) if no continuation should be provided.
+   */
+  CosmosCxStr continuation;
+} CosmosCxQueryResponse;
+
+/**
+ * Represents a contiguous sequence of objects OWNED BY THE CALLING CODE.
+ *
+ * The language binding owns this memory. It must keep the memory valid for the duration of any function call that receives it.
+ * For example, the [`Slice`]s passed to [`cosmoscx_v0_query_pipeline_create`](super::pipeline::cosmoscx_v0_query_pipeline_create) must remain valid until that function returns.
+ * After the function returns, the language binding may free the memory.
+ * This lifetime is represented by the lifetime parameter `'a`, which should prohibit Rust code from storing the value.
+ *
+ * The C representation of this struct is identical to [`OwnedSlice`], the only difference is that this type indicates that the language binding owns this memory.
+ * The language binding is responsible for ensuring the underlying `data` pointer and `len` are correct and the data is properly aligned such that the `data` pointer is a valid C-style array of `T` values.
+ */
+typedef struct CosmosCxSlice_QueryResponse {
+  const struct CosmosCxQueryResponse *data;
+  uintptr_t len;
+} CosmosCxSlice_QueryResponse;
+
+/**
  * A result type for FFI functions.
  *
  * An `FfiResult` is returned from a function that both returns a value AND can fail.

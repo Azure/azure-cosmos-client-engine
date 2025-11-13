@@ -549,7 +549,7 @@ impl ReadManyPipeline {
 
         // Group items by PK value (string or number) - only string for now since we don't have PartitionKeyValue logic yet.
         for (idx, identity) in item_identities.iter().enumerate() {
-            let pk_value = identity.pk.clone(); // PartitionKeyValue is enum { String(String), Number(f64) }
+            let pk_value = identity.partition_key_value.clone(); // PartitionKeyValue is enum { String(String), Number(f64) }
             items_by_pk_value
                 .entry(pk_value.clone())
                 .or_default()
