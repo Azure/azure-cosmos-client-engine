@@ -18,7 +18,7 @@ mod engine;
 #[cfg(feature = "query_engine")]
 pub use engine::*;
 
-pub use pipeline::{QueryPipeline, SupportedFeatures, SUPPORTED_FEATURES};
+pub use pipeline::{QueryPipeline, ReadManyPipeline, SupportedFeatures, SUPPORTED_FEATURES};
 pub use plan::{DistinctType, QueryInfo, QueryPlan, QueryRange, SortOrder};
 pub use query_result::{QueryClauseItem, QueryResult, QueryResultShape};
 
@@ -87,6 +87,32 @@ impl PartitionKeyRange {
     }
 }
 
+#[derive(Clone, Debug, Deserialize)]
+#[cfg_attr(
+    feature = "python_conversions",
+    derive(pyo3::FromPyObject),
+    pyo3(from_item_all)
+)]
+#[serde(rename_all = "camelCase")]
+// TODO: pk values here are all currently strings - we need the same sort of PartitionKeyValue
+// logic used in the main Rust SDK in order to compare and be able to use it within this method.
+pub struct ItemIdentity {
+    id: String,
+    pk: String,
+}
+
+impl ItemIdentity {
+    pub fn new(
+        id: impl Into<String>,
+        pk: impl Into<String>,
+    ) -> Self {
+        Self {
+            id: id.into(),
+            pk: pk.into(),
+        }
+    }
+}
+
 /// Describes a request for additional data from the pipeline.
 ///
 /// This value is returned when the pipeline needs more data to continue processing.
@@ -96,13 +122,15 @@ impl PartitionKeyRange {
 pub struct DataRequest {
     pub pkrange_id: Cow<'static, str>,
     pub continuation: Option<String>,
+    pub query: Option<String>,
 }
 
 impl DataRequest {
-    pub fn new(pkrange_id: impl Into<Cow<'static, str>>, continuation: Option<String>) -> Self {
+    pub fn new(pkrange_id: impl Into<Cow<'static, str>>, continuation: Option<String>, query: Option<String>) -> Self {
         Self {
             pkrange_id: pkrange_id.into(),
             continuation,
+            query,
         }
     }
 }

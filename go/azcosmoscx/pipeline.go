@@ -8,8 +8,11 @@ package azcosmoscx
 import "C"
 import (
 	"bytes"
+	"runtime"
 	"strings"
 	"unsafe"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos/queryengine"
 )
 
 type Pipeline struct {
@@ -22,6 +25,20 @@ func newPipeline(query string, queryPlan string, partitionKeyRanges string) (*Pi
 	pkRangesC := makeStr(partitionKeyRanges)
 
 	r := C.cosmoscx_v0_query_pipeline_create(queryC, queryPlanC, pkRangesC)
+	if err := mapErr(r.code); err != nil {
+		return nil, err
+	}
+
+	return &Pipeline{r.value}, nil
+}
+
+func newReadManyPipeline(itemIdentities string, pkranges string, pkKind string, pkVersion int32) (*Pipeline, error) {
+	identitiesC := makeStr(itemIdentities)
+	pkRangesC := makeStr(pkranges)
+	pkKindC := makeStr(pkKind)
+	pkVersionC := C.uint32_t(pkVersion)
+
+	r := C.cosmoscx_v0_readmany_pipeline_create(identitiesC, pkRangesC, pkKindC, pkVersionC)
 	if err := mapErr(r.code); err != nil {
 		return nil, err
 	}
@@ -64,11 +81,37 @@ func (p *Pipeline) NextBatch() (*PipelineResult, error) {
 	return &PipelineResult{r.value}, nil
 }
 
-func (p *Pipeline) ProvideData(pkrangeid string, data string, continuation string) error {
-	pkrangeidC := makeStr(pkrangeid)
-	dataC := makeStr(data)
-	continuationC := makeStr(continuation)
-	return mapErr(C.cosmoscx_v0_query_pipeline_provide_data(p.ptr, pkrangeidC, dataC, continuationC))
+func (p *Pipeline) ProvideData(results []queryengine.QueryResult) error {
+	if len(results) == 0 {
+		return nil
+	}
+
+	// We only need to pin values during the call to the C function
+	// The engine guarantees that it will copy any data it needs over to its own memory during the call
+	var pinner runtime.Pinner
+	defer pinner.Unpin()
+
+	resultsC := make([]C.CosmosCxQueryResponse, len(results))
+	for i, result := range results {
+		// We need to pin these strings because they're held within a C struct.
+		// Normally, the values passed DIRECTLY in to cgo functions are pinned automatically,
+		// but here we're building an array of structs to pass in, so we need to pin them ourselves.
+		pkrangeidC := makeStrPinned(result.PartitionKeyRangeID, &pinner)
+		dataC := makeStrPinned(string(result.Data), &pinner)
+		continuationC := makeStrPinned(result.NextContinuation, &pinner)
+		resultsC[i] = C.CosmosCxQueryResponse{
+			pkrange_id:   pkrangeidC,
+			data:         dataC,
+			continuation: continuationC,
+		}
+	}
+
+	slice := C.CosmosCxSlice_QueryResponse{
+		data: (*C.CosmosCxQueryResponse)(unsafe.Pointer(&resultsC[0])),
+		len:  C.uintptr_t(len(resultsC)),
+	}
+
+	return mapErr(C.cosmoscx_v0_query_pipeline_provide_data(p.ptr, slice))
 }
 
 type PipelineResult struct {
@@ -152,4 +195,8 @@ func (r *DataRequest) PartitionKeyRangeID() EngineString {
 
 func (r *DataRequest) Continuation() EngineString {
 	return EngineString(r.continuation)
+}
+
+func (r *DataRequest) Query() EngineString {
+	return EngineString(r.query)
 }

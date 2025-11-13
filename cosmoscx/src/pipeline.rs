@@ -4,7 +4,7 @@
 //! Functions related to creating and executing query pipelines.
 
 use azure_data_cosmos_engine::{
-    query::{PartitionKeyRange, QueryPipeline, QueryPlan},
+    query::{PartitionKeyRange, QueryPipeline, QueryPlan, ItemIdentity, ReadManyPipeline},
     ErrorKind,
 };
 use serde::Deserialize;
@@ -41,6 +41,7 @@ impl Pipeline {
 /// Creates a new query pipeline from a JSON query plan and list of partitions.
 ///
 /// # Parameters
+/// - `query`: A [`Str`] containing the query to be executed.
 /// - `query_plan_json`: A [`Str`] containing the serialized query plan, as recieved from the gateway, in JSON.
 /// - `pkranges`: A [`Str`] containing the serialized partition key ranges list, as recieved from the gateway, in JSON.
 #[no_mangle]
@@ -77,6 +78,58 @@ pub extern "C" fn cosmoscx_v0_query_pipeline_create<'a>(
     }
 
     inner(query, query_plan_json, pkranges).into()
+}
+
+/// Creates the relevant partition-scoped queries for executing the read many operation along with the pipeline to run them.
+///
+/// # Parameters
+/// - `item_identities`: A [`Str`] containing the serialized item identities in JSON.
+/// - `pkranges`: A [`Str`] containing the serialized partition key ranges list, as received from the gateway, in JSON.
+/// - `pk_kind`: A [`Str`] containing the partition key kind.
+/// - `pk_version`: The partition key version.
+#[no_mangle]
+pub extern "C" fn cosmoscx_v0_readmany_pipeline_create<'a>(
+    item_identities: Str<'a>,
+    pkranges: Str<'a>,
+    pk_kind: Str<'a>,
+    pk_version: u32,
+) -> FfiResult<Pipeline> {
+    #[derive(Deserialize)]
+    struct PartitionKeyRangeResult {
+        #[serde(rename = "PartitionKeyRanges")]
+        pub ranges: Vec<PartitionKeyRange>,
+    }
+    #[derive(Deserialize, Debug)]
+    struct ItemIdentitiesResult {
+        #[serde(rename = "ItemIdentities")]
+        pub identities: Vec<ItemIdentity>,
+    }
+
+    fn inner<'a>(
+        item_identities: Str<'a>,
+        pkranges: Str<'a>,
+        pk_kind: Str<'a>,
+        pk_version: u32,
+    ) -> Result<Box<ReadManyPipeline>, azure_data_cosmos_engine::Error> {
+        let item_identities_json = unsafe { item_identities.as_str().not_null() }?;
+        let pkranges_json = unsafe { pkranges.as_str().not_null() }?;
+        let pk_kind_json = unsafe { pk_kind.as_str().not_null() }?;
+        let pk_version = pk_version;
+        tracing::debug!(item_identities = ?item_identities_json, pkranges = ?pkranges_json, pk_kind = ?pk_kind_json, pk_version = ?pk_version, "parsing readmany pipeline parameters");
+
+        let pkranges: PartitionKeyRangeResult = serde_json::from_str(pkranges_json)
+            .map_err(|e| ErrorKind::InvalidGatewayResponse.with_source(e))?;
+        let item_identities: ItemIdentitiesResult = serde_json::from_str(item_identities_json)
+            .map_err(|e| ErrorKind::InvalidGatewayResponse.with_source(e))?;
+
+        // SAFETY: We should no longer need either of the parameter slices, we copied them into owned data.
+
+        tracing::debug!(item_identities = ?item_identities, pkranges = ?pkranges.ranges, pk_kind = ?pk_kind_json, pk_version = ?pk_version, "creating readmany pipeline");
+        let pipeline = ReadManyPipeline::new(item_identities.identities, pkranges.ranges, pk_kind_json, pk_version)?;
+        Ok(Box::new(pipeline))
+    }
+
+    inner(item_identities, pkranges, pk_kind, pk_version).into()
 }
 
 /// Frees the memory associated with a pipeline.
@@ -119,6 +172,9 @@ pub struct DataRequest {
 
     /// An [`OwnedString`] containing the continuation token to provide, or an empty slice (len == 0) if no continuation should be provided.
     continuation: OwnedString,
+
+    /// An [`OwnedString`] containing the query to be executed.
+    query: OwnedString,
 }
 
 /// Represents the result of a single execution of the query pipeline.
@@ -166,6 +222,10 @@ pub extern "C" fn cosmoscx_v0_query_pipeline_run(
             .map(|r| DataRequest {
                 pkrangeid: r.pkrange_id.into_owned().into(),
                 continuation: match r.continuation {
+                    None => OwnedSlice::EMPTY,
+                    Some(s) => s.into(),
+                },
+                query: match r.query {
                     None => OwnedSlice::EMPTY,
                     Some(s) => s.into(),
                 },

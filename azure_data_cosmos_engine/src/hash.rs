@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-use std::fmt::Write;
+use std::{fmt::Write, str::FromStr};
 
 use crate::murmur_hash::{murmurhash3_128, murmurhash3_32};
 
@@ -36,6 +36,19 @@ pub enum PartitionKeyKind {
     MultiHash,
     Other,
 }
+
+impl FromStr for PartitionKeyKind {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "hash" => Ok(PartitionKeyKind::Hash),
+            "multihash" => Ok(PartitionKeyKind::MultiHash),
+            _ => Ok(PartitionKeyKind::Other),
+        }
+    }
+}
+
 
 impl PartitionKeyValue {
     /// Common hashing writer core: writes type marker + payload (string suffix used by V2).
@@ -179,8 +192,8 @@ impl PartitionKeyValue {
 /// Returns a hex string representation of a partition key value.
 pub fn get_hashed_partition_key_string(
     pk_value: &[PartitionKeyValue],
-    kind: PartitionKeyKind,
-    version: u8,
+    kind: &PartitionKeyKind,
+    version: u32,
 ) -> String {
     if pk_value.is_empty() {
         return MIN_INCLUSIVE_EFFECTIVE_PARTITION_KEY.to_string();

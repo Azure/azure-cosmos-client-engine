@@ -36,18 +36,11 @@ impl StreamingStrategy {
         }
     }
 
-    pub fn requests(&mut self) -> Option<Vec<DataRequest>> {
-        let requests = self
-            .partitions
+    pub fn requests(&mut self) -> Vec<DataRequest> {
+        self.partitions
             .iter()
             .filter_map(|partition| partition.request())
-            .collect::<Vec<_>>();
-        // If there are no requests, we return None.
-        if requests.is_empty() {
-            None
-        } else {
-            Some(requests)
-        }
+            .collect()
     }
 
     pub fn provide_data(

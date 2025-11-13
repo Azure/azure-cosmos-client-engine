@@ -203,6 +203,10 @@ typedef struct CosmosCxDataRequest {
    * An [`OwnedString`] containing the continuation token to provide, or an empty slice (len == 0) if no continuation should be provided.
    */
   CosmosCxOwnedString continuation;
+  /**
+   * An [`OwnedString`] containing the query to be executed.
+   */
+  CosmosCxOwnedString query;
 } CosmosCxDataRequest;
 
 /**
@@ -269,6 +273,44 @@ typedef struct CosmosCxFfiResult_PipelineResult {
 } CosmosCxFfiResult_PipelineResult;
 
 /**
+ * Represents a response to a single data request from the pipeline.
+ */
+typedef struct CosmosCxQueryResponse {
+  /**
+   * The Partition Key Range ID this response is for.
+   */
+  CosmosCxStr pkrange_id;
+  /**
+   * The unique identifier for the request this response is for. This must exactly match the [`DataRequest::id`] field of the corresponding [`DataRequest`].
+   */
+  uint64_t request_id;
+  /**
+   * The raw data being provided to the pipeline in response to the request.
+   */
+  CosmosCxStr data;
+  /**
+   * The continuation token to provide, or an empty slice (len == 0) if no continuation should be provided.
+   */
+  CosmosCxStr continuation;
+} CosmosCxQueryResponse;
+
+/**
+ * Represents a contiguous sequence of objects OWNED BY THE CALLING CODE.
+ *
+ * The language binding owns this memory. It must keep the memory valid for the duration of any function call that receives it.
+ * For example, the [`Slice`]s passed to [`cosmoscx_v0_query_pipeline_create`](super::pipeline::cosmoscx_v0_query_pipeline_create) must remain valid until that function returns.
+ * After the function returns, the language binding may free the memory.
+ * This lifetime is represented by the lifetime parameter `'a`, which should prohibit Rust code from storing the value.
+ *
+ * The C representation of this struct is identical to [`OwnedSlice`], the only difference is that this type indicates that the language binding owns this memory.
+ * The language binding is responsible for ensuring the underlying `data` pointer and `len` are correct and the data is properly aligned such that the `data` pointer is a valid C-style array of `T` values.
+ */
+typedef struct CosmosCxSlice_QueryResponse {
+  const struct CosmosCxQueryResponse *data;
+  uintptr_t len;
+} CosmosCxSlice_QueryResponse;
+
+/**
  * Returns the version of the Cosmos Client Engine in use.
  */
 const char *cosmoscx_version(void);
@@ -294,12 +336,27 @@ void cosmoscx_v0_tracing_enable(void);
  * Creates a new query pipeline from a JSON query plan and list of partitions.
  *
  * # Parameters
+ * - `query`: A [`Str`] containing the query to be executed.
  * - `query_plan_json`: A [`Str`] containing the serialized query plan, as recieved from the gateway, in JSON.
  * - `pkranges`: A [`Str`] containing the serialized partition key ranges list, as recieved from the gateway, in JSON.
  */
 struct CosmosCxFfiResult_Pipeline cosmoscx_v0_query_pipeline_create(CosmosCxStr query,
                                                                     CosmosCxStr query_plan_json,
                                                                     CosmosCxStr pkranges);
+
+/**
+ * Creates the relevant partition-scoped queries for executing the read many operation along with the pipeline to run them.
+ *
+ * # Parameters
+ * - `item_identities`: A [`Str`] containing the serialized item identities in JSON.
+ * - `pkranges`: A [`Str`] containing the serialized partition key ranges list, as received from the gateway, in JSON.
+ * - `pk_kind`: A [`Str`] containing the partition key kind.
+ * - `pk_version`: The partition key version.
+ */
+struct CosmosCxFfiResult_Pipeline cosmoscx_v0_readmany_pipeline_create(CosmosCxStr item_identities,
+                                                                       CosmosCxStr pkranges,
+                                                                       CosmosCxStr pk_kind,
+                                                                       uint32_t pk_version);
 
 /**
  * Frees the memory associated with a pipeline.
@@ -346,6 +403,4 @@ void cosmoscx_v0_query_pipeline_free_result(struct CosmosCxPipelineResult *resul
  * Inserts additional raw data, in response to a [`DataRequest`] from the pipeline.
  */
 CosmosCxResultCode cosmoscx_v0_query_pipeline_provide_data(struct CosmosCxPipeline *pipeline,
-                                                           CosmosCxStr pkrange_id,
-                                                           CosmosCxStr data,
-                                                           CosmosCxStr continuation);
+                                                           struct CosmosCxSlice_QueryResponse responses);

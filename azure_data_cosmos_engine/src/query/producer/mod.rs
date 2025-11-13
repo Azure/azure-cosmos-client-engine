@@ -1,19 +1,24 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+use std::collections::HashMap;
+
 use crate::query::{
     node::PipelineNodeResult, query_result::QueryResultShape, DataRequest, PartitionKeyRange,
     SortOrder,
 };
 
 mod non_streaming;
+mod read_many;
 mod sorting;
 mod state;
 mod streaming;
 mod unordered;
 
 use non_streaming::NonStreamingStrategy;
+use read_many::ReadManyStrategy;
 use state::PartitionState;
+use state::QueryChunkState;
 use streaming::StreamingStrategy;
 use unordered::UnorderedStrategy;
 
@@ -37,10 +42,13 @@ pub enum ItemProducer {
     Streaming(StreamingStrategy),
     /// Results should be merged by comparing the sort order of the `ORDER BY` items. Results cannot be streamed, because each partition will provide data in a local order.
     NonStreaming(NonStreamingStrategy),
+    /// Results should be merged by reading each partition individually, exhausting one partition before moving to the next.
+    /// Final ordering should happen once all results are available.
+    ReadMany(ReadManyStrategy),
 }
 
 pub fn create_partition_state(
-    pkranges: impl IntoIterator<Item = PartitionKeyRange>,
+pkranges: impl IntoIterator<Item = PartitionKeyRange>,
 ) -> Vec<PartitionState> {
     let mut partitions = pkranges
         .into_iter()
@@ -50,6 +58,54 @@ pub fn create_partition_state(
     partitions.sort();
     partitions
 }
+
+
+pub fn create_query_chunk_state(
+    query_chunks: &Vec<HashMap<String, Vec<(usize, String, String)>>>,
+) -> Vec<QueryChunkState> {
+    // let query_chunks: Vec<HashMap<String, Vec<(usize, String, String)>>> = query_chunks.into_iter().collect();
+
+    let mut chunk_states = Vec::with_capacity(query_chunks.len());
+
+    for i in 0..query_chunks.len() {
+        let map = &query_chunks[i];
+
+        let key: String = map
+            .keys()
+            .next()
+            .cloned()
+            .expect("Expected exactly one key in each hashmap");
+
+        let query = create_query_chunk_query(&key, &map);
+        tracing::trace!(?query, "created query chunk query from partitioned items");
+
+        chunk_states.push(QueryChunkState::new(i, key, query));
+    }
+    chunk_states
+}
+
+
+fn create_query_chunk_query(
+    key: &str,
+    map: &HashMap<String, Vec<(usize, String, String)>>,
+) -> String {
+    let identities = map
+        .get(key)
+        .expect("Expected exactly one entry in each hashmap");
+
+    if identities.is_empty() {
+        return "SELECT * FROM c WHERE 1 = 0".to_string();
+    }
+
+    let conditions = identities
+        .iter()
+        .map(|(_, id, _)| format!("( c.id = {id} )"))
+        .collect::<Vec<_>>()
+        .join(" OR ");
+
+    format!("SELECT * FROM c WHERE ( {conditions} )")
+}
+
 
 impl ItemProducer {
     /// Creates a producer for queries without ORDER BY clauses.
@@ -100,15 +156,25 @@ impl ItemProducer {
         Self::NonStreaming(NonStreamingStrategy::new(pkranges, sorting))
     }
 
+    /// Creates a producer for read many operations.
+    ///
+    /// This strategy processes query chunks sequentially, where each chunk will map to its own partition key range.
+    /// It will exhaust one chunk completely before moving to the next.
+    pub fn read_many(
+        query_chunks: Vec<HashMap<String, Vec<(usize, String, String)>>>,
+    ) -> Self {
+        Self::ReadMany(ReadManyStrategy::new(query_chunks))
+    }
+
     /// Gets the [`DataRequest`]s that must be performed in order to add additional data to the partition buffers.
-    pub fn data_requests(&mut self) -> Vec<DataRequest> {
+    pub fn data_requests(&mut self) -> crate::Result<Vec<DataRequest>> {
         // The default value for Vec is an empty vec, which doesn't allocate until items are added.
         match self {
-            ItemProducer::Unordered(s) => s.requests(),
-            ItemProducer::Streaming(s) => s.requests(),
-            ItemProducer::NonStreaming(s) => s.requests(),
+            ItemProducer::Unordered(s) => Ok(s.requests()),
+            ItemProducer::Streaming(s) => Ok(s.requests()),
+            ItemProducer::NonStreaming(s) => Ok(s.requests()),
+            ItemProducer::ReadMany(s) => Ok(s.requests()),
         }
-        .unwrap_or_default()
     }
 
     /// Provides additional data for the given partition.
@@ -122,6 +188,7 @@ impl ItemProducer {
             ItemProducer::Unordered(s) => s.provide_data(pkrange_id, data, continuation),
             ItemProducer::Streaming(s) => s.provide_data(pkrange_id, data, continuation),
             ItemProducer::NonStreaming(s) => s.provide_data(pkrange_id, data, continuation),
+            ItemProducer::ReadMany(s) => s.provide_data(pkrange_id, data, continuation),
         }
     }
 
@@ -132,6 +199,7 @@ impl ItemProducer {
             ItemProducer::Unordered(s) => s.produce_item(),
             ItemProducer::Streaming(s) => s.produce_item(),
             ItemProducer::NonStreaming(s) => s.produce_item(),
+            ItemProducer::ReadMany(s) => s.produce_item(),
         }
     }
 }
@@ -215,7 +283,7 @@ mod tests {
     ) -> crate::Result<Vec<Item>> {
         let mut items = Vec::new();
         loop {
-            let requests = producer.data_requests();
+            let requests = producer.data_requests()?;
             for request in requests {
                 let pkrange_id = request.pkrange_id.to_string();
                 if let Some(pages) = partitions.get_mut(&pkrange_id) {

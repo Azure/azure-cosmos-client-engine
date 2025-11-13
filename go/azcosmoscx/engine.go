@@ -107,6 +107,70 @@ func (p *clientEngineQueryPipeline) Run() (*queryengine.PipelineResult, error) {
 }
 
 // ProvideData provides more data for a given partition key range ID, using data retrieved from the server in response to making a DataRequest.
-func (p *clientEngineQueryPipeline) ProvideData(result queryengine.QueryResult) error {
-	return p.pipeline.ProvideData(result.PartitionKeyRangeID, string(result.Data), result.NextContinuation)
+func (p *clientEngineQueryPipeline) ProvideData(results []queryengine.QueryResult) error {
+	return p.pipeline.ProvideData(results)
+}
+
+type clientEngineReadManyPipeline struct {
+	pipeline  *Pipeline
+	query     string
+	completed bool
+}
+
+// CreateReadManyPipeline creates the relevant partition-scoped queries for executing the read many operation along with the pipeline to run them.
+func (e *nativeQueryEngine) CreateReadManyPipeline(items string, pkranges string, pkKind string, pkVersion int32) (queryengine.QueryPipeline, error) {
+	pipeline, err := newReadManyPipeline(items, pkranges, pkKind, pkVersion)
+	if err != nil {
+		return nil, err
+	}
+
+	return &clientEngineReadManyPipeline{pipeline, "", false}, nil
+}
+
+func (p *clientEngineReadManyPipeline) Query() string {
+	return p.query
+}
+
+func (p *clientEngineReadManyPipeline) Close() {
+	p.pipeline.Free()
+}
+
+func (p *clientEngineReadManyPipeline) IsComplete() bool {
+	return p.pipeline.IsFreed() || p.completed
+}
+
+func (p *clientEngineReadManyPipeline) ProvideData(results []queryengine.QueryResult) error {
+	return p.pipeline.ProvideData(results)
+}
+
+func (p *clientEngineReadManyPipeline) Run() (*queryengine.PipelineResult, error) {
+	result, err := p.pipeline.NextBatch()
+	defer result.Free()
+	if err != nil {
+		return nil, err
+	}
+
+	p.completed = result.IsCompleted()
+
+	items, err := result.ItemsCloned()
+	if err != nil {
+		return nil, err
+	}
+
+	sourceRequests, err := result.Requests()
+	if err != nil {
+		return nil, err
+	}
+	requests := make([]queryengine.QueryRequest, 0, len(sourceRequests))
+	for _, request := range sourceRequests {
+		requests = append(requests, queryengine.QueryRequest{
+			PartitionKeyRangeID: string(request.PartitionKeyRangeID().CloneString()),
+			Continuation:        string(request.Continuation().CloneString()),
+		})
+	}
+	return &queryengine.PipelineResult{
+		IsCompleted: p.completed,
+		Items:       items,
+		Requests:    requests,
+	}, nil
 }
