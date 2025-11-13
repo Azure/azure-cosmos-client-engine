@@ -10,7 +10,7 @@ use crate::{
     ErrorKind,
 };
 
-use super::{create_query_chunk_state, state::QueryChunkState};
+use super::{create_query_chunk_states, state::QueryChunkState};
 
 pub struct ReadManyStrategy {
     pub query_chunks: Vec<HashMap<String, Vec<(usize, String, String)>>>,
@@ -24,7 +24,7 @@ impl ReadManyStrategy {
     pub fn new(
         query_chunks: Vec<HashMap<String, Vec<(usize, String, String)>>>,
     ) -> Self {
-        let query_chunk_states = create_query_chunk_state(&query_chunks);
+        let query_chunk_states = create_query_chunk_states(&query_chunks);
         Self {
             query_chunks: query_chunks,
             current_query_chunk_index: 0,

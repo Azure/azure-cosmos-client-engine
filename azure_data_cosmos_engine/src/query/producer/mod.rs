@@ -60,11 +60,9 @@ pub fn create_partition_state(
 }
 
 
-pub fn create_query_chunk_state(
+pub fn create_query_chunk_states(
     query_chunks: &Vec<HashMap<String, Vec<(usize, String, String)>>>,
 ) -> Vec<QueryChunkState> {
-    // let query_chunks: Vec<HashMap<String, Vec<(usize, String, String)>>> = query_chunks.into_iter().collect();
-
     let mut chunk_states = Vec::with_capacity(query_chunks.len());
 
     for i in 0..query_chunks.len() {
