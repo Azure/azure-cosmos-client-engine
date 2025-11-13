@@ -4,8 +4,8 @@
 use std::{collections::HashMap, ffi::CStr, str::FromStr};
 
 use crate::{
+    query::{node::AggregatePipelineNode, query_result::QueryResultShape, ItemIdentity},
     ErrorKind,
-    query::{ItemIdentity, node::AggregatePipelineNode, query_result::QueryResultShape}
 };
 
 use crate::hash::{get_hashed_partition_key_string, PartitionKeyKind, PartitionKeyValue};
@@ -428,7 +428,7 @@ impl ReadManyPipeline {
         let item_identities: Vec<ItemIdentity> = item_identities.into_iter().collect();
         tracing::trace!(?item_identities, "received item identities for read many");
         // Group items by their partition key range ID.
-        let items_by_range = 
+        let items_by_range =
             Self::partition_items_by_range(item_identities, &mut pkranges, pk_kind, pk_version);
         tracing::trace!(
             ?items_by_range,
@@ -561,7 +561,7 @@ impl ReadManyPipeline {
             let pk_value = &pk_items[0].2;
             let pk_value_val = PartitionKeyValue::String(pk_value.clone()); // TODO: Also needs PK to be updated here
 
-            let epk_range_string = 
+            let epk_range_string =
                 get_hashed_partition_key_string(&[pk_value_val], &pk_kind_enum, pk_version);
             let epk_range = QueryRange::new(&epk_range_string, &epk_range_string, true, true);
             get_overlapping_pk_ranges(pkranges, &[epk_range]);

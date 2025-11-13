@@ -103,9 +103,9 @@ pub struct ItemIdentity {
 
 impl ItemIdentity {
     pub fn new(id: impl Into<String>, pk: impl Into<String>) -> Self {
-         Self {
-             id: id.into(),
-             pk: pk.into(),
+        Self {
+            id: id.into(),
+            pk: pk.into(),
         }
     }
 }
@@ -126,7 +126,8 @@ impl DataRequest {
     pub fn new(
         pkrange_id: impl Into<Cow<'static, str>>,
         continuation: Option<String>,
-        query: Option<String>) -> Self {
+        query: Option<String>,
+    ) -> Self {
         Self {
             pkrange_id: pkrange_id.into(),
             continuation,

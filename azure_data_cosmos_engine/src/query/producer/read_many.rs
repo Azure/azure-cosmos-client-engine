@@ -38,7 +38,7 @@ impl ReadManyStrategy {
         let mut requests = Vec::new();
         while requests.is_empty() {
             // If there are no more partitions, return None.
-            let Some(query_chunk_state) = 
+            let Some(query_chunk_state) =
                 self.query_chunk_states.get(self.current_query_chunk_index)
             else {
                 break;

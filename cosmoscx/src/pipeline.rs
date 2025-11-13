@@ -129,7 +129,7 @@ pub extern "C" fn cosmoscx_v0_readmany_pipeline_create<'a>(
             item_identities.identities,
             pkranges.ranges,
             pk_kind_json,
-            pk_version
+            pk_version,
         )?;
         Ok(Box::new(pipeline))
     }

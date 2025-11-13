@@ -156,7 +156,7 @@ impl ItemProducer {
     /// This strategy processes query chunks sequentially, where each chunk will map to its own partition key range.
     /// It will exhaust one chunk completely before moving to the next.
     pub fn read_many(query_chunks: Vec<HashMap<String, Vec<(usize, String, String)>>>) -> Self {
-         Self::ReadMany(ReadManyStrategy::new(query_chunks))
+        Self::ReadMany(ReadManyStrategy::new(query_chunks))
      }
 
     /// Gets the [`DataRequest`]s that must be performed in order to add additional data to the partition buffers.
