@@ -49,7 +49,6 @@ impl FromStr for PartitionKeyKind {
     }
 }
 
-
 impl PartitionKeyValue {
     /// Common hashing writer core: writes type marker + payload (string suffix used by V2).
     fn write_for_hashing_core(&self, string_suffix: u8, writer: &mut Vec<u8>) {

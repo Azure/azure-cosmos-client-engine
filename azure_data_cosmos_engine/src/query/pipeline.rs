@@ -4,10 +4,11 @@
 use std::{collections::HashMap, ffi::CStr, str::FromStr};
 
 use crate::{
-    ErrorKind, query::{ItemIdentity, node::AggregatePipelineNode, query_result::QueryResultShape}
+    ErrorKind,
+    query::{ItemIdentity, node::AggregatePipelineNode, query_result::QueryResultShape}
 };
 
-use crate::hash::{PartitionKeyKind, PartitionKeyValue, get_hashed_partition_key_string};
+use crate::hash::{get_hashed_partition_key_string, PartitionKeyKind, PartitionKeyValue};
 
 use super::{
     node::{LimitPipelineNode, OffsetPipelineNode, PipelineNode, PipelineSlice},
@@ -427,8 +428,12 @@ impl ReadManyPipeline {
         let item_identities: Vec<ItemIdentity> = item_identities.into_iter().collect();
         tracing::trace!(?item_identities, "received item identities for read many");
         // Group items by their partition key range ID.
-        let items_by_range = Self::partition_items_by_range(item_identities, &mut pkranges, pk_kind, pk_version);
-        tracing::trace!(?items_by_range, "grouped item identities by partition key range");
+        let items_by_range = 
+            Self::partition_items_by_range(item_identities, &mut pkranges, pk_kind, pk_version);
+        tracing::trace!(
+            ?items_by_range,
+            "grouped item identities by partition key range"
+        );
         // Create query chunks from the partitioned items, splitting total list into 1000 max item queries.
         // Each chunk is represented as vector of mappings of partition key range IDs to lists of tuples containing the original index, item ID, and partition key value.
         let query_chunks = Self::create_query_chunks_from_partitioned_items(&items_by_range);
@@ -528,7 +533,6 @@ impl ReadManyPipeline {
         })
     }
 
-
     // Groups items by their partition key range ID efficiently while preserving original order.
     // Returns a mapping of partition key range IDs to lists of tuples containing the original index, item ID, and partition key value.
     fn partition_items_by_range(
@@ -546,15 +550,19 @@ impl ReadManyPipeline {
         // Group items by PK value (string or number) - only string for now since we don't have PartitionKeyValue logic yet.
         for (idx, identity) in item_identities.iter().enumerate() {
             let pk_value = identity.pk.clone(); // PartitionKeyValue is enum { String(String), Number(f64) }
-            items_by_pk_value.entry(pk_value.clone()).or_default().push((idx, identity.id.clone(), pk_value));
+            items_by_pk_value
+                .entry(pk_value.clone())
+                .or_default()
+                .push((idx, identity.id.clone(), pk_value));
         }
 
         // For each PK group, compute EPK range and find overlapping ranges
         for pk_items in items_by_pk_value.values() {
             let pk_value = &pk_items[0].2;
-            let pk_value_val = PartitionKeyValue::String(pk_value.clone());  // TODO: Also needs PK to be updated here
+            let pk_value_val = PartitionKeyValue::String(pk_value.clone()); // TODO: Also needs PK to be updated here
 
-            let epk_range_string = get_hashed_partition_key_string(&[pk_value_val], &pk_kind_enum, pk_version);
+            let epk_range_string = 
+                get_hashed_partition_key_string(&[pk_value_val], &pk_kind_enum, pk_version);
             let epk_range = QueryRange::new(&epk_range_string, &epk_range_string, true, true);
             get_overlapping_pk_ranges(pkranges, &[epk_range]);
 
@@ -568,7 +576,6 @@ impl ReadManyPipeline {
         }
         items_by_partition
     }
-
 
     // Creates query chunks from partitioned items, ensuring no chunk exceeds the maximum item limit.
     // Each chunk is represented as vector of mappings of partition key range IDs to lists of tuples containing the original index, item ID, and partition key value.

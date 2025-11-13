@@ -4,9 +4,7 @@
 use std::collections::{HashMap, VecDeque};
 
 use crate::{
-    query::{
-        node::PipelineNodeResult, query_result::QueryResultShape, DataRequest, QueryResult,
-    },
+    query::{node::PipelineNodeResult, query_result::QueryResultShape, DataRequest, QueryResult},
     ErrorKind,
 };
 
@@ -21,9 +19,7 @@ pub struct ReadManyStrategy {
 }
 
 impl ReadManyStrategy {
-    pub fn new(
-        query_chunks: Vec<HashMap<String, Vec<(usize, String, String)>>>,
-    ) -> Self {
+    pub fn new(query_chunks: Vec<HashMap<String, Vec<(usize, String, String)>>>) -> Self {
         let query_chunk_states = create_query_chunk_states(&query_chunks);
         Self {
             query_chunks: query_chunks,
@@ -42,7 +38,9 @@ impl ReadManyStrategy {
         let mut requests = Vec::new();
         while requests.is_empty() {
             // If there are no more partitions, return None.
-            let Some(query_chunk_state) = self.query_chunk_states.get(self.current_query_chunk_index) else {
+            let Some(query_chunk_state) = 
+                self.query_chunk_states.get(self.current_query_chunk_index)
+            else {
                 break;
             };
             match query_chunk_state.request() {
@@ -75,7 +73,8 @@ impl ReadManyStrategy {
         // Update the query chunk state with the continuation token
         let query_chunk_state = self
             .query_chunk_states
-            .get_mut(self.current_query_chunk_index).ok_or_else(|| {
+            .get_mut(self.current_query_chunk_index)
+            .ok_or_else(|| {
                 ErrorKind::InternalError.with_message(format!(
                     "no query chunk state found for index {}",
                     self.current_query_chunk_index

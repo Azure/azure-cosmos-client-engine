@@ -4,7 +4,7 @@
 //! Functions related to creating and executing query pipelines.
 
 use azure_data_cosmos_engine::{
-    query::{PartitionKeyRange, QueryPipeline, QueryPlan, ItemIdentity, ReadManyPipeline},
+    query::{ItemIdentity, PartitionKeyRange, QueryPipeline, QueryPlan, ReadManyPipeline},
     ErrorKind,
 };
 use serde::Deserialize;
@@ -125,7 +125,12 @@ pub extern "C" fn cosmoscx_v0_readmany_pipeline_create<'a>(
         // SAFETY: We should no longer need either of the parameter slices, we copied them into owned data.
 
         tracing::debug!(item_identities = ?item_identities, pkranges = ?pkranges.ranges, pk_kind = ?pk_kind_json, pk_version = ?pk_version, "creating readmany pipeline");
-        let pipeline = ReadManyPipeline::new(item_identities.identities, pkranges.ranges, pk_kind_json, pk_version)?;
+        let pipeline = ReadManyPipeline::new(
+            item_identities.identities,
+            pkranges.ranges,
+            pk_kind_json,
+            pk_version
+        )?;
         Ok(Box::new(pipeline))
     }
 
