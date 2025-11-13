@@ -157,7 +157,7 @@ impl ItemProducer {
     /// It will exhaust one chunk completely before moving to the next.
     pub fn read_many(query_chunks: Vec<HashMap<String, Vec<(usize, String, String)>>>) -> Self {
         Self::ReadMany(ReadManyStrategy::new(query_chunks))
-     }
+    }
 
     /// Gets the [`DataRequest`]s that must be performed in order to add additional data to the partition buffers.
     pub fn data_requests(&mut self) -> crate::Result<Vec<DataRequest>> {
