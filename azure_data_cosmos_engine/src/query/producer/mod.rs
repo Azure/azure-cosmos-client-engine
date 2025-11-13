@@ -48,7 +48,7 @@ pub enum ItemProducer {
 }
 
 pub fn create_partition_state(
-pkranges: impl IntoIterator<Item = PartitionKeyRange>,
+    pkranges: impl IntoIterator<Item = PartitionKeyRange>,
 ) -> Vec<PartitionState> {
     let mut partitions = pkranges
         .into_iter()
