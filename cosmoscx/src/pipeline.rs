@@ -9,7 +9,10 @@ use azure_data_cosmos_engine::{
 };
 use serde::Deserialize;
 
-use crate::{result::ResultExt, slice::OwnedSlice};
+use crate::{
+    result::ResultExt,
+    slice::{OwnedSlice, Slice},
+};
 
 use super::{
     result::{FfiResult, ResultCode},
@@ -196,6 +199,19 @@ pub struct PipelineResult {
     requests: OwnedSlice<DataRequest>,
 }
 
+/// Represents a response to a single data request from the pipeline.
+#[repr(C)]
+pub struct QueryResponse<'a> {
+    /// The Partition Key Range ID this response is for.
+    pkrange_id: Str<'a>,
+
+    /// The raw data being provided to the pipeline in response to the request.
+    data: Str<'a>,
+
+    /// The continuation token to provide, or an empty slice (len == 0) if no continuation should be provided.
+    continuation: Str<'a>,
+}
+
 /// Executes a single turn of the query pipeline.
 ///
 /// See [`QueryPipeline::run`](azure_data_cosmos_engine::query::QueryPipeline::run) for more information on "turns".
@@ -265,32 +281,36 @@ pub unsafe extern "C" fn cosmoscx_v0_query_pipeline_free_result(result: *mut Pip
 #[no_mangle]
 pub extern "C" fn cosmoscx_v0_query_pipeline_provide_data<'a>(
     pipeline: *mut Pipeline,
-    pkrange_id: Str<'a>,
-    data: Str<'a>,
-    continuation: Str<'a>,
+    responses: Slice<'a, QueryResponse<'a>>,
 ) -> ResultCode {
     fn inner<'a>(
         pipeline: *mut Pipeline,
-        pkrange_id: Str<'a>,
-        data: Str<'a>,
-        continuation: Str<'a>,
+        responses: Slice<'a, QueryResponse<'a>>,
     ) -> Result<(), azure_data_cosmos_engine::Error> {
         let pipeline = unsafe { Pipeline::unwrap_ptr(pipeline) }?;
 
-        // Parse the data
-        let pkrange_id = unsafe { pkrange_id.as_str().not_null()? };
-        let data = unsafe { data.as_str().not_null()? };
-        let continuation = unsafe {
-            match continuation.into_string()? {
-                // Normalize empty strings to 'None'
-                Some(s) if s.is_empty() => None,
-                x => x,
-            }
-        };
+        let responses = unsafe { responses.as_slice() }.ok_or_else(|| {
+            ErrorKind::ArgumentNull.with_message("responses slice pointer was null")
+        })?;
 
-        // Pass the raw bytes directly to the pipeline
-        pipeline.provide_data(pkrange_id, data.as_bytes(), continuation)
+        for response in responses {
+            let pkrange_id = unsafe { response.pkrange_id.as_str().not_null()? };
+            let data = unsafe { response.data.as_str().not_null()? };
+            let continuation = unsafe {
+                match response.continuation.into_string()? {
+                    // Normalize empty strings to 'None'
+                    Some(s) if s.is_empty() => None,
+                    x => x,
+                }
+            };
+            // Pass the raw bytes directly to the pipeline
+            pipeline.provide_data(
+                pkrange_id,
+                data.as_bytes(),
+                continuation,
+            )?;
+        }
+        Ok(())
     }
-
-    inner(pipeline, pkrange_id, data, continuation).into()
+    inner(pipeline, responses).into()
 }

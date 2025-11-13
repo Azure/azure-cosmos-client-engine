@@ -251,6 +251,26 @@ typedef struct CosmosCxPipelineResult {
   struct CosmosCxOwnedSlice_DataRequest requests;
 } CosmosCxPipelineResult;
 
+/**
+ * A result type for FFI functions.
+ *
+ * An `FfiResult` is returned from a function that both returns a value AND can fail.
+ *
+ * The C representation of this struct is:
+ *
+ * ```
+ * struct {
+ *   intptr_t code; // The result code, which will be '0' if the operation succeeded
+ *   const void *value; // A pointer to the returned value, which will be `nullptr`/`0` if the operation failed.
+ * };
+ * ```
+ *
+ * The data pointed to by the `value` pointer is OWNED BY THE ENGINE and must be freed by calling the appropriate free function, depending on the data.
+ */
+typedef struct CosmosCxFfiResult_PipelineResult {
+  CosmosCxResultCode code;
+  const struct CosmosCxPipelineResult *value;
+} CosmosCxFfiResult_PipelineResult;
 
 /**
  * Represents a response to a single data request from the pipeline.
@@ -285,27 +305,6 @@ typedef struct CosmosCxSlice_QueryResponse {
   const struct CosmosCxQueryResponse *data;
   uintptr_t len;
 } CosmosCxSlice_QueryResponse;
-
-/**
- * A result type for FFI functions.
- *
- * An `FfiResult` is returned from a function that both returns a value AND can fail.
- *
- * The C representation of this struct is:
- *
- * ```
- * struct {
- *   intptr_t code; // The result code, which will be '0' if the operation succeeded
- *   const void *value; // A pointer to the returned value, which will be `nullptr`/`0` if the operation failed.
- * };
- * ```
- *
- * The data pointed to by the `value` pointer is OWNED BY THE ENGINE and must be freed by calling the appropriate free function, depending on the data.
- */
-typedef struct CosmosCxFfiResult_PipelineResult {
-  CosmosCxResultCode code;
-  const struct CosmosCxPipelineResult *value;
-} CosmosCxFfiResult_PipelineResult;
 
 /**
  * Returns the version of the Cosmos Client Engine in use.
@@ -400,6 +399,4 @@ void cosmoscx_v0_query_pipeline_free_result(struct CosmosCxPipelineResult *resul
  * Inserts additional raw data, in response to a [`DataRequest`] from the pipeline.
  */
 CosmosCxResultCode cosmoscx_v0_query_pipeline_provide_data(struct CosmosCxPipeline *pipeline,
-                                                           CosmosCxStr pkrange_id,
-                                                           CosmosCxStr data,
-                                                           CosmosCxStr continuation);
+                                                           struct CosmosCxSlice_QueryResponse responses);
