@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-use std::fmt::Write;
+use std::{fmt::Write, str::FromStr};
 
 use crate::murmur_hash::{murmurhash3_128, murmurhash3_32};
 
@@ -35,6 +35,18 @@ pub enum PartitionKeyKind {
     Hash,
     MultiHash,
     Other,
+}
+
+impl FromStr for PartitionKeyKind {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "hash" => Ok(PartitionKeyKind::Hash),
+            "multihash" => Ok(PartitionKeyKind::MultiHash),
+            _ => Ok(PartitionKeyKind::Other),
+        }
+    }
 }
 
 impl PartitionKeyValue {
@@ -179,8 +191,8 @@ impl PartitionKeyValue {
 /// Returns a hex string representation of a partition key value.
 pub fn get_hashed_partition_key_string(
     pk_value: &[PartitionKeyValue],
-    kind: PartitionKeyKind,
-    version: u8,
+    kind: &PartitionKeyKind,
+    version: u32,
 ) -> String {
     if pk_value.is_empty() {
         return MIN_INCLUSIVE_EFFECTIVE_PARTITION_KEY.to_string();
@@ -316,7 +328,7 @@ mod tests {
 
     #[test]
     fn test_empty_pk() {
-        let result = get_hashed_partition_key_string(&[], PartitionKeyKind::Hash, 0);
+        let result = get_hashed_partition_key_string(&[], &PartitionKeyKind::Hash, 0);
         assert_eq!(result, MIN_INCLUSIVE_EFFECTIVE_PARTITION_KEY);
     }
 
@@ -324,7 +336,7 @@ mod tests {
     fn test_infinity_pk() {
         let result = get_hashed_partition_key_string(
             &[PartitionKeyValue::Infinity],
-            PartitionKeyKind::Hash,
+            &PartitionKeyKind::Hash,
             0,
         );
         assert_eq!(result, MAX_EXCLUSIVE_EFFECTIVE_PARTITION_KEY);
@@ -333,7 +345,7 @@ mod tests {
     #[test]
     fn test_single_string_hash_v2() {
         let comp = PartitionKeyValue::String("customer42".to_string());
-        let result = get_hashed_partition_key_string(&[comp], PartitionKeyKind::Hash, 2);
+        let result = get_hashed_partition_key_string(&[comp], &PartitionKeyKind::Hash, 2);
         // result should be a hex string of length 32 (16 bytes * 2 chars)
         assert_eq!(result.len(), 32);
         assert_eq!(
@@ -422,7 +434,7 @@ mod tests {
         ];
 
         for (component, expected) in cases {
-            let actual = get_hashed_partition_key_string(&[component], PartitionKeyKind::Hash, 2);
+            let actual = get_hashed_partition_key_string(&[component], &PartitionKeyKind::Hash, 2);
             assert_eq!(actual, expected, "Mismatch for component hash");
         }
     }
@@ -480,7 +492,7 @@ mod tests {
         ];
         let expected = "3032DECBE2AB1768D8E0AEDEA35881DF";
 
-        let actual = get_hashed_partition_key_string(&component, PartitionKeyKind::Hash, 2);
+        let actual = get_hashed_partition_key_string(&component, &PartitionKeyKind::Hash, 2);
         assert_eq!(actual, expected, "Mismatch for component hash");
     }
 
@@ -510,13 +522,13 @@ mod tests {
 
         for (component, expected) in cases {
             let actual =
-                get_hashed_partition_key_string(&[component.clone()], PartitionKeyKind::Hash, 1);
+                get_hashed_partition_key_string(&[component.clone()], &PartitionKeyKind::Hash, 1);
             assert_eq!(
                 actual, expected,
                 "Mismatch for V1 component hash (enable test after implementation)"
             );
             // unspecified version defaults to V1
-            let actual = get_hashed_partition_key_string(&[component], PartitionKeyKind::Hash, 1);
+            let actual = get_hashed_partition_key_string(&[component], &PartitionKeyKind::Hash, 1);
             assert_eq!(
                 actual, expected,
                 "Mismatch for V1 component hash (enable test after implementation)"

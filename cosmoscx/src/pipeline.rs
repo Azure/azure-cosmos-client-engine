@@ -4,12 +4,15 @@
 //! Functions related to creating and executing query pipelines.
 
 use azure_data_cosmos_engine::{
-    query::{PartitionKeyRange, QueryPipeline, QueryPlan},
+    query::{ItemIdentity, PartitionKeyRange, QueryPipeline, QueryPlan},
     ErrorKind,
 };
 use serde::Deserialize;
 
-use crate::{result::ResultExt, slice::OwnedSlice};
+use crate::{
+    result::ResultExt,
+    slice::{OwnedSlice, Slice},
+};
 
 use super::{
     result::{FfiResult, ResultCode},
@@ -41,6 +44,7 @@ impl Pipeline {
 /// Creates a new query pipeline from a JSON query plan and list of partitions.
 ///
 /// # Parameters
+/// - `query`: A [`Str`] containing the query to be executed.
 /// - `query_plan_json`: A [`Str`] containing the serialized query plan, as recieved from the gateway, in JSON.
 /// - `pkranges`: A [`Str`] containing the serialized partition key ranges list, as recieved from the gateway, in JSON.
 #[no_mangle]
@@ -77,6 +81,58 @@ pub extern "C" fn cosmoscx_v0_query_pipeline_create<'a>(
     }
 
     inner(query, query_plan_json, pkranges).into()
+}
+
+/// Creates the relevant partition-scoped queries for executing the read many operation along with the pipeline to run them.
+///
+/// # Parameters
+/// - `item_identities`: A [`Str`] containing the serialized item identities in JSON.
+/// - `pkranges`: A [`Str`] containing the serialized partition key ranges list, as received from the gateway, in JSON.
+/// - `pk_kind`: A [`Str`] containing the partition key kind.
+/// - `pk_version`: The partition key version.
+#[no_mangle]
+pub extern "C" fn cosmoscx_v0_readmany_pipeline_create<'a>(
+    item_identities: Str<'a>,
+    pkranges: Str<'a>,
+    pk_kind: Str<'a>,
+    pk_version: u32,
+) -> FfiResult<Pipeline> {
+    #[derive(Deserialize)]
+    struct PartitionKeyRangeResult {
+        #[serde(rename = "PartitionKeyRanges")]
+        pub ranges: Vec<PartitionKeyRange>,
+    }
+
+    fn inner<'a>(
+        item_identities: Str<'a>,
+        pkranges: Str<'a>,
+        pk_kind: Str<'a>,
+        pk_version: u32,
+    ) -> Result<Box<QueryPipeline>, azure_data_cosmos_engine::Error> {
+        tracing::debug!("creating readmany pipeline here");
+        let item_identities_json = unsafe { item_identities.as_str().not_null() }?;
+        let pkranges_json = unsafe { pkranges.as_str().not_null() }?;
+        let pk_kind_json = unsafe { pk_kind.as_str().not_null() }?;
+        let pk_version = pk_version;
+        tracing::debug!(item_identities = ?item_identities_json, pkranges = ?pkranges_json, pk_kind = ?pk_kind_json, pk_version = ?pk_version, "parsing readmany pipeline parameters");
+        let pkranges: PartitionKeyRangeResult = serde_json::from_str(pkranges_json)
+            .map_err(|e: serde_json::Error| ErrorKind::InvalidGatewayResponse.with_source(e))?;
+        let item_identities: Vec<ItemIdentity> = serde_json::from_str(item_identities_json)
+            .map_err(|e: serde_json::Error| ErrorKind::InvalidGatewayResponse.with_source(e))?;
+
+        // SAFETY: We should no longer need either of the parameter slices, we copied them into owned data.
+
+        tracing::debug!(item_identities = ?item_identities, pkranges = ?pkranges.ranges, pk_kind = ?pk_kind_json, pk_version = ?pk_version, "creating readmany pipeline");
+        let pipeline = QueryPipeline::for_read_many(
+            item_identities,
+            pkranges.ranges,
+            pk_kind_json,
+            pk_version,
+        )?;
+        Ok(Box::new(pipeline))
+    }
+
+    inner(item_identities, pkranges, pk_kind, pk_version).into()
 }
 
 /// Frees the memory associated with a pipeline.
@@ -119,6 +175,9 @@ pub struct DataRequest {
 
     /// An [`OwnedString`] containing the continuation token to provide, or an empty slice (len == 0) if no continuation should be provided.
     continuation: OwnedString,
+
+    /// An [`OwnedString`] containing the query to be executed.
+    query: OwnedString,
 }
 
 /// Represents the result of a single execution of the query pipeline.
@@ -132,6 +191,19 @@ pub struct PipelineResult {
 
     /// An [`OwnedSlice`] of [`DataRequest`]s describing additional requests that must be made and provided to [`cosmoscx_v0_query_pipeline_provide_data`] before retrieving the next batch.
     requests: OwnedSlice<DataRequest>,
+}
+
+/// Represents a response to a single data request from the pipeline.
+#[repr(C)]
+pub struct QueryResponse<'a> {
+    /// The Partition Key Range ID this response is for.
+    pkrange_id: Str<'a>,
+
+    /// The raw data being provided to the pipeline in response to the request.
+    data: Str<'a>,
+
+    /// The continuation token to provide, or an empty slice (len == 0) if no continuation should be provided.
+    continuation: Str<'a>,
 }
 
 /// Executes a single turn of the query pipeline.
@@ -148,8 +220,11 @@ pub extern "C" fn cosmoscx_v0_query_pipeline_run(
     fn inner(
         pipeline: *mut Pipeline,
     ) -> Result<Box<PipelineResult>, azure_data_cosmos_engine::Error> {
+        tracing::debug!("cosmoscx_query_pipeline_run starting");
         let pipeline = unsafe { Pipeline::unwrap_ptr(pipeline) }?;
+        tracing::debug!("unwrapped pipeline");
         let result = pipeline.run()?;
+        tracing::debug!("pipeline run completed");
 
         // Box up each of the JSON values in the batch.
         let items = result
@@ -166,6 +241,10 @@ pub extern "C" fn cosmoscx_v0_query_pipeline_run(
             .map(|r| DataRequest {
                 pkrangeid: r.pkrange_id.into_owned().into(),
                 continuation: match r.continuation {
+                    None => OwnedSlice::EMPTY,
+                    Some(s) => s.into(),
+                },
+                query: match r.query {
                     None => OwnedSlice::EMPTY,
                     Some(s) => s.into(),
                 },
@@ -199,32 +278,36 @@ pub unsafe extern "C" fn cosmoscx_v0_query_pipeline_free_result(result: *mut Pip
 #[no_mangle]
 pub extern "C" fn cosmoscx_v0_query_pipeline_provide_data<'a>(
     pipeline: *mut Pipeline,
-    pkrange_id: Str<'a>,
-    data: Str<'a>,
-    continuation: Str<'a>,
+    responses: Slice<'a, QueryResponse<'a>>,
 ) -> ResultCode {
     fn inner<'a>(
         pipeline: *mut Pipeline,
-        pkrange_id: Str<'a>,
-        data: Str<'a>,
-        continuation: Str<'a>,
+        responses: Slice<'a, QueryResponse<'a>>,
     ) -> Result<(), azure_data_cosmos_engine::Error> {
         let pipeline = unsafe { Pipeline::unwrap_ptr(pipeline) }?;
 
-        // Parse the data
-        let pkrange_id = unsafe { pkrange_id.as_str().not_null()? };
-        let data = unsafe { data.as_str().not_null()? };
-        let continuation = unsafe {
-            match continuation.into_string()? {
-                // Normalize empty strings to 'None'
-                Some(s) if s.is_empty() => None,
-                x => x,
-            }
-        };
+        let responses = unsafe { responses.as_slice() }.ok_or_else(|| {
+            ErrorKind::ArgumentNull.with_message("responses slice pointer was null")
+        })?;
 
-        // Pass the raw bytes directly to the pipeline
-        pipeline.provide_data(pkrange_id, data.as_bytes(), continuation)
+        for response in responses {
+            let pkrange_id = unsafe { response.pkrange_id.as_str().not_null()? };
+            let data = unsafe { response.data.as_str().not_null()? };
+            let continuation = unsafe {
+                match response.continuation.into_string()? {
+                    // Normalize empty strings to 'None'
+                    Some(s) if s.is_empty() => None,
+                    x => x,
+                }
+            };
+            // Pass the raw bytes directly to the pipeline
+            pipeline.provide_data(
+                pkrange_id,
+                data.as_bytes(),
+                continuation,
+            )?;
+        }
+        Ok(())
     }
-
-    inner(pipeline, pkrange_id, data, continuation).into()
+    inner(pipeline, responses).into()
 }

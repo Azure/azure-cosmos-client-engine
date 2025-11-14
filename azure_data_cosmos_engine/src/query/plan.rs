@@ -196,3 +196,20 @@ pub struct QueryRange {
     #[cfg_attr(feature = "python_conversions", pyo3(item("isMaxInclusive")))]
     pub is_max_inclusive: bool,
 }
+
+impl QueryRange {
+    /// Creates a new [`QueryRange`].
+    pub fn new(
+        min: impl Into<String>,
+        max: impl Into<String>,
+        is_min_inclusive: bool,
+        is_max_inclusive: bool,
+    ) -> Self {
+        Self {
+            min: min.into(),
+            max: max.into(),
+            is_min_inclusive,
+            is_max_inclusive,
+        }
+    }
+}

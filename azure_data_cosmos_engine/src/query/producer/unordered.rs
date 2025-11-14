@@ -21,6 +21,17 @@ pub struct UnorderedStrategy {
     pub result_shape: QueryResultShape,
 }
 
+impl std::fmt::Debug for UnorderedStrategy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("UnorderedStrategy")
+            .field("partitions", &self.partitions)
+            .field("current_partition_index", &self.current_partition_index)
+            .field("current_pkrange_id", &self.current_pkrange_id)
+            .field("items_len", &self.items.len())
+            .finish()
+    }
+}
+
 impl UnorderedStrategy {
     pub fn new(
         pkranges: impl IntoIterator<Item = PartitionKeyRange>,
@@ -36,13 +47,15 @@ impl UnorderedStrategy {
         }
     }
 
-    pub fn requests(&mut self) -> Option<Vec<DataRequest>> {
+    pub fn requests(&mut self) -> Vec<DataRequest> {
         // In the unordered strategy, we simply return the first partition key range's request.
         // Once that partition is exhausted, we remove it from the list and return the next one.
         let mut requests = Vec::new();
         while requests.is_empty() {
-            // If there are no more partitions, return None.
-            let partition = self.partitions.get(self.current_partition_index)?;
+            // If there are no more partitions, we are done, return empty list.
+            let Some(partition) = self.partitions.get(self.current_partition_index) else {
+                break;
+            };
             match partition.request() {
                 Some(request) => {
                     tracing::trace!(pkrange_id = ?partition.pkrange.id, "requesting data for partition");
@@ -58,7 +71,7 @@ impl UnorderedStrategy {
                 }
             }
         }
-        Some(requests)
+        requests
     }
 
     pub fn provide_data(

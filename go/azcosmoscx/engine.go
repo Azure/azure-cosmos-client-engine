@@ -97,6 +97,7 @@ func (p *clientEngineQueryPipeline) Run() (*queryengine.PipelineResult, error) {
 		requests = append(requests, queryengine.QueryRequest{
 			PartitionKeyRangeID: string(request.PartitionKeyRangeID().CloneString()),
 			Continuation:        string(request.Continuation().CloneString()),
+			Query:               string(request.Query().CloneString()),
 		})
 	}
 	return &queryengine.PipelineResult{
@@ -107,6 +108,16 @@ func (p *clientEngineQueryPipeline) Run() (*queryengine.PipelineResult, error) {
 }
 
 // ProvideData provides more data for a given partition key range ID, using data retrieved from the server in response to making a DataRequest.
-func (p *clientEngineQueryPipeline) ProvideData(result queryengine.QueryResult) error {
-	return p.pipeline.ProvideData(result.PartitionKeyRangeID, string(result.Data), result.NextContinuation)
+func (p *clientEngineQueryPipeline) ProvideData(results []queryengine.QueryResult) error {
+	return p.pipeline.ProvideData(results)
+}
+
+// CreateReadManyPipeline creates the relevant partition-scoped queries for executing the read many operation along with the pipeline to run them.
+func (e *nativeQueryEngine) CreateReadManyPipeline(items string, pkranges string, pkKind string, pkVersion int32) (queryengine.QueryPipeline, error) {
+	pipeline, err := newReadManyPipeline(items, pkranges, pkKind, pkVersion)
+	if err != nil {
+		return nil, err
+	}
+
+	return &clientEngineQueryPipeline{pipeline, "", false}, nil
 }
