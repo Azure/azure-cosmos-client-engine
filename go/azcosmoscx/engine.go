@@ -97,6 +97,7 @@ func (p *clientEngineQueryPipeline) Run() (*queryengine.PipelineResult, error) {
 		requests = append(requests, queryengine.QueryRequest{
 			PartitionKeyRangeID: string(request.PartitionKeyRangeID().CloneString()),
 			Continuation:        string(request.Continuation().CloneString()),
+			Query:               string(request.Query().CloneString()),
 		})
 	}
 	return &queryengine.PipelineResult{
