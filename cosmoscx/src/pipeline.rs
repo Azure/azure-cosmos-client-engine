@@ -4,7 +4,7 @@
 //! Functions related to creating and executing query pipelines.
 
 use azure_data_cosmos_engine::{
-    query::{ItemIdentity, PartitionKeyRange, QueryPipeline, QueryPlan, ReadManyPipeline},
+    query::{ItemIdentity, PartitionKeyRange, QueryPipeline, QueryPlan},
     ErrorKind,
 };
 use serde::Deserialize;
@@ -108,7 +108,7 @@ pub extern "C" fn cosmoscx_v0_readmany_pipeline_create<'a>(
         pkranges: Str<'a>,
         pk_kind: Str<'a>,
         pk_version: u32,
-    ) -> Result<Box<ReadManyPipeline>, azure_data_cosmos_engine::Error> {
+    ) -> Result<Box<QueryPipeline>, azure_data_cosmos_engine::Error> {
         tracing::debug!("creating readmany pipeline here");
         let item_identities_json = unsafe { item_identities.as_str().not_null() }?;
         let pkranges_json = unsafe { pkranges.as_str().not_null() }?;
@@ -123,7 +123,7 @@ pub extern "C" fn cosmoscx_v0_readmany_pipeline_create<'a>(
         // SAFETY: We should no longer need either of the parameter slices, we copied them into owned data.
 
         tracing::debug!(item_identities = ?item_identities, pkranges = ?pkranges.ranges, pk_kind = ?pk_kind_json, pk_version = ?pk_version, "creating readmany pipeline");
-        let pipeline = ReadManyPipeline::new(
+        let pipeline = QueryPipeline::for_read_many(
             item_identities,
             pkranges.ranges,
             pk_kind_json,
@@ -220,8 +220,11 @@ pub extern "C" fn cosmoscx_v0_query_pipeline_run(
     fn inner(
         pipeline: *mut Pipeline,
     ) -> Result<Box<PipelineResult>, azure_data_cosmos_engine::Error> {
+        tracing::debug!("cosmoscx_query_pipeline_run starting");
         let pipeline = unsafe { Pipeline::unwrap_ptr(pipeline) }?;
+        tracing::debug!("unwrapped pipeline");
         let result = pipeline.run()?;
+        tracing::debug!("pipeline run completed");
 
         // Box up each of the JSON values in the batch.
         let items = result

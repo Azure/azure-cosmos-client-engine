@@ -18,7 +18,7 @@ mod engine;
 #[cfg(feature = "query_engine")]
 pub use engine::*;
 
-pub use pipeline::{QueryPipeline, ReadManyPipeline, SupportedFeatures, SUPPORTED_FEATURES};
+pub use pipeline::{QueryPipeline, SupportedFeatures, SUPPORTED_FEATURES};
 pub use plan::{DistinctType, QueryInfo, QueryPlan, QueryRange, SortOrder};
 pub use query_result::{QueryClauseItem, QueryResult, QueryResultShape};
 

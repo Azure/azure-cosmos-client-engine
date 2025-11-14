@@ -111,12 +111,6 @@ func (p *clientEngineQueryPipeline) ProvideData(results []queryengine.QueryResul
 	return p.pipeline.ProvideData(results)
 }
 
-type clientEngineReadManyPipeline struct {
-	pipeline  *Pipeline
-	query     string
-	completed bool
-}
-
 // CreateReadManyPipeline creates the relevant partition-scoped queries for executing the read many operation along with the pipeline to run them.
 func (e *nativeQueryEngine) CreateReadManyPipeline(items string, pkranges string, pkKind string, pkVersion int32) (queryengine.QueryPipeline, error) {
 	pipeline, err := newReadManyPipeline(items, pkranges, pkKind, pkVersion)
@@ -124,53 +118,5 @@ func (e *nativeQueryEngine) CreateReadManyPipeline(items string, pkranges string
 		return nil, err
 	}
 
-	return &clientEngineReadManyPipeline{pipeline, "", false}, nil
-}
-
-func (p *clientEngineReadManyPipeline) Query() string {
-	return p.query
-}
-
-func (p *clientEngineReadManyPipeline) Close() {
-	p.pipeline.Free()
-}
-
-func (p *clientEngineReadManyPipeline) IsComplete() bool {
-	return p.pipeline.IsFreed() || p.completed
-}
-
-func (p *clientEngineReadManyPipeline) ProvideData(results []queryengine.QueryResult) error {
-	return p.pipeline.ProvideData(results)
-}
-
-func (p *clientEngineReadManyPipeline) Run() (*queryengine.PipelineResult, error) {
-	result, err := p.pipeline.NextBatch()
-	defer result.Free()
-	if err != nil {
-		return nil, err
-	}
-
-	p.completed = result.IsCompleted()
-
-	items, err := result.ItemsCloned()
-	if err != nil {
-		return nil, err
-	}
-
-	sourceRequests, err := result.Requests()
-	if err != nil {
-		return nil, err
-	}
-	requests := make([]queryengine.QueryRequest, 0, len(sourceRequests))
-	for _, request := range sourceRequests {
-		requests = append(requests, queryengine.QueryRequest{
-			PartitionKeyRangeID: string(request.PartitionKeyRangeID().CloneString()),
-			Continuation:        string(request.Continuation().CloneString()),
-		})
-	}
-	return &queryengine.PipelineResult{
-		IsCompleted: p.completed,
-		Items:       items,
-		Requests:    requests,
-	}, nil
+	return &clientEngineQueryPipeline{pipeline, "", false}, nil
 }

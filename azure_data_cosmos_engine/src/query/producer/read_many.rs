@@ -21,6 +21,7 @@ pub struct ReadManyStrategy {
 impl ReadManyStrategy {
     pub fn new(query_chunks: Vec<HashMap<String, Vec<(usize, String, String)>>>) -> Self {
         let query_chunk_states = create_query_chunk_states(&query_chunks);
+        tracing::debug!("initialized query chunk states: {:?}", query_chunk_states);
         Self {
             query_chunks: query_chunks,
             current_query_chunk_index: 0,
@@ -36,6 +37,8 @@ impl ReadManyStrategy {
         // In the unordered strategy, we simply return the first partition key range's request.
         // Once that partition is exhausted, we remove it from the list and return the next one.
         let mut requests = Vec::new();
+        tracing::debug!(query_chunk_index = ?self.current_query_chunk_index, "getting requests for current query chunk");
+        tracing::debug!(query_chunk_states = ?self.query_chunk_states.get(self.current_query_chunk_index), "current query chunk state");
         while requests.is_empty() {
             // If there are no more partitions, return None.
             let Some(query_chunk_state) =

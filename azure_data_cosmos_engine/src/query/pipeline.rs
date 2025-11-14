@@ -298,6 +298,7 @@ impl QueryPipeline {
         }
 
         let requests = self.producer.data_requests()?;
+        tracing::debug!(requests = ?requests, "REQUESTS for next pipeline turn");
 
         Ok(PipelineResponse {
             items,
@@ -305,6 +306,120 @@ impl QueryPipeline {
             terminated: self.terminated,
         })
     }
+
+    /// Creates a new read many pipeline.
+    ///
+    /// # Parameters
+    /// * `item_identities` - An iterator that produces the [`ItemIdentity`]s to be read.
+    /// * `pkranges` - An iterator that produces the [`PartitionKeyRange`]s for the container to use for query generation.
+    /// * `pk_kind` - The partition key kind.
+    /// * `pk_version` - The partition key version.
+    #[tracing::instrument(level = "debug", skip_all, err)]
+    pub fn for_read_many(
+        item_identities: impl IntoIterator<Item = ItemIdentity>,
+        pkranges: impl IntoIterator<Item = PartitionKeyRange>,
+        pk_kind: &str,
+        pk_version: u32,
+    ) -> crate::Result<Self> {
+        let mut pkranges: Vec<PartitionKeyRange> = pkranges.into_iter().collect();
+        tracing::debug!(?pkranges, "creating readmany pipeline2");
+
+        // Grab item identities and start grouping them by partition key range.
+        // Output should be a list of tuples of (pkrangeid, query_string) to go over and generate item producers for.
+        let item_identities: Vec<ItemIdentity> = item_identities.into_iter().collect();
+        tracing::debug!(?item_identities, "received item identities for read many");
+        // Group items by their partition key range ID.
+        let items_by_range =
+            Self::partition_items_by_range(item_identities, &mut pkranges, pk_kind, pk_version);
+        tracing::debug!(
+            ?items_by_range,
+            "grouped item identities by partition key range"
+        );
+        // Create query chunks from the partitioned items, splitting total list into 1000 max item queries.
+        // Each chunk is represented as vector of mappings of partition key range IDs to lists of tuples containing the original index, item ID, and partition key value.
+        let query_chunks = Self::create_query_chunks_from_partitioned_items(&items_by_range);
+        tracing::debug!(?query_chunks, "created query chunks from partitioned items");
+
+        // Create the item producer for read many.
+        let producer = ItemProducer::read_many(query_chunks);
+
+        // We are building the pipeline outside-in.
+        // That means the first node we push will be the first node executed.
+        // This is relevant for nodes like OFFSET and LIMIT, which need to be ordered carefully.
+        let pipeline: Vec<Box<dyn PipelineNode>> = Vec::new();
+
+        Ok(Self {
+            query: String::new(),
+            pipeline,
+            producer,
+            terminated: false,
+        })
+    }
+
+    // Groups items by their partition key range ID efficiently while preserving original order.
+    // Returns a mapping of partition key range IDs to lists of tuples containing the original index, item ID, and partition key value.
+    fn partition_items_by_range(
+        item_identities: Vec<ItemIdentity>,
+        pkranges: &mut Vec<PartitionKeyRange>,
+        pk_kind: &str,
+        pk_version: u32,
+    ) -> HashMap<String, Vec<(usize, String, String)>> {
+        // TODO: Partition key values here are all currently strings - we need the same sort of PartitionKeyValue
+        // logic used in the main Rust SDK in order to compare and be able to use it within this method.
+        let mut items_by_partition: HashMap<String, Vec<(usize, String, String)>> = HashMap::new();
+        let mut items_by_pk_value: HashMap<String, Vec<(usize, String, String)>> = HashMap::new();
+        let pk_kind_enum = PartitionKeyKind::from_str(pk_kind).unwrap_or(PartitionKeyKind::Other);
+
+        // Group items by PK value (string or number) - only string for now since we don't have PartitionKeyValue logic yet.
+        for (idx, identity) in item_identities.iter().enumerate() {
+            let pk_value = identity.partition_key_value.clone(); // PartitionKeyValue is enum { String(String), Number(f64) }
+            items_by_pk_value
+                .entry(pk_value.clone())
+                .or_default()
+                .push((idx, identity.id.clone(), pk_value));
+        }
+
+        // For each PK group, compute EPK range and find overlapping ranges
+        for pk_items in items_by_pk_value.values() {
+            let pk_value = &pk_items[0].2;
+            let pk_value_val = PartitionKeyValue::String(pk_value.clone()); // TODO: Also needs PK to be updated here
+
+            let epk_range_string =
+                get_hashed_partition_key_string(&[pk_value_val], &pk_kind_enum, pk_version);
+            let epk_range = QueryRange::new(&epk_range_string, &epk_range_string, true, true);
+            get_overlapping_pk_ranges(pkranges, &[epk_range]);
+
+            if !pkranges.is_empty() {
+                let range_id = pkranges[0].id.clone();
+                items_by_partition
+                    .entry(range_id)
+                    .or_default()
+                    .extend(pk_items.clone());
+            }
+        }
+        items_by_partition
+    }
+
+    // Creates query chunks from partitioned items, ensuring no chunk exceeds the maximum item limit.
+    // Each chunk is represented as vector of mappings of partition key range IDs to lists of tuples containing the original index, item ID, and partition key value.
+    fn create_query_chunks_from_partitioned_items(
+        items_by_partition: &HashMap<String, Vec<(usize, String, String)>>,
+    ) -> Vec<HashMap<String, Vec<(usize, String, String)>>> {
+        let mut query_chunks: Vec<HashMap<String, Vec<(usize, String, String)>>> = Vec::new();
+        let max_items_per_query = 1000;
+        for (partition_id, partition_items) in items_by_partition {
+            for chunk_start in (0..partition_items.len()).step_by(max_items_per_query) {
+                let chunk_end = (chunk_start + max_items_per_query).min(partition_items.len());
+                let chunk = partition_items[chunk_start..chunk_end].to_vec();
+
+                let mut chunk_map = HashMap::new();
+                chunk_map.insert(partition_id.clone(), chunk);
+                query_chunks.push(chunk_map);
+            }
+        }
+        query_chunks
+    }
+
 }
 
 /// Rewrites the incoming query by replacing tokens within it.
@@ -396,207 +511,6 @@ fn pkrange_overlaps_query_range(pkrange: &PartitionKeyRange, query_range: &Query
     }
 
     true
-}
-
-pub struct ReadManyPipeline {
-    pipeline: Vec<Box<dyn PipelineNode>>,
-    producer: ItemProducer,
-    // Indicates if the pipeline has been terminated early.
-    terminated: bool,
-}
-
-impl ReadManyPipeline {
-    /// Creates a new read many pipeline.
-    ///
-    /// # Parameters
-    /// * `item_identities` - An iterator that produces the [`ItemIdentity`]s to be read.
-    /// * `pkranges` - An iterator that produces the [`PartitionKeyRange`]s for the container to use for query generation.
-    /// * `pk_kind` - The partition key kind.
-    /// * `pk_version` - The partition key version.
-    #[tracing::instrument(level = "debug", skip_all, err)]
-    pub fn new(
-        item_identities: impl IntoIterator<Item = ItemIdentity>,
-        pkranges: impl IntoIterator<Item = PartitionKeyRange>,
-        pk_kind: &str,
-        pk_version: u32,
-    ) -> crate::Result<Self> {
-        let mut pkranges: Vec<PartitionKeyRange> = pkranges.into_iter().collect();
-        tracing::debug!(?pkranges, "creating readmany pipeline2");
-
-        // Grab item identities and start grouping them by partition key range.
-        // Output should be a list of tuples of (pkrangeid, query_string) to go over and generate item producers for.
-        let item_identities: Vec<ItemIdentity> = item_identities.into_iter().collect();
-        tracing::debug!(?item_identities, "received item identities for read many");
-        // Group items by their partition key range ID.
-        let items_by_range =
-            Self::partition_items_by_range(item_identities, &mut pkranges, pk_kind, pk_version);
-        tracing::debug!(
-            ?items_by_range,
-            "grouped item identities by partition key range"
-        );
-        // Create query chunks from the partitioned items, splitting total list into 1000 max item queries.
-        // Each chunk is represented as vector of mappings of partition key range IDs to lists of tuples containing the original index, item ID, and partition key value.
-        let query_chunks = Self::create_query_chunks_from_partitioned_items(&items_by_range);
-        tracing::debug!(?query_chunks, "created query chunks from partitioned items");
-
-        // Create the item producer for read many.
-        let producer = ItemProducer::read_many(query_chunks);
-
-        // We are building the pipeline outside-in.
-        // That means the first node we push will be the first node executed.
-        // This is relevant for nodes like OFFSET and LIMIT, which need to be ordered carefully.
-        let pipeline: Vec<Box<dyn PipelineNode>> = Vec::new();
-
-        Ok(Self {
-            pipeline,
-            producer,
-            terminated: false,
-        })
-    }
-
-    /// Retrieves the, possibly rewritten, query that this pipeline is executing.
-    ///
-    /// The pipeline has both the original query, AND the query plan that may have rewritten it.
-    /// So, no matter whether or not the query was rewritten, this query will be accurate.
-    pub fn query(&self) -> &str {
-        &""
-    }
-
-    /// Indicates if the pipeline has been completed.
-    pub fn complete(&self) -> bool {
-        self.terminated
-    }
-
-    /// Provides more data for the specified partition key range.
-    #[tracing::instrument(level = "debug", skip_all, err, fields(pkrange_id = pkrange_id, data_len = data.len(), continuation = continuation.as_deref()))]
-    pub fn provide_data(
-        &mut self,
-        pkrange_id: &str,
-        data: &[u8],
-        continuation: Option<String>,
-    ) -> crate::Result<()> {
-        self.producer.provide_data(pkrange_id, data, continuation)
-    }
-
-    /// Advances the pipeline to the next batch of results.
-    ///
-    /// This method will return a [`PipelineResponse`] that describes the next action to take.
-    ///
-    /// 1. A list of results yielded by that turn, if any.
-    /// 2. A list of requests for additional data from certain partitions, if any.
-    ///
-    /// The results provided represent the next set of results to be returned to the user.
-    /// The language binding can return these to the user immediately.
-    ///
-    /// The requests provided describe any additional single-partition queries that must be completed in order to get more data.
-    /// The language binding MUST perform ALL the provided requests before the pipeline will be able to yield additional results.
-    /// The language binding MAY execute additional turns without having satisfied all the requests, and the pipeline will continue
-    /// to return any requests that still need to be made.
-    ///
-    /// If the pipeline returns no items and no requests, then the query has completed and there are no further results to return.
-    #[tracing::instrument(level = "debug", skip(self), err)]
-    pub fn run(&mut self) -> crate::Result<PipelineResponse> {
-        tracing::debug!("starting RUN of ReadManyPipeline");
-        if self.terminated {
-            return Ok(PipelineResponse::TERMINATED);
-        }
-
-        let mut slice = PipelineSlice::new(&mut self.pipeline, &mut self.producer);
-
-        let mut items = Vec::new();
-        while !self.terminated {
-            let result = slice.run()?;
-
-            // Termination MUST come from the pipeline, to ensure aggregates (which can only be emitted after all data is processed) work correctly.
-            if result.terminated {
-                tracing::trace!("pipeline node terminated the pipeline");
-                self.terminated = true;
-            }
-
-            if let Some(item) = result.value {
-                let payload = item.into_payload().ok_or_else(|| {
-                    ErrorKind::InternalError
-                        .with_message("items yielded by the pipeline must have a payload")
-                })?;
-                items.push(payload);
-            } else {
-                // The pipeline has finished for now, but we're not terminated yet.
-                break;
-            }
-        }
-
-        let requests = self.producer.data_requests()?;
-
-        Ok(PipelineResponse {
-            items,
-            requests,
-            terminated: self.terminated,
-        })
-    }
-
-    // Groups items by their partition key range ID efficiently while preserving original order.
-    // Returns a mapping of partition key range IDs to lists of tuples containing the original index, item ID, and partition key value.
-    fn partition_items_by_range(
-        item_identities: Vec<ItemIdentity>,
-        pkranges: &mut Vec<PartitionKeyRange>,
-        pk_kind: &str,
-        pk_version: u32,
-    ) -> HashMap<String, Vec<(usize, String, String)>> {
-        // TODO: Partition key values here are all currently strings - we need the same sort of PartitionKeyValue
-        // logic used in the main Rust SDK in order to compare and be able to use it within this method.
-        let mut items_by_partition: HashMap<String, Vec<(usize, String, String)>> = HashMap::new();
-        let mut items_by_pk_value: HashMap<String, Vec<(usize, String, String)>> = HashMap::new();
-        let pk_kind_enum = PartitionKeyKind::from_str(pk_kind).unwrap_or(PartitionKeyKind::Other);
-
-        // Group items by PK value (string or number) - only string for now since we don't have PartitionKeyValue logic yet.
-        for (idx, identity) in item_identities.iter().enumerate() {
-            let pk_value = identity.partition_key_value.clone(); // PartitionKeyValue is enum { String(String), Number(f64) }
-            items_by_pk_value
-                .entry(pk_value.clone())
-                .or_default()
-                .push((idx, identity.id.clone(), pk_value));
-        }
-
-        // For each PK group, compute EPK range and find overlapping ranges
-        for pk_items in items_by_pk_value.values() {
-            let pk_value = &pk_items[0].2;
-            let pk_value_val = PartitionKeyValue::String(pk_value.clone()); // TODO: Also needs PK to be updated here
-
-            let epk_range_string =
-                get_hashed_partition_key_string(&[pk_value_val], &pk_kind_enum, pk_version);
-            let epk_range = QueryRange::new(&epk_range_string, &epk_range_string, true, true);
-            get_overlapping_pk_ranges(pkranges, &[epk_range]);
-
-            if !pkranges.is_empty() {
-                let range_id = pkranges[0].id.clone();
-                items_by_partition
-                    .entry(range_id)
-                    .or_default()
-                    .extend(pk_items.clone());
-            }
-        }
-        items_by_partition
-    }
-
-    // Creates query chunks from partitioned items, ensuring no chunk exceeds the maximum item limit.
-    // Each chunk is represented as vector of mappings of partition key range IDs to lists of tuples containing the original index, item ID, and partition key value.
-    fn create_query_chunks_from_partitioned_items(
-        items_by_partition: &HashMap<String, Vec<(usize, String, String)>>,
-    ) -> Vec<HashMap<String, Vec<(usize, String, String)>>> {
-        let mut query_chunks: Vec<HashMap<String, Vec<(usize, String, String)>>> = Vec::new();
-        let max_items_per_query = 1000;
-        for (partition_id, partition_items) in items_by_partition {
-            for chunk_start in (0..partition_items.len()).step_by(max_items_per_query) {
-                let chunk_end = (chunk_start + max_items_per_query).min(partition_items.len());
-                let chunk = partition_items[chunk_start..chunk_end].to_vec();
-
-                let mut chunk_map = HashMap::new();
-                chunk_map.insert(partition_id.clone(), chunk);
-                query_chunks.push(chunk_map);
-            }
-        }
-        query_chunks
-    }
 }
 
 // The tests for the pipeline are found in integration tests (in the `tests`) directory, since we want to test an end-to-end experience that matches what the user will see.
