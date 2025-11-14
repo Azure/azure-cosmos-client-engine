@@ -95,7 +95,7 @@ fn create_query_chunk_query(
 
     let conditions = identities
         .iter()
-        .map(|(_, id, _)| format!("( c.id = {id} )"))
+        .map(|(_, id, _)| format!("( c.id = '{id}' )"))
         .collect::<Vec<_>>()
         .join(" OR ");
 
