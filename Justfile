@@ -14,11 +14,15 @@ import 'script/just/targets.just'
 import 'script/just/variables.just'
 
 # Attach the appropriate linker if cross-compiling.
-export RUSTFLAGS := if linker != "" {
+export RUSTFLAGS := (if linker != "" {
   "-C linker=" + linker + " " + env("RUSTFLAGS", "")
 } else {
   env("RUSTFLAGS", "")
-}
+}) + (if target_env == "musl" {
+  " -C target-feature=-crt-static -Cpanic=abort" + " " + env("RUSTFLAGS", "")
+} else {
+  ""
+})
 
 # Updates the headers, builds the engine, and runs unit tests.
 default: headers engine test
@@ -52,11 +56,8 @@ engine_c:
   cargo build --package "cosmoscx" --profile {{ cargo_profile }}
   if(-not (Test-Path {{artifacts_dir}}/lib)) { New-Item -Type Directory {{artifacts_dir}}/lib }
   Get-ChildItem {{target_dir}}
-  Copy-Item {{target_dir}}/{{shared_lib_filename}} {{artifacts_dir}}/lib/{{shared_lib_filename}}
   Copy-Item {{target_dir}}/{{static_lib_filename}} {{artifacts_dir}}/lib/{{static_lib_filename}}
-  {{ _copy_import_command }}
-  & script/helpers/update-dylib-name.ps1 -TargetOS {{target_os}} -DylibPath {{target_dir}}/{{shared_lib_filename}}
-  & script/helpers/write-pkg-config.ps1 -Prefix {{artifacts_dir}} -Includedir {{artifacts_dir}}/include
+  if ("{{ build_shared_lib }}" -eq "true") { & script/helpers/post-process-shared-lib.ps1 -TargetOs "{{target_os}}" -TargetDir "{{target_dir}}" -SharedLibFilename "{{shared_lib_filename}}" -ArtifactsDir "{{artifacts_dir}}" -ImportLibFilename "{{import_lib_filename}}" }
 
 # Displays the native libraries required by the C wrapper in the current build configuration.
 print-native-libraries:
@@ -83,7 +84,7 @@ test_python:
 # Tests the Go wrapper around the Rust engine.
 test_go:
   go -C ./go/azcosmoscx clean -testcache
-  go -C ./go/azcosmoscx test -tags {{ go_tags }} -v ./...
+  go -C ./go/azcosmoscx test -ldflags="{{ go_ldflags }}" -tags {{ go_tags }} -v ./...
 
 # Runs end-to-end query tests for the Rust engine and Go wrapper.
 query_test: query_test_rust query_test_go
@@ -99,7 +100,12 @@ query_test_python:
 # Runs end-to-end query tests for the Go wrapper.
 query_test_go:
   go -C ./go/integration-tests clean -testcache
-  go -C ./go/integration-tests test -tags {{ go_tags }} -v ./...
+  go -C ./go/integration-tests test -ldflags="{{ go_ldflags }}" -tags {{ go_tags }} -v ./...
+
+# Builds the go sample into a binary and displays its file information for inspection.
+build_sample_go:
+  go -C ./go/sample build -ldflags="{{ go_ldflags }}" -tags {{ go_tags }} -o {{ artifacts_dir }}/sample-go/sample-go ./...
+  if ("{{ target_os }}" -eq "linux") { file {{ artifacts_dir }}/sample-go/sample-go }
 
 # Cleans up build artifacts and caches.
 clean:
