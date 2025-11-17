@@ -95,9 +95,11 @@ func (p *clientEngineQueryPipeline) Run() (*queryengine.PipelineResult, error) {
 	requests := make([]queryengine.QueryRequest, 0, len(sourceRequests))
 	for _, request := range sourceRequests {
 		requests = append(requests, queryengine.QueryRequest{
+			Id:                  request.Id(),
 			PartitionKeyRangeID: string(request.PartitionKeyRangeID().CloneString()),
 			Continuation:        string(request.Continuation().CloneString()),
 			Query:               string(request.Query().CloneString()),
+			IncludeParameters:   request.IncludeParameters(),
 		})
 	}
 	return &queryengine.PipelineResult{

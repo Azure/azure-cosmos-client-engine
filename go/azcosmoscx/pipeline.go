@@ -100,6 +100,7 @@ func (p *Pipeline) ProvideData(results []queryengine.QueryResult) error {
 		dataC := makeStrPinned(string(result.Data), &pinner)
 		continuationC := makeStrPinned(result.NextContinuation, &pinner)
 		resultsC[i] = C.CosmosCxQueryResponse{
+			request_id:   C.uint64_t(result.RequestId),
 			pkrange_id:   pkrangeidC,
 			data:         dataC,
 			continuation: continuationC,
@@ -188,6 +189,18 @@ func (e EngineString) CloneBytes() []byte {
 }
 
 type DataRequest C.CosmosCxDataRequest
+
+func (r *DataRequest) Id() uint64 {
+	return uint64(r.id)
+}
+
+func (r *DataRequest) Query() EngineString {
+	return EngineString(r.query)
+}
+
+func (r *DataRequest) IncludeParameters() bool {
+	return bool(r.include_parameters)
+}
 
 func (r *DataRequest) PartitionKeyRangeID() EngineString {
 	return EngineString(r.pkrangeid)

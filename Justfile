@@ -90,16 +90,16 @@ query_test: query_test_rust query_test_go
 
 # Runs end-to-end query tests for the Rust engine.
 query_test_rust test="":
-  cargo test --profile {{ cargo_profile }} --package query-tests -- --test-threads 1 {{ test }}
+  cargo test --profile {{ cargo_profile }} --package query-tests -- --nocapture --test-threads 1 {{ test }}
 
 # Runs end-to-end query tests for the Python wrapper. (Currently disabled)
 query_test_python:
   poetry -C ./python run python -m pytest -rP ./test/query-tests
 
 # Runs end-to-end query tests for the Go wrapper.
-query_test_go:
+query_test_go test="":
   go -C ./go/integration-tests clean -testcache
-  go -C ./go/integration-tests test -tags {{ go_tags }} -v ./...
+  go -C ./go/integration-tests test -tags {{ go_tags }} {{ if test != "" { "-run " + ".*" + test + ".*" } else { "" } }} -v ./...
 
 # Cleans up build artifacts and caches.
 clean:

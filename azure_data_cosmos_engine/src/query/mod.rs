@@ -3,6 +3,7 @@
 
 use std::borrow::Cow;
 
+use azure_data_cosmos::query;
 use serde::Deserialize;
 
 mod aggregators;
@@ -119,21 +120,43 @@ impl ItemIdentity {
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "python_conversions", derive(pyo3::IntoPyObject))]
 pub struct DataRequest {
+    /// A unique identifier for this request that can be used to match it with it's response.
+    pub id: u64,
     pub pkrange_id: Cow<'static, str>,
     pub continuation: Option<String>,
     pub query: Option<String>,
+    pub include_parameters: bool,
 }
 
 impl DataRequest {
     pub fn new(
+        id: u64,
         pkrange_id: impl Into<Cow<'static, str>>,
         continuation: Option<String>,
         query: Option<String>,
     ) -> Self {
         Self {
+            id,
             pkrange_id: pkrange_id.into(),
             continuation,
-            query,
+            query: query,
+            include_parameters: true,
+        }
+    }
+
+    pub fn with_query(
+        id: u64,
+        pkrange_id: impl Into<Cow<'static, str>>,
+        continuation: Option<String>,
+        query: impl Into<String>,
+        include_parameters: bool,
+    ) -> Self {
+        Self {
+            id,
+            pkrange_id: pkrange_id.into(),
+            continuation,
+            query: Some(query.into()),
+            include_parameters,
         }
     }
 }

@@ -23,6 +23,16 @@ pub struct NonStreamingStrategy {
     pub items: BinaryHeap<SortableResult>,
 }
 
+impl std::fmt::Debug for NonStreamingStrategy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("NonStreamingStrategy")
+            .field("partitions", &self.partitions)
+            .field("sorting", &self.sorting)
+            .field("items_len", &self.items.len())
+            .finish()
+    }
+}
+
 impl NonStreamingStrategy {
     pub fn new(
         pkranges: impl IntoIterator<Item = PartitionKeyRange>,

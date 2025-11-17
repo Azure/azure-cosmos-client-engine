@@ -19,6 +19,23 @@ pub struct StreamingStrategy {
     pub buffers: Vec<(String, VecDeque<QueryResult>)>,
 }
 
+impl std::fmt::Debug for StreamingStrategy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("StreamingStrategy")
+            .field("partitions", &self.partitions)
+            .field("sorting", &self.sorting)
+            .field(
+                "buffers_len",
+                &self
+                    .buffers
+                    .iter()
+                    .map(|(_, b)| b.len())
+                    .collect::<Vec<_>>(),
+            )
+            .finish()
+    }
+}
+
 impl StreamingStrategy {
     pub fn new(
         pkranges: impl IntoIterator<Item = PartitionKeyRange>,

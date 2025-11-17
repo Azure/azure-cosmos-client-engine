@@ -4,10 +4,11 @@
 use std::collections::HashMap;
 
 use crate::query::{
-    node::PipelineNodeResult, query_result::QueryResultShape, DataRequest, PartitionKeyRange,
-    SortOrder,
+    node::PipelineNodeResult, plan::HybridSearchQueryInfo, query_result::QueryResultShape,
+    DataRequest, PartitionKeyRange, SortOrder,
 };
 
+mod hybrid;
 mod non_streaming;
 mod read_many;
 mod sorting;
@@ -15,6 +16,7 @@ mod state;
 mod streaming;
 mod unordered;
 
+use hybrid::HybridSearchStrategy;
 use non_streaming::NonStreamingStrategy;
 use read_many::ReadManyStrategy;
 use state::PartitionState;
@@ -35,6 +37,7 @@ use unordered::UnorderedStrategy;
 // Since this is an internal API, we can use an enum to select the strategy at runtime and delegate methods to the appropriate concrete strategy type.
 // This dispatch should be no worse than a virtual function call, and is often quite a lot better.
 // See https://crates.io/crates/enum_dispatch for more on this pattern (we're not using that crate, but we're doing what it does manually).
+#[derive(Debug)]
 pub enum ItemProducer {
     /// Results are not re-ordered by the query and should be ordered by the partition key range minimum.
     Unordered(UnorderedStrategy),
@@ -45,6 +48,8 @@ pub enum ItemProducer {
     /// Results should be merged by reading each partition individually, exhausting one partition before moving to the next.
     /// Final ordering should happen once all results are available.
     ReadMany(ReadManyStrategy),
+    /// The query is a hybrid search query.
+    Hybrid(HybridSearchStrategy),
 }
 
 pub fn create_partition_state(
@@ -159,6 +164,17 @@ impl ItemProducer {
         Self::ReadMany(ReadManyStrategy::new(query_chunks))
     }
 
+    /// Creates a producer for Hybrid search queries (which include Full-Text searches, and Rank Fusion operations)
+    pub fn hybrid(
+        pkranges: impl IntoIterator<Item = PartitionKeyRange>,
+        hybrid_search_query_info: HybridSearchQueryInfo,
+    ) -> crate::Result<Self> {
+        Ok(Self::Hybrid(HybridSearchStrategy::new(
+            pkranges,
+            hybrid_search_query_info,
+        )?))
+    }
+
     /// Gets the [`DataRequest`]s that must be performed in order to add additional data to the partition buffers.
     pub fn data_requests(&mut self) -> crate::Result<Vec<DataRequest>> {
         // The default value for Vec is an empty vec, which doesn't allocate until items are added.
@@ -167,6 +183,7 @@ impl ItemProducer {
             ItemProducer::Streaming(s) => Ok(s.requests()),
             ItemProducer::NonStreaming(s) => Ok(s.requests()),
             ItemProducer::ReadMany(s) => Ok(s.requests()),
+            ItemProducer::Hybrid(s) => s.requests(),
         }
     }
 
@@ -174,6 +191,7 @@ impl ItemProducer {
     pub fn provide_data(
         &mut self,
         pkrange_id: &str,
+        request_id: u64,
         data: &[u8],
         continuation: Option<String>,
     ) -> crate::Result<()> {
@@ -182,6 +200,7 @@ impl ItemProducer {
             ItemProducer::Streaming(s) => s.provide_data(pkrange_id, data, continuation),
             ItemProducer::NonStreaming(s) => s.provide_data(pkrange_id, data, continuation),
             ItemProducer::ReadMany(s) => s.provide_data(pkrange_id, data, continuation),
+            ItemProducer::Hybrid(s) => s.provide_data(pkrange_id, request_id, data, continuation),
         }
     }
 
@@ -193,6 +212,7 @@ impl ItemProducer {
             ItemProducer::Streaming(s) => s.produce_item(),
             ItemProducer::NonStreaming(s) => s.produce_item(),
             ItemProducer::ReadMany(s) => s.produce_item(),
+            ItemProducer::Hybrid(s) => s.produce_item(),
         }
     }
 }
@@ -290,7 +310,7 @@ mod tests {
 
                     // Serialize QueryResult items to JSON bytes in the appropriate shape
                     let json_bytes = serialize_query_results(&query_results)?;
-                    producer.provide_data(&pkrange_id, &json_bytes, next_token)?;
+                    producer.provide_data(&pkrange_id, request.id, &json_bytes, next_token)?;
                 } else {
                     return Err(ErrorKind::UnknownPartitionKeyRange
                         .with_message(format!("unknown partition key range ID: {pkrange_id}")));

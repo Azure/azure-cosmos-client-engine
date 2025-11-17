@@ -4,16 +4,18 @@
     "dictionaryDefinitions": [],
     "dictionaries": [],
     "words": [
+        "cosmoscx",
         "deque",
+        "documentdb",
+        "jsondiff",
         "pkrange",
         "pkranges",
         "pyclass",
-        "pymethods",
         "pyfunction",
+        "pymethods",
         "pymodule",
-        "cosmoscx",
-        "reqwest",
-        "jsondiff"
+        "repr",
+        "reqwest"
     ],
     "ignoreWords": [],
     "import": []

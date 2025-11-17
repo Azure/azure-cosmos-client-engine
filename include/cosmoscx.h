@@ -54,6 +54,14 @@ enum CosmosCxResultCode {
    * See [`ErrorKind::ArithmeticOverflow`].
    */
   COSMOS_CX_RESULT_CODE_ARITHMETIC_OVERFLOW = -9,
+  /**
+   * See [`ErrorKind::InvalidRequestId`].
+   */
+  COSMOS_CX_RESULT_CODE_INVALID_REQUEST_ID = -10,
+  /**
+   * See [`ErrorKind::InvalidQuery`].
+   */
+  COSMOS_CX_RESULT_CODE_INVALID_QUERY = -11,
 };
 typedef intptr_t CosmosCxResultCode;
 
@@ -196,6 +204,10 @@ typedef struct CosmosCxOwnedSlice_OwnedString {
  */
 typedef struct CosmosCxDataRequest {
   /**
+   * A unique identifier for this request. This must be included in the call to [`cosmoscx_v0_query_pipeline_provide_data`] to fulfill this request.
+   */
+  uint64_t id;
+  /**
    * An [`OwnedString`] containing the Partition Key Range ID to request data from.
    */
   CosmosCxOwnedString pkrangeid;
@@ -204,9 +216,15 @@ typedef struct CosmosCxDataRequest {
    */
   CosmosCxOwnedString continuation;
   /**
-   * An [`OwnedString`] containing the query to be executed.
+   * An [`OwnedString`] containing the query to execute, if any.
+   * If no query is provided ([`OwnedString::len`] == 0), the query returned by [`cosmoscx_v0_query_pipeline_query`] should be used.
    */
   CosmosCxOwnedString query;
+  /**
+   * A boolean indicating if parameters should be included in the query request.
+   * If this value is false, the query should be executed without parameters.
+   */
+  bool include_parameters;
 } CosmosCxDataRequest;
 
 /**
@@ -280,6 +298,10 @@ typedef struct CosmosCxQueryResponse {
    * The Partition Key Range ID this response is for.
    */
   CosmosCxStr pkrange_id;
+  /**
+   * The unique identifier for the request this response is for. This must exactly match the [`DataRequest::id`] field of the corresponding [`DataRequest`].
+   */
+  uint64_t request_id;
   /**
    * The raw data being provided to the pipeline in response to the request.
    */

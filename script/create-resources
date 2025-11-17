@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+#/ Usage: script/create-resources <resource-group>
+#/ Creates Azure resources needed for testing.
+#/
+#/ Arguments
+#/   <resource-group>                Name of the resource group to create resources in.
+#/
+#/ Options
+#/   -h, --help                     Show this help message and exit.
+#/   -p <FILE>, --params <FILE>     Path to a bicepparam file with parameter values. If not specified, uses ./.local/test-resources.bicepparam in this repo, or prompts to create one.
+
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+if ! command -v az &> /dev/null; then
+    echo "Azure CLI (az) is not installed. Please install it and try again."
+    exit 1
+fi
+
+function show_help() {
+    grep '^#/' "$0" | sed 's/^#\/\s\?//'
+}
+
+resource_group=""
+params_file="$repo_root/.local/test-resources.bicepparam"
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        -p|--params)
+            params_file="$2"
+            shift 2
+            ;;
+        *)
+            if [[ -z "$resource_group" ]]; then
+                resource_group="$1"
+                shift
+                continue
+            fi
+            echo "Unknown argument: $1"
+            show_help
+            exit 1
+            ;;
+    esac
+done
+
+if [[ -z "$resource_group" ]]; then
+    echo "Resource group not specified."
+    show_help
+    exit 1
+fi
+
+if [[ ! -f "$params_file" ]]; then
+    echo "Parameters file not found: $params_file"
+    echo "Create a new parameters file at $params_file ? (y/n)"
+    read -r response
+    if [[ "$response" == "y" ]]; then
+        mkdir -p "$(dirname "$params_file")"
+        az bicep generate-params --file "$repo_root/script/bicep/test-resources.bicep" --outfile "$params_file" --output-format bicepparam
+        echo "Created parameters file at $params_file. Please edit it with appropriate values and reun the script."
+        exit 0
+    else
+        echo "Aborting."
+        exit 1
+    fi
+fi
+
+echo "Found parameters file: $params_file"
+
+sub_id=$(az account show --query id --output tsv)
+sub_name=$(az account show --query name --output tsv)
+echo "Using Azure subscription: $sub_name ($sub_id)"
+echo "Resource group: $resource_group"
+
+echo "Continue to create resources? (y/n)"
+read -r response
+if [[ "$response" != "y" ]]; then
+    echo "Aborting."
+    exit 1
+fi
+
+echo "Creating resources in $resource_group..."
+az deployment group create \
+    --resource-group "$resource_group" \
+    --template-file "$repo_root/script/bicep/test-resources.bicep" \
+    --parameters "$params_file" \
+    --verbose

@@ -6,16 +6,39 @@ use std::cmp::Ordering;
 use crate::query::{DataRequest, PartitionKeyRange};
 
 /// Represents the current stage of pagination for a partition.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum PaginationState {
     /// The partition is ready for the first data request. There should be no data in the queue yet.
     Initial,
 
     /// The partition has a pending continuation. When the current queue is exhausted, the continuation can be used to fetch more data.
-    Continuing(String),
+    Continuing { token: String, next_page_index: u32 },
 
     /// The partition has been exhausted. When the current queue is exhausted, the partition is done.
     Done,
+}
+
+impl PaginationState {
+    pub fn update(&mut self, continuation: Option<String>) {
+        let next_page_index = match &self {
+            PaginationState::Initial => 1,
+            PaginationState::Continuing {
+                next_page_index, ..
+            } => *next_page_index + 1,
+            PaginationState::Done => 0, // Doesn't matter, we're done
+        };
+        match continuation {
+            Some(token) => {
+                *self = PaginationState::Continuing {
+                    token,
+                    next_page_index,
+                };
+            }
+            None => {
+                *self = PaginationState::Done;
+            }
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -61,89 +84,21 @@ impl PartitionState {
     /// Gets the next [`DataRequest`] for this partition, if one is needed.
     pub fn request(&self) -> Option<DataRequest> {
         match &self.stage {
-            PaginationState::Initial => Some(DataRequest {
-                pkrange_id: self.pkrange.id.clone().into(),
-                continuation: None,
-                query: None,
-            }),
-            PaginationState::Continuing(token) => Some(DataRequest {
-                pkrange_id: self.pkrange.id.clone().into(),
-                continuation: Some(token.clone()),
-                query: None,
-            }),
+            PaginationState::Initial => Some(DataRequest::new(0, self.pkrange.id.clone(), None)),
+            PaginationState::Continuing {
+                next_page_index,
+                token,
+            } => Some(DataRequest::new(
+                *next_page_index as u64,
+                self.pkrange.id.clone(),
+                Some(token.clone()),
+            )),
             PaginationState::Done => None,
         }
     }
 
     pub fn update_state(&mut self, continuation: Option<String>) {
-        match continuation {
-            Some(token) => {
-                self.stage = PaginationState::Continuing(token);
-            }
-            None => {
-                self.stage = PaginationState::Done;
-            }
-        }
-    }
-
-    pub fn started(&self) -> bool {
-        !matches!(self.stage, PaginationState::Initial)
-    }
-
-    pub fn done(&self) -> bool {
-        matches!(self.stage, PaginationState::Done)
-    }
-}
-
-#[derive(Debug)]
-pub struct QueryChunkState {
-    /// The index of the partition in the query chunks list used by the pipeline.
-    pub index: usize,
-    /// The partition key range id this state is for.
-    pub pkrange_id: String,
-    /// The query that belongs to this set of item identities.
-    pub query: String,
-    /// The current stage of pagination for this partition.
-    pub stage: PaginationState,
-}
-
-impl QueryChunkState {
-    /// Initializes a partition state for the given partition key range.
-    pub fn new(index: usize, pkrange_id: String, query: String) -> Self {
-        Self {
-            index: index,
-            pkrange_id: pkrange_id,
-            query: query,
-            stage: PaginationState::Initial,
-        }
-    }
-
-    /// Gets the next [`DataRequest`] for this partition, if one is needed.
-    pub fn request(&self) -> Option<DataRequest> {
-        match &self.stage {
-            PaginationState::Initial => Some(DataRequest {
-                pkrange_id: self.pkrange_id.clone().into(),
-                continuation: None,
-                query: self.query.clone().into(),
-            }),
-            PaginationState::Continuing(token) => Some(DataRequest {
-                pkrange_id: self.pkrange_id.clone().into(),
-                continuation: Some(token.clone()),
-                query: self.query.clone().into(),
-            }),
-            PaginationState::Done => None,
-        }
-    }
-
-    pub fn update_state(&mut self, continuation: Option<String>) {
-        match continuation {
-            Some(token) => {
-                self.stage = PaginationState::Continuing(token);
-            }
-            None => {
-                self.stage = PaginationState::Done;
-            }
-        }
+        self.stage.update(continuation);
     }
 
     pub fn started(&self) -> bool {
