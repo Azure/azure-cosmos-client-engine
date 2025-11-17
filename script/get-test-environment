@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+#/ Usage: eval $(script/get-test-environment <resource-group>)
+#/ Sets environment variables for testing with Azure Cosmos DB.
+#/
+#/ Requires a bash or zsh shell.
+#/
+#/ Arguments
+#/   <resource-group>               Name of the resource group containing the test resources.
+#/
+#/ Options
+#/   -h, --help                     Show this help message and exit.
+
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+function show_help() {
+    grep '^#/' "$0" | sed 's/^#\/\s\?//'
+}
+
+resource_group=""
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        *)
+            if [[ -z "$resource_group" ]]; then
+                resource_group="$1"
+                shift
+                continue
+            fi
+            echo "Unknown argument: $1"
+            show_help
+            exit 1
+            ;;
+    esac
+done
+
+if [[ -z "$resource_group" ]]; then
+    echo "# Resource group not specified."
+    echo "echo \"Usage: eval \\\$(script/get-test-environment <resource-group>)\""
+    exit 0
+fi
+
+params_file="$repo_root/.local/test-resources.bicepparam"
+if [[ ! -f "$params_file" ]]; then
+    echo "# Parameters file not found: $params_file"
+    echo "echo \"Parameters file not found: $params_file\""
+    exit 0
+fi
+
+# Extract values from the bicepparam file
+cosmos_account_name=$(grep 'param name =' "$params_file" | sed "s/param name = '\(.*\)'/\1/")
+
+# Fetch the Cosmos DB account key
+cosmos_account_key=$(az cosmosdb keys list --name "$cosmos_account_name" --resource-group "$resource_group" --query "primaryMasterKey" -o tsv)
+
+# Generate the export commands
+echo "# Run the following commands to set environment variables for testing with Azure Cosmos DB."
+echo "# To avoid printing the keys in your shell history, consider running this script with 'eval \"\$(script/get-test-environment <resource-group>)\"'."
+echo "export AZURE_COSMOS_ENDPOINT='https://$cosmos_account_name.documents.azure.com:443/'"
+echo "export AZURE_COSMOS_KEY='$cosmos_account_key'"
+echo "export AZURE_COSMOS_CONNECTION_STRING='AccountEndpoint=https://$cosmos_account_name.documents.azure.com:443/;AccountKey=$cosmos_account_key;'"

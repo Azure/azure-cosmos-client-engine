@@ -6,7 +6,7 @@ use std::{ops::DerefMut, sync::Mutex};
 use azure_data_cosmos_engine::query::{PartitionKeyRange, PipelineResponse, QueryPipeline};
 use pyo3::{
     exceptions, pyclass, pymethods,
-    types::{PyAnyMethods, PyBytes, PyBytesMethods, PyList, PyString, PyStringMethods},
+    types::{PyAnyMethods, PyBytes, PyBytesMethods, PyInt, PyList, PyString, PyStringMethods},
     Bound, Py, PyAny, PyErr, PyResult, Python,
 };
 
@@ -55,16 +55,18 @@ impl NativeQueryPipeline {
     fn provide_data<'py>(
         &self,
         pkrange_id: Bound<'py, PyString>,
+        request_id: Bound<'py, PyInt>,
         data: Bound<'py, PyBytes>,
         continuation: Option<Bound<'py, PyString>>,
     ) -> PyResult<()> {
         let mut pipeline = self.pipeline()?;
         let pkrange_id = pkrange_id.to_str()?;
+        let request_id = request_id.extract()?;
         let continuation = continuation
             .map(|s| s.to_str().map(|s| s.to_string()))
             .transpose()?;
         // Pass the raw bytes directly to the pipeline
-        pipeline.provide_data(pkrange_id, data.as_bytes(), continuation)?;
+        pipeline.provide_data(pkrange_id, request_id, data.as_bytes(), continuation)?;
         Ok(())
     }
 }

@@ -3,7 +3,7 @@
 
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
-use azure_core::{credentials::Secret, http::TransportOptions};
+use azure_core::{credentials::Secret, http::Transport};
 use azure_data_cosmos::{
     clients::{ContainerClient, DatabaseClient},
     models::{ContainerProperties, PartitionKeyDefinition, ThroughputProperties},
@@ -196,13 +196,13 @@ fn create_client() -> Result<CosmosClient, azure_core::Error> {
             .danger_accept_invalid_certs(true)
             .build()
             .map_err(|e| {
-                azure_core::Error::full(
+                azure_core::Error::with_error(
                     azure_core::error::ErrorKind::Other,
                     e,
                     "failed to create HTTP client",
                 )
             })?;
-        options.client_options.transport = Some(TransportOptions::new(Arc::new(http_client)))
+        options.client_options.transport = Some(Transport::new(Arc::new(http_client)))
     }
 
     CosmosClient::with_key(&endpoint, Secret::from(key), Some(options))

@@ -14,3 +14,11 @@ func TestOrderBy(t *testing.T) {
 func TestAggregates(t *testing.T) {
 	runIntegrationTest(t, "aggregates.json")
 }
+
+func TestVectorQuery(t *testing.T) {
+	runIntegrationTest(t, "vector.json")
+}
+
+func TestHybridQuery(t *testing.T) {
+	runIntegrationTest(t, "hybrid.json")
+}

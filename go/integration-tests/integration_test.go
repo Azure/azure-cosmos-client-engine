@@ -28,6 +28,7 @@ import (
 type TestData struct {
 	Containers []azcosmos.ContainerProperties `json:"containers"`
 	Data       []json.RawMessage              `json:"data"`
+	Parameters map[string]interface{}         `json:"parameters"`
 }
 
 type QuerySet struct {
@@ -37,10 +38,11 @@ type QuerySet struct {
 }
 
 type QuerySpec struct {
-	Name       string            `json:"name"`
-	Text       string            `json:"query"`
-	Container  string            `json:"container"`
-	Validators map[string]string `json:"validators"`
+	Name       string                 `json:"name"`
+	Text       string                 `json:"query"`
+	Container  string                 `json:"container"`
+	Parameters map[string]interface{} `json:"parameters"`
+	Validators map[string]string      `json:"validators"`
 }
 
 const ValidationIgnore = "ignore"
@@ -295,6 +297,8 @@ func getenvOrDefault(key, def string) string {
 }
 
 func runIntegrationTest(t *testing.T, querySetPath string) {
+	azcosmoscx.EnableTracing()
+
 	// Default to the emulator and it's well-known (not secret) key.
 	endpoint := getenvOrDefault("AZURE_COSMOS_ENDPOINT", "https://localhost:8081")
 	key := getenvOrDefault("AZURE_COSMOS_KEY", "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==")
@@ -325,7 +329,7 @@ func runIntegrationTest(t *testing.T, querySetPath string) {
 				results, err := loadExpectedResults(resultsPath)
 				require.NoError(t, err)
 
-				err = runSingleQuery(t, results, query, container)
+				err = runSingleQuery(t, &queryContext.TestData, results, query, container)
 				require.NoError(t, err)
 			})
 		}
@@ -347,11 +351,22 @@ func floatEqual(index int, expected, actual, allowedError float64) *ValidationEr
 	return nil
 }
 
-func runSingleQuery(t *testing.T, expectedResults []interface{}, query QuerySpec, container *azcosmos.ContainerClient) error {
-	// Run the query
+func runSingleQuery(t *testing.T, testData *TestData, expectedResults []interface{}, query QuerySpec, container *azcosmos.ContainerClient) error {
+	// Set up query parameters
+	parameters := make([]azcosmos.QueryParameter, 0, len(query.Parameters)+len(testData.Parameters))
+	for name, value := range query.Parameters {
+		paramName := fmt.Sprintf("@%s", name)
+		parameters = append(parameters, azcosmos.QueryParameter{Name: paramName, Value: value})
+	}
+	for name, value := range testData.Parameters {
+		paramName := fmt.Sprintf("@testData_%s", name)
+		parameters = append(parameters, azcosmos.QueryParameter{Name: paramName, Value: value})
+	}
+
 	queryEngine := azcosmoscx.NewQueryEngine()
 	queryOptions := &azcosmos.QueryOptions{
-		QueryEngine: queryEngine,
+		QueryEngine:     queryEngine,
+		QueryParameters: parameters,
 	}
 
 	pager := container.NewQueryItemsPager(query.Text, azcosmos.NewPartitionKey(), queryOptions)
@@ -477,15 +492,18 @@ func validateOrdered(propertyName string, actual []interface{}, ascending bool) 
 	if len(actual) == 0 {
 		return []ValidationError{{Item: 0, Property: propertyName, Message: "no actual results to validate against"}}
 	}
-	for i := 0; i < len(actual)-1; i++ {
-		currentValue, ok := actual[i].(map[string]interface{})[propertyName]
+	if len(actual) == 1 {
+		return nil // A single item is always ordered
+	}
+	for i := 1; i < len(actual); i++ {
+		currentValue, ok := actual[i-1].(map[string]interface{})[propertyName]
 		if !ok {
-			errors = append(errors, ValidationError{Item: i, Property: propertyName, Message: "missing expected property", Expected: nil, Actual: nil})
+			errors = append(errors, ValidationError{Item: i - 1, Property: propertyName, Message: "missing expected property", Expected: nil, Actual: nil})
 			continue
 		}
-		nextValue, ok := actual[i+1].(map[string]interface{})[propertyName]
+		nextValue, ok := actual[i].(map[string]interface{})[propertyName]
 		if !ok {
-			errors = append(errors, ValidationError{Item: i + 1, Property: propertyName, Message: "missing expected property", Expected: nil, Actual: nil})
+			errors = append(errors, ValidationError{Item: i, Property: propertyName, Message: "missing expected property", Expected: nil, Actual: nil})
 			continue
 		}
 
@@ -509,7 +527,7 @@ func validateOrdered(propertyName string, actual []interface{}, ascending bool) 
 			errors = append(errors, ValidationError{
 				Item:     i,
 				Property: propertyName,
-				Message:  fmt.Sprintf("expected %v to be %s relative to %v", currentFloat, orderDirection, nextFloat),
+				Message:  fmt.Sprintf("expected %v to be %s relative to %v", nextFloat, orderDirection, currentFloat),
 				Expected: currentValue,
 				Actual:   nextValue,
 			})
