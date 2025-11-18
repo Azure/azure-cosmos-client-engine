@@ -19,10 +19,12 @@ mod engine;
 #[cfg(feature = "query_engine")]
 pub use engine::*;
 
-pub use pipeline::{QueryPipeline, SupportedFeatures, SUPPORTED_FEATURES, get_overlapping_pk_ranges};
+use crate::hash::{get_hashed_partition_key_string, PartitionKeyKind, PartitionKeyValue};
+pub use pipeline::{
+    QueryPipeline, SupportedFeatures, SUPPORTED_FEATURES, get_overlapping_pk_ranges
+};
 pub use plan::{DistinctType, QueryInfo, QueryPlan, QueryRange, SortOrder};
 pub use query_result::{QueryClauseItem, QueryResult, QueryResultShape};
-use crate::hash::{get_hashed_partition_key_string, PartitionKeyKind, PartitionKeyValue};
 
 /// Features that may be required by the Query Engine.
 ///
@@ -111,7 +113,7 @@ impl ItemIdentity {
 #[derive(Debug)]
 pub struct QueryChunk {
     pub pk_range_id: String,
-    pub items: Vec<QueryChunkItem>
+    pub items: Vec<QueryChunkItem>,
 }
 
 #[derive(Debug)]
@@ -158,20 +160,20 @@ fn partition_items_by_range(
     // For each PK group, compute EPK range and find overlapping ranges
     for pk_items in items_by_pk_value.values() {
         let pk_value = &pk_items[0].2;
-        // The Go SDK passes in a pk_value JSON string that comes in as "["value"]". We need to 
+        // The Go SDK passes in a pk_value JSON string that comes in as "["value"]". We need to
         // get the actual value inside, otherwise hashing fails to get values in the right ranges
         let inner_value = extract_inner_pk_value(pk_value)?;
-        let pk_value_val = PartitionKeyValue::String(inner_value.clone()); 
+        let pk_value_val = PartitionKeyValue::String(inner_value.clone());
         // TODO: Also needs PK to be updated here
 
         let epk_range_string =
             get_hashed_partition_key_string(&[pk_value_val], pk_kind, pk_version);
-            let epk_range = QueryRange {
-                min: epk_range_string.clone(),
-                max: epk_range_string,
-                is_min_inclusive: true,
-                is_max_inclusive: true,
-            };
+        let epk_range = QueryRange {
+            min: epk_range_string.clone(),
+            max: epk_range_string,
+            is_min_inclusive: true,
+            is_max_inclusive: true,
+        };
         // Here we have to create a clone because get_overlapping_pk_ranges modifies the input pkranges.
         // For ReadMany we need to keep the full list intact for the next set of items, since a range may be used more than once.
         let mut pkranges_clone = pkranges.clone();
@@ -198,12 +200,17 @@ fn create_query_chunks_from_partitioned_items(
         for chunk_start in (0..partition_items.len()).step_by(max_items_per_query) {
             let chunk_end = (chunk_start + max_items_per_query).min(partition_items.len());
             let chunks = partition_items[chunk_start..chunk_end].to_vec();
-            let chunk_items = chunks.into_iter().map(|(index, id, partition_key_value)| QueryChunkItem {
+            let chunk_items = chunks
+            .into_iter()
+            .map(|(index, id, partition_key_value)| QueryChunkItem {
                 index,
                 id,
                 partition_key_value,
             }).collect();
-            query_chunks.push(QueryChunk { pk_range_id: partition_id.clone(), items: chunk_items });
+            query_chunks.push(QueryChunk {
+                pk_range_id: partition_id.clone(),
+                items: chunk_items,
+            });
         }
     }
     query_chunks

@@ -3,7 +3,7 @@
 
 use crate::query::{
     node::PipelineNodeResult, plan::HybridSearchQueryInfo, query_result::QueryResultShape,
-    DataRequest, PartitionKeyRange, SortOrder, QueryChunk, QueryChunkItem
+    DataRequest, PartitionKeyRange, QueryChunk, QueryChunkItem, SortOrder,
 };
 
 mod hybrid;
@@ -70,14 +70,16 @@ pub fn create_query_chunk_states(
     for i in 0..query_chunks.len() {
         let query = create_query_chunk_query(&query_chunks[i].items);
         // For QueryChunkState, we will use the index as the indentifier as opposed to pkrange ID.
-        chunk_states.push(QueryChunkState::new(i, query_chunks[i].pk_range_id.clone(), query));
+        chunk_states.push(QueryChunkState::new(
+            i,
+            query_chunks[i].pk_range_id.clone(),
+            query,
+        ));
     }
     chunk_states
 }
 
-fn create_query_chunk_query(
-    query_chunk_items: &Vec<QueryChunkItem>,
-) -> String {
+fn create_query_chunk_query(query_chunk_items: &Vec<QueryChunkItem>) -> String {
     if query_chunk_items.is_empty() {
         return "SELECT * FROM c WHERE 1 = 0".to_string();
     }
@@ -625,7 +627,7 @@ mod tests {
         let mut partition1: VecDeque<TestPage> = VecDeque::new();
         // partition0 will return: item2, item0, item4
         // partition1 will return: item1, item3, item5
-        
+
         partition0.push_back((
             None,
             vec![
@@ -650,17 +652,41 @@ mod tests {
             QueryChunk {
                 pk_range_id: "partition0".to_string(),
                 items: vec![
-                    QueryChunkItem { index: 0, id: "item0".to_string(), partition_key_value: "partition0".to_string() },
-                    QueryChunkItem { index: 2, id: "item2".to_string(), partition_key_value: "partition0".to_string() },
-                    QueryChunkItem { index: 4, id: "item4".to_string(), partition_key_value: "partition0".to_string() },
+                    QueryChunkItem {
+                        index: 0,
+                        id: "item0".to_string(),
+                        partition_key_value: "partition0".to_string()
+                    },
+                    QueryChunkItem {
+                        index: 2,
+                        id: "item2".to_string(),
+                        partition_key_value: "partition0".to_string()
+                    },
+                    QueryChunkItem {
+                        index: 4,
+                        id: "item4".to_string(),
+                        partition_key_value: "partition0".to_string()
+                    },
                 ],
             },
             QueryChunk {
                 pk_range_id: "partition1".to_string(),
                 items: vec![
-                    QueryChunkItem { index: 1, id: "item1".to_string(), partition_key_value: "partition1".to_string() },
-                    QueryChunkItem { index: 3, id: "item3".to_string(), partition_key_value: "partition1".to_string() },
-                    QueryChunkItem { index: 5, id: "item5".to_string(), partition_key_value: "partition1".to_string() },
+                    QueryChunkItem {
+                        index: 1,
+                        id: "item1".to_string(),
+                        partition_key_value: "partition1".to_string()
+                    },
+                    QueryChunkItem {
+                        index: 3,
+                        id: "item3".to_string(),
+                        partition_key_value: "partition1".to_string()
+                    },
+                    QueryChunkItem {
+                        index: 5,
+                        id: "item5".to_string(),
+                        partition_key_value: "partition1".to_string()
+                    },
                 ],
             },
         ];

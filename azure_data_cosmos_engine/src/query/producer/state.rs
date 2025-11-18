@@ -84,7 +84,9 @@ impl PartitionState {
     /// Gets the next [`DataRequest`] for this partition, if one is needed.
     pub fn request(&self) -> Option<DataRequest> {
         match &self.stage {
-            PaginationState::Initial => Some(DataRequest::new(0, self.pkrange.id.clone(), None, None,)),
+            PaginationState::Initial => {
+                Some(DataRequest::new(0, self.pkrange.id.clone(), None, None))
+            }
             PaginationState::Continuing {
                 next_page_index,
                 token,
@@ -137,7 +139,12 @@ impl QueryChunkState {
     /// Gets the next [`DataRequest`] for this partition, if one is needed.
     pub fn request(&self) -> Option<DataRequest> {
         match &self.stage {
-            PaginationState::Initial => Some(DataRequest::new(self.index as u64, self.pkrange_id.clone(), None, Some(self.query.clone()),)),
+            PaginationState::Initial => Some(DataRequest::new(
+                self.index as u64,
+                self.pkrange_id.clone(),
+                None,
+                Some(self.query.clone()),
+            )),
             PaginationState::Continuing {
                 next_page_index: _,
                 token,

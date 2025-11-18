@@ -4,8 +4,12 @@
 use std::collections::{HashMap, VecDeque};
 
 use crate::{
-    ErrorKind, query::{DataRequest, QueryChunk, QueryChunkItem, QueryResult, node::PipelineNodeResult, query_result::QueryResultShape}
-};
+    query::{
+        node::PipelineNodeResult, query_result::QueryResultShape, DataRequest, QueryChunk,
+        QueryChunkItem, QueryResult,
+    },
+    ErrorKind,
+ };
 
 use super::{create_query_chunk_states, state::QueryChunkState};
 
@@ -21,11 +25,14 @@ impl ReadManyStrategy {
         let query_chunk_states = create_query_chunk_states(&query_chunks);
         tracing::debug!("initialized query chunk states: {:?}", query_chunk_states);
         // We collect the query chunk items in order to be used for sorting later, since they contain the original item indexes.
-        let query_chunk_items = query_chunks.into_iter().flat_map(|chunk| chunk.items).collect();
+        let query_chunk_items = query_chunks
+            .into_iter()
+            .flat_map(|chunk| chunk.items)
+            .collect();
         Self {
             query_chunk_states: query_chunk_states,
             query_chunk_items: query_chunk_items,
-            items: VecDeque::new()
+            items: VecDeque::new(),
         }
     }
 
@@ -66,12 +73,14 @@ impl ReadManyStrategy {
         // if we're all done, we can sort the final list of items
         if self.query_chunk_states.iter().all(|state| state.done()) {
             // id to index lookup to use for sorting
-            let id_to_index: HashMap<String, usize> = self.query_chunk_items
+            let id_to_index: HashMap<String, usize> = self
+                .query_chunk_items
                 .iter()
                 .map(|item| (item.id.clone(), item.index))
                 .collect();
 
-            let mut items_with_indices: Vec<(usize, QueryResult)> = self.items
+            let mut items_with_indices: Vec<(usize, QueryResult)> = self
+                .items
                 .drain(..)
                 .filter_map(|query_result| {
                     let id = extract_id_from_query_result(&query_result)?;
@@ -84,19 +93,23 @@ impl ReadManyStrategy {
             items_with_indices.sort_by_key(|(index, _)| *index);
 
             // get the final sorted items
-            self.items = items_with_indices.into_iter()
+            self.items = items_with_indices
+                .into_iter()
                 .map(|(_, query_result)| query_result)
                 .collect();
         }
-        tracing::debug!("state of all chunks: {}", self.query_chunk_states.iter().all(|state| state.done()));
+        tracing::debug!(
+            "state of all chunks: {}",
+            self.query_chunk_states.iter().all(|state| state.done())
+        );
 
         Ok(())
     }
 
     pub fn produce_item(&mut self) -> crate::Result<PipelineNodeResult> {
         let value = self.items.pop_front();
-        let terminated = self.items.is_empty()
-            && self.query_chunk_states.iter().all(|state| state.done());
+        let terminated =
+            self.items.is_empty() && self.query_chunk_states.iter().all(|state| state.done());
         Ok(PipelineNodeResult { value, terminated })
     }
 }

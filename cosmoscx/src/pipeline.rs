@@ -7,8 +7,7 @@ use std::str::FromStr;
 
 use azure_data_cosmos_engine::{
     query::{ItemIdentity, PartitionKeyRange, QueryPipeline, QueryPlan},
-    ErrorKind,
-    PartitionKeyKind,
+    ErrorKind, PartitionKeyKind,
 };
 use serde::Deserialize;
 
