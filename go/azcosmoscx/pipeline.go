@@ -209,7 +209,3 @@ func (r *DataRequest) PartitionKeyRangeID() EngineString {
 func (r *DataRequest) Continuation() EngineString {
 	return EngineString(r.continuation)
 }
-
-func (r *DataRequest) Query() EngineString {
-	return EngineString(r.query)
-}

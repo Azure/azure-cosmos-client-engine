@@ -1,11 +1,9 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-use std::collections::HashMap;
-
 use crate::query::{
     node::PipelineNodeResult, plan::HybridSearchQueryInfo, query_result::QueryResultShape,
-    DataRequest, PartitionKeyRange, SortOrder,
+    DataRequest, PartitionKeyRange, SortOrder, QueryChunk, QueryChunkItem
 };
 
 mod hybrid;
@@ -65,42 +63,28 @@ pub fn create_partition_state(
 }
 
 pub fn create_query_chunk_states(
-    query_chunks: &Vec<HashMap<String, Vec<(usize, String, String)>>>,
+    query_chunks: &Vec<QueryChunk>,
 ) -> Vec<QueryChunkState> {
     let mut chunk_states = Vec::with_capacity(query_chunks.len());
 
     for i in 0..query_chunks.len() {
-        let map = &query_chunks[i];
-
-        let key: String = map
-            .keys()
-            .next()
-            .cloned()
-            .expect("Expected exactly one key in each hashmap");
-
-        let query = create_query_chunk_query(&key, &map);
-        tracing::trace!(?query, "created query chunk query from partitioned items");
-
-        chunk_states.push(QueryChunkState::new(i, key, query));
+        let query = create_query_chunk_query(&query_chunks[i].items);
+        // For QueryChunkState, we will use the index as the indentifier as opposed to pkrange ID.
+        chunk_states.push(QueryChunkState::new(i, query_chunks[i].pk_range_id.clone(), query));
     }
     chunk_states
 }
 
 fn create_query_chunk_query(
-    key: &str,
-    map: &HashMap<String, Vec<(usize, String, String)>>,
+    query_chunk_items: &Vec<QueryChunkItem>,
 ) -> String {
-    let identities = map
-        .get(key)
-        .expect("Expected exactly one entry in each hashmap");
-
-    if identities.is_empty() {
+    if query_chunk_items.is_empty() {
         return "SELECT * FROM c WHERE 1 = 0".to_string();
     }
 
-    let conditions = identities
+    let conditions = query_chunk_items
         .iter()
-        .map(|(_, id, _)| format!("( c.id = '{id}' )"))
+        .map(|item| format!("( c.id = '{}' )", item.id))
         .collect::<Vec<_>>()
         .join(" OR ");
 
@@ -158,9 +142,8 @@ impl ItemProducer {
 
     /// Creates a producer for read many operations.
     ///
-    /// This strategy processes query chunks sequentially, where each chunk will map to its own partition key range.
-    /// It will exhaust one chunk completely before moving to the next.
-    pub fn read_many(query_chunks: Vec<HashMap<String, Vec<(usize, String, String)>>>) -> Self {
+    /// This strategy processes query chunks sequentially, where each chunk will map to its own query and partition key range.
+    pub fn read_many(query_chunks: Vec<QueryChunk>) -> Self {
         Self::ReadMany(ReadManyStrategy::new(query_chunks))
     }
 
@@ -199,7 +182,7 @@ impl ItemProducer {
             ItemProducer::Unordered(s) => s.provide_data(pkrange_id, data, continuation),
             ItemProducer::Streaming(s) => s.provide_data(pkrange_id, data, continuation),
             ItemProducer::NonStreaming(s) => s.provide_data(pkrange_id, data, continuation),
-            ItemProducer::ReadMany(s) => s.provide_data(pkrange_id, data, continuation),
+            ItemProducer::ReadMany(s) => s.provide_data(request_id, data, continuation),
             ItemProducer::Hybrid(s) => s.provide_data(pkrange_id, request_id, data, continuation),
         }
     }

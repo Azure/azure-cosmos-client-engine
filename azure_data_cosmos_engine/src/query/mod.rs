@@ -3,7 +3,6 @@
 
 use std::borrow::Cow;
 
-use azure_data_cosmos::query;
 use serde::Deserialize;
 
 mod aggregators;
@@ -111,6 +110,19 @@ impl ItemIdentity {
             partition_key_value: partition_key_value.into(),
         }
     }
+}
+
+#[derive(Debug)]
+pub struct QueryChunk {
+    pub pk_range_id: String,
+    pub items: Vec<QueryChunkItem>
+}
+
+#[derive(Debug)]
+pub struct QueryChunkItem {
+    pub index: usize,
+    pub id: String,
+    pub partition_key_value: String,
 }
 
 /// Describes a request for additional data from the pipeline.
