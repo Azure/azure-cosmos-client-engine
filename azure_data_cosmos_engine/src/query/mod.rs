@@ -88,12 +88,6 @@ impl PartitionKeyRange {
 }
 
 #[derive(Clone, Debug, Deserialize)]
-#[cfg_attr(
-    feature = "python_conversions",
-    derive(pyo3::FromPyObject),
-    pyo3(from_item_all)
-)]
-#[serde(rename_all = "camelCase")]
 // TODO: pk values here are all currently strings - we need the same sort of PartitionKeyValue
 // logic used in the main Rust SDK in order to compare and be able to use it within this method.
 pub struct ItemIdentity {

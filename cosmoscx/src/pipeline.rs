@@ -95,7 +95,7 @@ pub extern "C" fn cosmoscx_v0_readmany_pipeline_create<'a>(
     item_identities: Str<'a>,
     pkranges: Str<'a>,
     pk_kind: Str<'a>,
-    pk_version: u32,
+    pk_version: u8,
 ) -> FfiResult<Pipeline> {
     #[derive(Deserialize)]
     struct PartitionKeyRangeResult {
@@ -107,7 +107,7 @@ pub extern "C" fn cosmoscx_v0_readmany_pipeline_create<'a>(
         item_identities: Str<'a>,
         pkranges: Str<'a>,
         pk_kind: Str<'a>,
-        pk_version: u32,
+        pk_version: u8,
     ) -> Result<Box<QueryPipeline>, azure_data_cosmos_engine::Error> {
         tracing::debug!("creating readmany pipeline here");
         let item_identities_json = unsafe { item_identities.as_str().not_null() }?;

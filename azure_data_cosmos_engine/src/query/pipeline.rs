@@ -373,7 +373,7 @@ impl QueryPipeline {
         item_identities: impl IntoIterator<Item = ItemIdentity>,
         pkranges: impl IntoIterator<Item = PartitionKeyRange>,
         pk_kind: &str,
-        pk_version: u32,
+        pk_version: u8,
     ) -> crate::Result<Self> {
         let mut pkranges: Vec<PartitionKeyRange> = pkranges.into_iter().collect();
         tracing::debug!(?pkranges, "creating readmany pipeline2");
@@ -423,7 +423,7 @@ fn partition_items_by_range(
     item_identities: Vec<ItemIdentity>,
     pkranges: &mut Vec<PartitionKeyRange>,
     pk_kind: &str,
-    pk_version: u32,
+    pk_version: u8,
 ) -> Result<HashMap<String, Vec<(usize, String, String)>>, Box<dyn std::error::Error>> {
     // TODO: Partition key values here are all currently strings - we need the same sort of PartitionKeyValue
     // logic used in the main Rust SDK in order to compare and be able to use it within this method.
@@ -456,10 +456,14 @@ fn partition_items_by_range(
         // TODO: Also needs PK to be updated here
 
         let epk_range_string =
-            get_hashed_partition_key_string(&[pk_value_val], &pk_kind_enum, pk_version);
+            get_hashed_partition_key_string(&[pk_value_val], pk_kind_enum, pk_version);
         tracing::debug!(?epk_range_string, "current epk_range_string");
-        let epk_range = QueryRange::new(&epk_range_string, &epk_range_string, true, true);
-        tracing::debug!(?pkranges, "CURRENT pkranges");
+            let epk_range = QueryRange {
+                min: epk_range_string.clone(),
+                max: epk_range_string,
+                is_min_inclusive: true,
+                is_max_inclusive: true,
+            };
         // Here we have to create a clone because get_overlapping_pk_ranges modifies the input pkranges.
         // For ReadMany we need to keep the full list intact for the next set of items, since a range may be used more than once.
         let mut pkranges_clone = pkranges.clone();

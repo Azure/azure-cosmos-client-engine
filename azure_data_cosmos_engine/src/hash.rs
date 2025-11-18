@@ -30,7 +30,7 @@ pub enum PartitionKeyValue {
     Undefined,
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone, Copy)]
 pub enum PartitionKeyKind {
     Hash,
     MultiHash,
@@ -191,8 +191,8 @@ impl PartitionKeyValue {
 /// Returns a hex string representation of a partition key value.
 pub fn get_hashed_partition_key_string(
     pk_value: &[PartitionKeyValue],
-    kind: &PartitionKeyKind,
-    version: u32,
+    kind: PartitionKeyKind,
+    version: u8,
 ) -> String {
     if pk_value.is_empty() {
         return MIN_INCLUSIVE_EFFECTIVE_PARTITION_KEY.to_string();
