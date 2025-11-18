@@ -617,4 +617,78 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    pub fn readmany_strategy_returns_items_in_original_order(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let mut partition0: VecDeque<TestPage> = VecDeque::new();
+        let mut partition1: VecDeque<TestPage> = VecDeque::new();
+        // partition0 will return: item2, item0, item4
+        // partition1 will return: item1, item3, item5
+        
+        partition0.push_back((
+            None,
+            vec![
+                create_item("partition0", "item2", vec![]),
+                create_item("partition0", "item0", vec![]),
+                create_item("partition0", "item4", vec![]),
+            ],
+        ));
+
+        partition1.push_back((
+            None,
+            vec![
+                create_item("partition1", "item1", vec![]),
+                create_item("partition1", "item3", vec![]),
+                create_item("partition1", "item5", vec![]),
+            ],
+        ));
+
+        // Create query chunks representing items in their original order
+        // The chunks will be distributed across partitions but should be returned in original order
+        let query_chunks = vec![
+            QueryChunk {
+                pk_range_id: "partition0".to_string(),
+                items: vec![
+                    QueryChunkItem { index: 0, id: "item0".to_string(), partition_key_value: "partition0".to_string() },
+                    QueryChunkItem { index: 2, id: "item2".to_string(), partition_key_value: "partition0".to_string() },
+                    QueryChunkItem { index: 4, id: "item4".to_string(), partition_key_value: "partition0".to_string() },
+                ],
+            },
+            QueryChunk {
+                pk_range_id: "partition1".to_string(),
+                items: vec![
+                    QueryChunkItem { index: 1, id: "item1".to_string(), partition_key_value: "partition1".to_string() },
+                    QueryChunkItem { index: 3, id: "item3".to_string(), partition_key_value: "partition1".to_string() },
+                    QueryChunkItem { index: 5, id: "item5".to_string(), partition_key_value: "partition1".to_string() },
+                ],
+            },
+        ];
+
+        let mut producer = ItemProducer::read_many(query_chunks);
+
+        let items = run_producer(
+            &mut producer,
+            HashMap::from([
+                ("partition0".to_string(), partition0),
+                ("partition1".to_string(), partition1),
+            ]),
+        )?;
+
+        // Items should be returned in their original index order (0, 1, 2, 3, 4, 5)
+        // even though they came from different partitions in arbitrary order
+        assert_eq!(
+            vec![
+                Item::new("item0", "partition0", "partition0 / item0"),
+                Item::new("item1", "partition1", "partition1 / item1"),
+                Item::new("item2", "partition0", "partition0 / item2"),
+                Item::new("item3", "partition1", "partition1 / item3"),
+                Item::new("item4", "partition0", "partition0 / item4"),
+                Item::new("item5", "partition1", "partition1 / item5"),
+            ],
+            items
+        );
+
+        Ok(())
+    }
 }
