@@ -44,12 +44,8 @@ impl ReadManyStrategy {
     ) -> crate::Result<()> {
         // Parse the raw bytes using the result shape
         let parsed_data = QueryResultShape::RawPayload.results_from_slice(data)?;
-        tracing::debug!(parsed_data = ?parsed_data, "parsed items from data");
-
         // Add the data to the items queue.
         self.items.extend(parsed_data);
-        tracing::debug!("current items queue length: {}", self.items.len());
-        tracing::debug!("continuation: {:?}", continuation);
 
         // Find the query chunk state by request_id (which matches the chunk's index)
         let query_chunk_state = self
@@ -64,7 +60,6 @@ impl ReadManyStrategy {
             })?;
         // Update the state and capture the done status before dropping the mutable borrow
         query_chunk_state.update_state(continuation);
-        let current_chunk_done = query_chunk_state.done();
         // Drop the mutable borrow here explicitly
         let _ = query_chunk_state;
 
@@ -93,7 +88,6 @@ impl ReadManyStrategy {
                 .map(|(_, query_result)| query_result)
                 .collect();
         }
-        tracing::debug!("query chunk state done: {}", current_chunk_done);
         tracing::debug!("state of all chunks: {}", self.query_chunk_states.iter().all(|state| state.done()));
 
         Ok(())

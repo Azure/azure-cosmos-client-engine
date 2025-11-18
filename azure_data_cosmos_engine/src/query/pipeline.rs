@@ -1,17 +1,17 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-use std::{collections::HashMap, ffi::CStr, str::FromStr};
+use std::ffi::CStr;
 
 use crate::{
     query::{
         node::AggregatePipelineNode, plan::HybridSearchQueryInfo, query_result::QueryResultShape,
-        QueryInfo, ItemIdentity, QueryChunk, QueryChunkItem
+        QueryInfo, ItemIdentity, QueryChunk
     },
     ErrorKind,
 };
 
-use crate::hash::{get_hashed_partition_key_string, PartitionKeyKind, PartitionKeyValue};
+use crate::hash::PartitionKeyKind;
 
 use super::{
     node::{LimitPipelineNode, OffsetPipelineNode, PipelineNode, PipelineSlice},
@@ -352,7 +352,6 @@ impl QueryPipeline {
 
         // For ReadMany, we aggregate all the requests from the available producers in order to parallelize them.
         let requests = self.producer.data_requests()?;
-        tracing::debug!(requests = ?requests, "REQUESTS for next pipeline turn");
 
         Ok(PipelineResponse {
             items,
@@ -372,36 +371,19 @@ impl QueryPipeline {
     pub fn for_read_many(
         item_identities: impl IntoIterator<Item = ItemIdentity>,
         pkranges: impl IntoIterator<Item = PartitionKeyRange>,
-        pk_kind: &str,
+        pk_kind: PartitionKeyKind,
         pk_version: u8,
     ) -> crate::Result<Self> {
         let mut pkranges: Vec<PartitionKeyRange> = pkranges.into_iter().collect();
-        tracing::debug!(?pkranges, "creating readmany pipeline2");
-
         // Grab item identities and start grouping them by partition key range.
         // Output should be a list of tuples of (pkrangeid, query_string) to go over and generate item producers for.
         let item_identities: Vec<ItemIdentity> = item_identities.into_iter().collect();
-        tracing::debug!(?item_identities, "received item identities for read many");
-        // Group items by their partition key range ID.
-        let items_by_range =
-            partition_items_by_range(item_identities, &mut pkranges, pk_kind, pk_version).unwrap();
-        tracing::debug!(
-            ?items_by_range,
-            "grouped item identities by partition key range"
-        );
         // Create query chunks from the partitioned items, splitting total list into 1000 max item queries.
         // Each chunk is represented as vector of mappings of partition key range IDs to lists of tuples containing the original index, item ID, and partition key value.
-        let query_chunks = create_query_chunks_from_partitioned_items(&items_by_range);
-        tracing::debug!(?query_chunks, "created query chunks from partitioned items");
-
+        let query_chunks = QueryChunk::from_identities(item_identities, &mut pkranges, pk_kind, pk_version);
         // Create the item producer for read many.
         let producer = ItemProducer::read_many(query_chunks);
-
-        // We are building the pipeline outside-in.
-        // That means the first node we push will be the first node executed.
-        // This is relevant for nodes like OFFSET and LIMIT, which need to be ordered carefully.
         let pipeline: Vec<Box<dyn PipelineNode>> = Vec::new();
-
         Ok(Self {
             query: None,
             pipeline,
@@ -417,113 +399,9 @@ fn format_query(original: &str) -> String {
     original.replace("{documentdb-formattableorderbyquery-filter}", "true")
 }
 
-// Groups items by their partition key range ID efficiently while preserving original order.
-// Returns a mapping of partition key range IDs to lists of tuples containing the original index, item ID, and partition key value.
-fn partition_items_by_range(
-    item_identities: Vec<ItemIdentity>,
-    pkranges: &mut Vec<PartitionKeyRange>,
-    pk_kind: &str,
-    pk_version: u8,
-) -> Result<HashMap<String, Vec<(usize, String, String)>>, Box<dyn std::error::Error>> {
-    // TODO: Partition key values here are all currently strings - we need the same sort of PartitionKeyValue
-    // logic used in the main Rust SDK in order to compare and be able to use it within this method.
-    let mut items_by_partition: HashMap<String, Vec<(usize, String, String)>> = HashMap::new();
-    let mut items_by_pk_value: HashMap<String, Vec<(usize, String, String)>> = HashMap::new();
-    let pk_kind_enum = PartitionKeyKind::from_str(pk_kind).unwrap_or(PartitionKeyKind::Other);
-
-    // Group items by PK value (string or number) - only string for now since we don't have PartitionKeyValue logic yet.
-    for (idx, identity) in item_identities.iter().enumerate() {
-        let pk_value = identity.partition_key_value.clone(); // PartitionKeyValue is enum { String(String), Number(f64) }
-        items_by_pk_value
-            .entry(pk_value.clone())
-            .or_default()
-            .push((idx, identity.id.clone(), pk_value));
-    }
-    tracing::debug!(?items_by_pk_value, "items by pk value");
-
-    // For each PK group, compute EPK range and find overlapping ranges
-    tracing::debug!("grouping items by partition key range");
-    tracing::debug!(?pkranges, "INITIAL pkranges");
-    for pk_items in items_by_pk_value.values() {
-        tracing::debug!(?pk_items, "current pk_items");
-        let pk_value = &pk_items[0].2;
-        // let pk_value_val = PartitionKeyValue::String(pk_value.clone());
-        // The Go SDK passes in a pk_value JSON string that comes in as "["value"]". We need to 
-        // get the actual value inside, otherwise hashing fails to get values in the right ranges
-        let inner_value = extract_inner_pk_value(pk_value)?;
-        tracing::debug!(?inner_value, "value ebing sent");
-        let pk_value_val = PartitionKeyValue::String(inner_value.clone()); 
-        // TODO: Also needs PK to be updated here
-
-        let epk_range_string =
-            get_hashed_partition_key_string(&[pk_value_val], pk_kind_enum, pk_version);
-        tracing::debug!(?epk_range_string, "current epk_range_string");
-            let epk_range = QueryRange {
-                min: epk_range_string.clone(),
-                max: epk_range_string,
-                is_min_inclusive: true,
-                is_max_inclusive: true,
-            };
-        // Here we have to create a clone because get_overlapping_pk_ranges modifies the input pkranges.
-        // For ReadMany we need to keep the full list intact for the next set of items, since a range may be used more than once.
-        let mut pkranges_clone = pkranges.clone();
-        get_overlapping_pk_ranges(&mut pkranges_clone, &[epk_range]);
-        tracing::debug!(?pkranges, "filtered pkranges for current pk_value");
-        if !pkranges.is_empty() {
-            let range_id = pkranges_clone[0].id.clone();
-            items_by_partition
-                .entry(range_id)
-                .or_default()
-                .extend(pk_items.clone());
-        }
-    }
-    Ok(items_by_partition)
-}
-
-// Creates [`QueryChunk`]s from partitioned items, ensuring no chunk exceeds the maximum item limit.
-// Each chunk is represented as vector of partition key range IDs to lists of [`QueryChunkItem`]s containing the original index, item ID, and partition key value.
-fn create_query_chunks_from_partitioned_items(
-    items_by_partition: &HashMap<String, Vec<(usize, String, String)>>,
-) -> Vec<QueryChunk> {
-    let mut query_chunks: Vec<QueryChunk> = Vec::new();
-    let max_items_per_query = 1000;
-    for (partition_id, partition_items) in items_by_partition {
-        for chunk_start in (0..partition_items.len()).step_by(max_items_per_query) {
-            let chunk_end = (chunk_start + max_items_per_query).min(partition_items.len());
-            let chunks = partition_items[chunk_start..chunk_end].to_vec();
-            let chunk_items = chunks.into_iter().map(|(index, id, partition_key_value)| QueryChunkItem {
-                index,
-                id,
-                partition_key_value,
-            }).collect();
-            query_chunks.push(QueryChunk { pk_range_id: partition_id.clone(), items: chunk_items });
-        }
-    }
-    query_chunks
-}
-
-fn extract_inner_pk_value(raw: &str) -> Result<String, String> {
-    // First try: input is a JSON array like ["odd"]
-    if let Ok(vec) = serde_json::from_str::<Vec<String>>(raw) {
-        if let Some(first) = vec.into_iter().next() {
-            return Ok(first);
-        }
-        return Err(format!("failed to parse empty partition key value: {raw}").into());
-    }
-
-    // Second try: input is a JSON string like "odd"
-    if let Ok(val) = serde_json::from_str::<String>(raw) {
-        return Ok(val);
-    }
-
-    // If both failed, return an error
-    Err(format!("failed to parse partition key value: {raw}").into())
-}
-
-
 /// Filters the partition key ranges to include only those that overlap with the query ranges.
 /// If no query ranges are provided, all partition key ranges are retained.
-fn get_overlapping_pk_ranges(pkranges: &mut Vec<PartitionKeyRange>, query_ranges: &[QueryRange]) {
+pub fn get_overlapping_pk_ranges(pkranges: &mut Vec<PartitionKeyRange>, query_ranges: &[QueryRange]) {
     if query_ranges.is_empty() {
         return;
     }

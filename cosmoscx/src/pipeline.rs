@@ -3,9 +3,12 @@
 
 //! Functions related to creating and executing query pipelines.
 
+use std::str::FromStr;
+
 use azure_data_cosmos_engine::{
     query::{ItemIdentity, PartitionKeyRange, QueryPipeline, QueryPlan},
     ErrorKind,
+    PartitionKeyKind,
 };
 use serde::Deserialize;
 
@@ -114,19 +117,17 @@ pub extern "C" fn cosmoscx_v0_readmany_pipeline_create<'a>(
         let pkranges_json = unsafe { pkranges.as_str().not_null() }?;
         let pk_kind_json = unsafe { pk_kind.as_str().not_null() }?;
         let pk_version = pk_version;
-        tracing::debug!(item_identities = ?item_identities_json, pkranges = ?pkranges_json, pk_kind = ?pk_kind_json, pk_version = ?pk_version, "parsing readmany pipeline parameters");
         let pkranges: PartitionKeyRangeResult = serde_json::from_str(pkranges_json)
             .map_err(|e: serde_json::Error| ErrorKind::InvalidGatewayResponse.with_source(e))?;
         let item_identities: Vec<ItemIdentity> = serde_json::from_str(item_identities_json)
             .map_err(|e: serde_json::Error| ErrorKind::InvalidGatewayResponse.with_source(e))?;
 
         // SAFETY: We should no longer need either of the parameter slices, we copied them into owned data.
-
         tracing::debug!(item_identities = ?item_identities, pkranges = ?pkranges.ranges, pk_kind = ?pk_kind_json, pk_version = ?pk_version, "creating readmany pipeline");
         let pipeline = QueryPipeline::for_read_many(
             item_identities,
             pkranges.ranges,
-            pk_kind_json,
+            PartitionKeyKind::from_str(pk_kind_json).expect("invalid partition key kind"),
             pk_version,
         )?;
         Ok(Box::new(pipeline))
