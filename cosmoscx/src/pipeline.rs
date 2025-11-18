@@ -236,11 +236,8 @@ pub extern "C" fn cosmoscx_v0_query_pipeline_run(
     fn inner(
         pipeline: *mut Pipeline,
     ) -> Result<Box<PipelineResult>, azure_data_cosmos_engine::Error> {
-        tracing::debug!("cosmoscx_query_pipeline_run starting");
         let pipeline = unsafe { Pipeline::unwrap_ptr(pipeline) }?;
-        tracing::debug!("unwrapped pipeline");
         let result = pipeline.run()?;
-        tracing::debug!("pipeline run completed");
 
         // Box up each of the JSON values in the batch.
         let items = result

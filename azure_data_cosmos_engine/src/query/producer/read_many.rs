@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 
 use crate::{
     ErrorKind, query::{DataRequest, QueryChunk, QueryChunkItem, QueryResult, node::PipelineNodeResult, query_result::QueryResultShape}
@@ -62,34 +62,38 @@ impl ReadManyStrategy {
                     request_id
                 ))
             })?;
-        // Verify all query chunks are done, and if so sort the items to be returned
+        // Update the state and capture the done status before dropping the mutable borrow
         query_chunk_state.update_state(continuation);
-        tracing::debug!("random item: {:?}", self.items[0]);
-        // if self.query_chunk_states.iter().all(|state| state.done()) {
-        //     // id to index lookup to use for sorting
-        //     let id_to_index: HashMap<String, usize> = self.query_chunk_items
-        //         .iter()
-        //         .map(|item| (item.id.clone(), item.index))
-        //         .collect();
+        let current_chunk_done = query_chunk_state.done();
+        // Drop the mutable borrow here explicitly
+        let _ = query_chunk_state;
 
-        //     let mut items_with_indices: Vec<(usize, QueryResult)> = self.items
-        //         .drain(..)
-        //         .filter_map(|query_result| {
-        //             let id = extract_id_from_query_result(&query_result)?;
-        //             let original_index = id_to_index.get(&id)?;
-        //             Some((*original_index, query_result))
-        //         })
-        //         .collect();
+        // if we're all done, we can sort the final list of items
+        if self.query_chunk_states.iter().all(|state| state.done()) {
+            // id to index lookup to use for sorting
+            let id_to_index: HashMap<String, usize> = self.query_chunk_items
+                .iter()
+                .map(|item| (item.id.clone(), item.index))
+                .collect();
 
-        //     // sort by the original index
-        //     items_with_indices.sort_by_key(|(index, _)| *index);
+            let mut items_with_indices: Vec<(usize, QueryResult)> = self.items
+                .drain(..)
+                .filter_map(|query_result| {
+                    let id = extract_id_from_query_result(&query_result)?;
+                    let original_index = id_to_index.get(&id)?;
+                    Some((*original_index, query_result))
+                })
+                .collect();
 
-        //     // get the final sorted items
-        //     self.items = items_with_indices.into_iter()
-        //         .map(|(_, query_result)| query_result)
-        //         .collect();
-        // }
-        tracing::debug!("query chunk state: {}", query_chunk_state.done());
+            // sort by the original index
+            items_with_indices.sort_by_key(|(index, _)| *index);
+
+            // get the final sorted items
+            self.items = items_with_indices.into_iter()
+                .map(|(_, query_result)| query_result)
+                .collect();
+        }
+        tracing::debug!("query chunk state done: {}", current_chunk_done);
         tracing::debug!("state of all chunks: {}", self.query_chunk_states.iter().all(|state| state.done()));
 
         Ok(())
@@ -101,4 +105,12 @@ impl ReadManyStrategy {
             && self.query_chunk_states.iter().all(|state| state.done());
         Ok(PipelineNodeResult { value, terminated })
     }
+}
+
+fn extract_id_from_query_result(query_result: &QueryResult) -> Option<String> {
+    let QueryResult::RawPayload(payload) = query_result else {
+        return None;
+    };
+    let json: serde_json::Value = serde_json::from_str(payload.get()).ok()?;
+    json.get("id")?.as_str().map(|s| s.to_string())
 }
