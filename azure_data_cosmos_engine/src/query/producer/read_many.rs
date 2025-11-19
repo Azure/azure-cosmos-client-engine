@@ -98,10 +98,6 @@ impl ReadManyStrategy {
                 .map(|(_, query_result)| query_result)
                 .collect();
         }
-        tracing::debug!(
-            "state of all chunks: {}",
-            self.query_chunk_states.iter().all(|state| state.done())
-        );
 
         Ok(())
     }

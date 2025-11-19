@@ -334,7 +334,7 @@ impl QueryPipeline {
 
             // Termination MUST come from the pipeline, to ensure aggregates (which can only be emitted after all data is processed) work correctly.
             if result.terminated {
-                tracing::debug!("pipeline node terminated the pipeline");
+                tracing::trace!("pipeline node terminated the pipeline");
                 self.terminated = true;
             }
 

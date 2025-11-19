@@ -111,7 +111,6 @@ pub extern "C" fn cosmoscx_v0_readmany_pipeline_create<'a>(
         pk_kind: Str<'a>,
         pk_version: u8,
     ) -> Result<Box<QueryPipeline>, azure_data_cosmos_engine::Error> {
-        tracing::debug!("creating readmany pipeline here");
         let item_identities_json = unsafe { item_identities.as_str().not_null() }?;
         let pkranges_json = unsafe { pkranges.as_str().not_null() }?;
         let pk_kind_json = unsafe { pk_kind.as_str().not_null() }?;

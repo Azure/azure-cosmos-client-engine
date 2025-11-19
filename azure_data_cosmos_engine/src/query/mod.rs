@@ -124,7 +124,7 @@ pub struct QueryChunkItem {
 }
 
 impl QueryChunk {
-    pub fn from_identities(item_identities: Vec<ItemIdentity>, pkranges: &mut Vec<PartitionKeyRange>, pk_kind: PartitionKeyKind, pk_version: u8) -> Vec<QueryChunk> {
+    pub fn from_identities(item_identities: Vec<ItemIdentity>, pkranges: &mut Vec<PartitionKeyRange>, pk_kind: PartitionKeyKind, pk_version: u8) -> Vec<Self> {
         // Group items by their partition key range ID.
         let items_by_range =
             partition_items_by_range(item_identities, pkranges, pk_kind, pk_version).unwrap();
