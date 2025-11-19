@@ -21,8 +21,8 @@ pub struct ReadManyStrategy {
 }
 
 impl ReadManyStrategy {
-    pub fn new(query_chunks: Vec<QueryChunk>) -> Self {
-        let query_chunk_states = create_query_chunk_states(&query_chunks);
+    pub fn new(query_chunks: Vec<QueryChunk>, pk_paths: Vec<String>) -> Self {
+        let query_chunk_states = create_query_chunk_states(&query_chunks, pk_paths);
         tracing::debug!("initialized query chunk states: {:?}", query_chunk_states);
         // We collect the query chunk items in order to be used for sorting later, since they contain the original item indexes.
         let query_chunk_items = query_chunks
@@ -56,9 +56,7 @@ impl ReadManyStrategy {
 
         // Find the query chunk state by request_id (which matches the chunk's index)
         let query_chunk_state = self
-            .query_chunk_states
-            .iter_mut()
-            .find(|state| state.index == request_id as usize)
+            .query_chunk_states.get_mut(request_id as usize)
             .ok_or_else(|| {
                 ErrorKind::InternalError.with_message(format!(
                     "no query chunk state found for request_id/index {}",

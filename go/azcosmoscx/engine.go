@@ -115,8 +115,8 @@ func (p *clientEngineQueryPipeline) ProvideData(results []queryengine.QueryResul
 }
 
 // CreateReadManyPipeline creates the relevant partition-scoped queries for executing the read many operation along with the pipeline to run them.
-func (e *nativeQueryEngine) CreateReadManyPipeline(items []queryengine.ItemIdentity, pkranges string, pkKind string, pkVersion int8) (queryengine.QueryPipeline, error) {
-	pipeline, err := newReadManyPipeline(items, pkranges, pkKind, pkVersion)
+func (e *nativeQueryEngine) CreateReadManyPipeline(items []queryengine.ItemIdentity, pkranges string, pkKind string, pkVersion int8, pkPaths []string) (queryengine.QueryPipeline, error) {
+	pipeline, err := newReadManyPipeline(items, pkranges, pkKind, pkVersion, pkPaths)
 	if err != nil {
 		return nil, err
 	}

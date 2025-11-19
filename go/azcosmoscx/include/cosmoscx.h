@@ -374,7 +374,8 @@ struct CosmosCxFfiResult_Pipeline cosmoscx_v0_query_pipeline_create(CosmosCxStr 
 struct CosmosCxFfiResult_Pipeline cosmoscx_v0_readmany_pipeline_create(CosmosCxStr item_identities,
                                                                        CosmosCxStr pkranges,
                                                                        CosmosCxStr pk_kind,
-                                                                       uint8_t pk_version);
+                                                                       uint8_t pk_version,
+                                                                       CosmosCxStr pk_paths);
 
 /**
  * Frees the memory associated with a pipeline.

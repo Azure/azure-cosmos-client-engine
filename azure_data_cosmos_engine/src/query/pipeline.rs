@@ -373,6 +373,7 @@ impl QueryPipeline {
         pkranges: impl IntoIterator<Item = PartitionKeyRange>,
         pk_kind: PartitionKeyKind,
         pk_version: u8,
+        pk_paths: Vec<String>,
     ) -> crate::Result<Self> {
         let mut pkranges: Vec<PartitionKeyRange> = pkranges.into_iter().collect();
         // Grab item identities and start grouping them by partition key range.
@@ -383,7 +384,7 @@ impl QueryPipeline {
         let query_chunks = 
             QueryChunk::from_identities(item_identities, &mut pkranges, pk_kind, pk_version);
         // Create the item producer for read many.
-        let producer = ItemProducer::read_many(query_chunks);
+        let producer = ItemProducer::read_many(query_chunks, pk_paths);
         let pipeline: Vec<Box<dyn PipelineNode>> = Vec::new();
         Ok(Self {
             query: None,

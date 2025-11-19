@@ -202,10 +202,14 @@ fn create_query_chunks_from_partitioned_items(
             let chunks = partition_items[chunk_start..chunk_end].to_vec();
             let chunk_items = chunks
             .into_iter()
-            .map(|(index, id, partition_key_value)| QueryChunkItem {
-                index,
-                id,
-                partition_key_value,
+            .map(|(index, id, partition_key_value)| {
+                // Extract the inner partition key value before creating the QueryChunkItem
+                let inner_pk_value = extract_inner_pk_value(&partition_key_value).unwrap();
+                QueryChunkItem {
+                    index,
+                    id,
+                    partition_key_value: inner_pk_value,
+                }
             }).collect();
             query_chunks.push(QueryChunk {
                 pk_range_id: partition_id.clone(),

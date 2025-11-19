@@ -98,6 +98,7 @@ pub extern "C" fn cosmoscx_v0_readmany_pipeline_create<'a>(
     pkranges: Str<'a>,
     pk_kind: Str<'a>,
     pk_version: u8,
+    pk_paths: Str<'a>,
 ) -> FfiResult<Pipeline> {
     #[derive(Deserialize)]
     struct PartitionKeyRangeResult {
@@ -110,28 +111,34 @@ pub extern "C" fn cosmoscx_v0_readmany_pipeline_create<'a>(
         pkranges: Str<'a>,
         pk_kind: Str<'a>,
         pk_version: u8,
+        pk_paths: Str<'a>
     ) -> Result<Box<QueryPipeline>, azure_data_cosmos_engine::Error> {
         let item_identities_json = unsafe { item_identities.as_str().not_null() }?;
         let pkranges_json = unsafe { pkranges.as_str().not_null() }?;
         let pk_kind_json = unsafe { pk_kind.as_str().not_null() }?;
-        let pk_version = pk_version;
+        let pk_paths_json = unsafe { pk_paths.as_str().not_null() }?;
+        
         let pkranges: PartitionKeyRangeResult = serde_json::from_str(pkranges_json)
             .map_err(|e: serde_json::Error| ErrorKind::InvalidGatewayResponse.with_source(e))?;
         let item_identities: Vec<ItemIdentity> = serde_json::from_str(item_identities_json)
             .map_err(|e: serde_json::Error| ErrorKind::InvalidGatewayResponse.with_source(e))?;
+        // Deserialize pk_paths as a JSON array of strings from Go
+        let pk_paths_vec: Vec<String> = serde_json::from_str(pk_paths_json)
+            .map_err(|e: serde_json::Error| ErrorKind::InvalidGatewayResponse.with_source(e))?;
 
         // SAFETY: We should no longer need either of the parameter slices, we copied them into owned data.
-        tracing::debug!(item_identities = ?item_identities, pkranges = ?pkranges.ranges, pk_kind = ?pk_kind_json, pk_version = ?pk_version, "creating readmany pipeline");
+        tracing::debug!(item_identities = ?item_identities, pkranges = ?pkranges.ranges, pk_kind = ?pk_kind_json, pk_version = ?pk_version, pk_paths = ?pk_paths_vec, "creating readmany pipeline");
         let pipeline = QueryPipeline::for_read_many(
             item_identities,
             pkranges.ranges,
             PartitionKeyKind::from_str(pk_kind_json).expect("invalid partition key kind"),
             pk_version,
+            pk_paths_vec,
         )?;
         Ok(Box::new(pipeline))
     }
 
-    inner(item_identities, pkranges, pk_kind, pk_version).into()
+    inner(item_identities, pkranges, pk_kind, pk_version, pk_paths).into()
 }
 
 /// Frees the memory associated with a pipeline.

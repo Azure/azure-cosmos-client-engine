@@ -64,11 +64,12 @@ pub fn create_partition_state(
 
 pub fn create_query_chunk_states(
     query_chunks: &Vec<QueryChunk>,
+    pk_paths: Vec<String>,
 ) -> Vec<QueryChunkState> {
     let mut chunk_states = Vec::with_capacity(query_chunks.len());
 
     for i in 0..query_chunks.len() {
-        let query = create_query_chunk_query(&query_chunks[i].items);
+        let query = create_query_chunk_query(&query_chunks[i].items, &pk_paths);
         // For QueryChunkState, we will use the index as the indentifier as opposed to pkrange ID.
         chunk_states.push(QueryChunkState::new(
             i,
@@ -79,18 +80,32 @@ pub fn create_query_chunk_states(
     chunk_states
 }
 
-fn create_query_chunk_query(query_chunk_items: &Vec<QueryChunkItem>) -> String {
+fn create_query_chunk_query(query_chunk_items: &Vec<QueryChunkItem>, pk_paths: &Vec<String>) -> String {
     if query_chunk_items.is_empty() {
         return "SELECT * FROM c WHERE 1 = 0".to_string();
     }
+    
+    if pk_paths.len() == 1 {
+        // strip the leading "/" to get just the partition key property name
+        let pk_path = pk_paths[0].trim_start_matches('/');
+        
+        let conditions = query_chunk_items
+            .iter()
+            .map(|item| format!("(c.id = '{}' AND c.{} = '{}')", item.id, pk_path, item.partition_key_value))
+            .collect::<Vec<_>>()
+            .join(" OR ");
 
-    let conditions = query_chunk_items
-        .iter()
-        .map(|item| format!("( c.id = '{}' )", item.id))
-        .collect::<Vec<_>>()
-        .join(" OR ");
+        format!("SELECT * FROM c WHERE ( {conditions} )")
+    } else {
+        // here we could have logic for HPK later down the line - for now we just do queries with only ID values
+        let conditions = query_chunk_items
+            .iter()
+            .map(|item| format!("(c.id = '{}')", item.id))
+            .collect::<Vec<_>>()
+            .join(" OR ");
 
-    format!("SELECT * FROM c WHERE ( {conditions} )")
+        format!("SELECT * FROM c WHERE ( {conditions} )")
+    }
 }
 
 impl ItemProducer {
@@ -145,8 +160,8 @@ impl ItemProducer {
     /// Creates a producer for read many operations.
     ///
     /// This strategy processes query chunks sequentially, where each chunk will map to its own query and partition key range.
-    pub fn read_many(query_chunks: Vec<QueryChunk>) -> Self {
-        Self::ReadMany(ReadManyStrategy::new(query_chunks))
+    pub fn read_many(query_chunks: Vec<QueryChunk>, pk_paths: Vec<String>) -> Self {
+        Self::ReadMany(ReadManyStrategy::new(query_chunks, pk_paths))
     }
 
     /// Creates a producer for Hybrid search queries (which include Full-Text searches, and Rank Fusion operations)
