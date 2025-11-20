@@ -39,16 +39,14 @@ pub enum ResultCode {
     /// See [`ErrorKind::ArithmeticOverflow`].
     ArithmeticOverflow = -9,
 
-<<<<<<< HEAD
-    /// See [`ErrorKind::IllegalArgumentError`].
-    IllegalArgumentError = -10,
-=======
     /// See [`ErrorKind::InvalidRequestId`].
     InvalidRequestId = -10,
 
     /// See [`ErrorKind::InvalidQuery`].
     InvalidQuery = -11,
->>>>>>> c2e0c297026a14a34b3756ddd350b70fa0f8beea
+    
+    /// See [`ErrorKind::IllegalArgumentError`].
+    IllegalArgumentError = -12,
 }
 
 impl From<azure_data_cosmos_engine::Error> for ResultCode {
