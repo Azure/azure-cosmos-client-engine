@@ -375,6 +375,11 @@ impl QueryPipeline {
         pk_version: u8,
         pk_paths: Vec<String>,
     ) -> crate::Result<Self> {
+        // We don't currently support HPK for read many.
+        if pk_kind == PartitionKeyKind::MultiHash {
+            return Err(ErrorKind::UnsupportedFeature
+                .with_message("read many does not currently support MultiHash (hierarchical) partition keys"));
+        }
         let mut pkranges: Vec<PartitionKeyRange> = pkranges.into_iter().collect();
         // Grab item identities and start grouping them by partition key range.
         // Output should be a list of tuples of (pkrangeid, query_string) to go over and generate item producers for.

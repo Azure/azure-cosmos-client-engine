@@ -101,8 +101,8 @@ pub fn read_many() -> Result<(), Box<dyn std::error::Error>> {
             EngineResult {
                 items: vec![],
                 // Note: The order of requests depends on hash distribution - "odd" comes first based on partition ranges
-                requests: vec![DataRequest::with_query(0, "even", None, expected_odd_query.to_string(), true),
-                               DataRequest::with_query(1, "odd", None, expected_even_query.to_string(), true),],
+                requests: vec![DataRequest::with_query(0, "even", None, expected_even_query.to_string(), true),
+                               DataRequest::with_query(1, "odd", None, expected_odd_query.to_string(), true),],
                 terminated: false,
             },
             EngineResult {

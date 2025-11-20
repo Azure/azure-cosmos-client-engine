@@ -62,6 +62,10 @@ enum CosmosCxResultCode {
    * See [`ErrorKind::InvalidQuery`].
    */
   COSMOS_CX_RESULT_CODE_INVALID_QUERY = -11,
+  /**
+   * See [`ErrorKind::UnsupportedFeature`].
+   */
+  COSMOS_CX_RESULT_CODE_UNSUPPORTED_FEATURE = -12,
 };
 typedef intptr_t CosmosCxResultCode;
 

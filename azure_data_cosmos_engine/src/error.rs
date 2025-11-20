@@ -27,6 +27,11 @@ pub enum ErrorKind {
     /// This error is not recoverable, and indicates a bug in the client engine. We return this error only to allow the calling SDK to log the error and report it to the user.
     InternalError,
 
+    /// Indicates a feature is not currently supported by the query engine.
+    ///
+    /// This error is not recoverable, and indicates a missing or unimplemented feature that can't be used at the moment.
+    UnsupportedFeature,
+
     /// Indicates that the query plan requires features that are not supported by the query engine.
     ///
     /// This error is not recoverable, and should be very rare (or even impossible).
@@ -70,6 +75,7 @@ impl Display for ErrorKind {
             ErrorKind::InvalidRequestId => write!(f, "invalid request ID provided"),
             ErrorKind::InvalidQuery => write!(f, "invalid query"),
             ErrorKind::PythonError => write!(f, "python error"),
+            ErrorKind::UnsupportedFeature => write!(f, "unsupported feature"),
         }
     }
 }
