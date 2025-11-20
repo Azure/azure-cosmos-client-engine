@@ -44,7 +44,7 @@ pub enum ResultCode {
 
     /// See [`ErrorKind::InvalidQuery`].
     InvalidQuery = -11,
-    
+
     /// See [`ErrorKind::IllegalArgumentError`].
     IllegalArgumentError = -12,
 }

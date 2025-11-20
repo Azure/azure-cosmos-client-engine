@@ -191,18 +191,30 @@ pub fn get_hashed_partition_key_string(
 
     match kind {
         PartitionKeyKind::Hash => match version {
-            1 => Ok(get_effective_partition_key_for_hash_partitioning_v1(pk_value)),
-            2 => Ok(get_effective_partition_key_for_hash_partitioning_v2(pk_value)),
+            1 => Ok(get_effective_partition_key_for_hash_partitioning_v1(
+                pk_value,
+            )),
+            2 => Ok(get_effective_partition_key_for_hash_partitioning_v2(
+                pk_value,
+            )),
             _ => {
-                return Err(crate::ErrorKind::IllegalArgumentError.with_message(format!("Hash partitioning only supports version 1 or 2, got version {}", version)))
+                return Err(crate::ErrorKind::IllegalArgumentError.with_message(format!(
+                    "Hash partitioning only supports version 1 or 2, got version {}",
+                    version
+                )))
             }
         },
         // hpk only supports V2
         PartitionKeyKind::MultiHash => {
             if version != 2 {
-                return Err(crate::ErrorKind::IllegalArgumentError.with_message(format!("MultiHash partitioning only supports version 2, got version {}", version)));
+                return Err(crate::ErrorKind::IllegalArgumentError.with_message(format!(
+                    "MultiHash partitioning only supports version 2, got version {}",
+                    version
+                )));
             }
-            Ok(get_effective_partition_key_for_multi_hash_partitioning_v2(pk_value))
+            Ok(get_effective_partition_key_for_multi_hash_partitioning_v2(
+                pk_value,
+            ))
         }
         PartitionKeyKind::Other => Ok(to_hex_encoded_binary_string(pk_value)),
     }
@@ -325,7 +337,8 @@ mod tests {
             &[PartitionKeyValue::Infinity],
             PartitionKeyKind::Hash,
             0,
-        ).unwrap();
+        )
+        .unwrap();
         assert_eq!(result, MAX_EXCLUSIVE_EFFECTIVE_PARTITION_KEY);
     }
 
@@ -421,7 +434,8 @@ mod tests {
         ];
 
         for (component, expected) in cases {
-            let actual = get_hashed_partition_key_string(&[component], PartitionKeyKind::Hash, 2).unwrap();
+            let actual =
+                get_hashed_partition_key_string(&[component], PartitionKeyKind::Hash, 2).unwrap();
             assert_eq!(actual, expected, "Mismatch for component hash");
         }
     }
@@ -459,7 +473,8 @@ mod tests {
         ];
         for (components, expected) in cases {
             let actual =
-                get_hashed_partition_key_string(&components, PartitionKeyKind::MultiHash, 2).unwrap();
+                get_hashed_partition_key_string(&components, PartitionKeyKind::MultiHash, 2)
+                    .unwrap();
             assert_eq!(actual, expected, "Mismatch for multi-hash composite key");
         }
     }
@@ -474,7 +489,8 @@ mod tests {
         ];
         let expected = "3032DECBE2AB1768D8E0AEDEA35881DF";
 
-        let actual = get_hashed_partition_key_string(&component, PartitionKeyKind::Hash, 2).unwrap();
+        let actual =
+            get_hashed_partition_key_string(&component, PartitionKeyKind::Hash, 2).unwrap();
         assert_eq!(actual, expected, "Mismatch for component hash");
     }
 
@@ -504,13 +520,15 @@ mod tests {
 
         for (component, expected) in cases {
             let actual =
-                get_hashed_partition_key_string(&[component.clone()], PartitionKeyKind::Hash, 1).unwrap();
+                get_hashed_partition_key_string(&[component.clone()], PartitionKeyKind::Hash, 1)
+                    .unwrap();
             assert_eq!(
                 actual, expected,
                 "Mismatch for V1 component hash (enable test after implementation)"
             );
             // unspecified version defaults to V1
-            let actual = get_hashed_partition_key_string(&[component], PartitionKeyKind::Hash, 1).unwrap();
+            let actual =
+                get_hashed_partition_key_string(&[component], PartitionKeyKind::Hash, 1).unwrap();
             assert_eq!(
                 actual, expected,
                 "Mismatch for V1 component hash (enable test after implementation)"
