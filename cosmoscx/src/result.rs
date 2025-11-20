@@ -44,6 +44,9 @@ pub enum ResultCode {
 
     /// See [`ErrorKind::InvalidQuery`].
     InvalidQuery = -11,
+
+    /// See [`ErrorKind::IllegalArgumentError`].
+    IllegalArgumentError = -12,
 }
 
 impl From<azure_data_cosmos_engine::Error> for ResultCode {
@@ -68,6 +71,7 @@ impl From<ErrorKind> for ResultCode {
             ErrorKind::InvalidRequestId => ResultCode::InvalidRequestId,
             ErrorKind::InvalidQuery => ResultCode::InvalidQuery,
             ErrorKind::PythonError => ResultCode::InternalError,
+            ErrorKind::IllegalArgumentError => ResultCode::IllegalArgumentError,
         }
     }
 }

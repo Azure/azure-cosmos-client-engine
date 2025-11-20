@@ -181,31 +181,42 @@ pub fn get_hashed_partition_key_string(
     pk_value: &[PartitionKeyValue],
     kind: PartitionKeyKind,
     version: u8,
-) -> String {
+) -> crate::Result<String> {
     if pk_value.is_empty() {
-        return MIN_INCLUSIVE_EFFECTIVE_PARTITION_KEY.to_string();
+        return Ok(MIN_INCLUSIVE_EFFECTIVE_PARTITION_KEY.to_string());
     }
     if pk_value == [PartitionKeyValue::Infinity] {
-        return MAX_EXCLUSIVE_EFFECTIVE_PARTITION_KEY.to_string();
+        return Ok(MAX_EXCLUSIVE_EFFECTIVE_PARTITION_KEY.to_string());
     }
 
     match kind {
         PartitionKeyKind::Hash => match version {
-            1 => get_effective_partition_key_for_hash_partitioning_v1(pk_value),
-            2 => get_effective_partition_key_for_hash_partitioning_v2(pk_value),
+            1 => Ok(get_effective_partition_key_for_hash_partitioning_v1(
+                pk_value,
+            )),
+            2 => Ok(get_effective_partition_key_for_hash_partitioning_v2(
+                pk_value,
+            )),
             _ => {
-                panic!("Hash partitioning only supports version 1 or 2");
+                return Err(crate::ErrorKind::IllegalArgumentError.with_message(format!(
+                    "Hash partitioning only supports version 1 or 2, got version {}",
+                    version
+                )))
             }
         },
         // hpk only supports V2
         PartitionKeyKind::MultiHash => {
-            panic!("MultiHash currently not supported. Pending additional testing.");
-            // if version != 2 {
-            //     panic!("MultiHash partitioning only supports version 2");
-            // }
-            // get_effective_partition_key_for_multi_hash_partitioning_v2(pk_value)
+            if version != 2 {
+                return Err(crate::ErrorKind::IllegalArgumentError.with_message(format!(
+                    "MultiHash partitioning only supports version 2, got version {}",
+                    version
+                )));
+            }
+            Ok(get_effective_partition_key_for_multi_hash_partitioning_v2(
+                pk_value,
+            ))
         }
-        _ => to_hex_encoded_binary_string(pk_value),
+        PartitionKeyKind::Other => Ok(to_hex_encoded_binary_string(pk_value)),
     }
 }
 
@@ -224,21 +235,21 @@ fn get_effective_partition_key_for_hash_partitioning_v2(pk_value: &[PartitionKey
 }
 
 /// Multi-hash V2: compute per-component hash similarly and concatenate uppercase hex segments.
-// fn get_effective_partition_key_for_multi_hash_partitioning_v2(
-//     pk_value: &[PartitionKeyValue],
-// ) -> String {
-//     let mut pieces: Vec<String> = Vec::new();
-//     for comp in pk_value {
-//         let mut ms: Vec<u8> = Vec::new();
-//         write_for_hashing_v2(comp, &mut ms);
-//         let hash_128 = murmurhash3_128(&ms, 0);
-//         let mut hash_bytes = hash_128.to_le_bytes();
-//         hash_bytes.reverse();
-//         hash_bytes[0] &= 0x3F;
-//         pieces.push(bytes_to_hex_upper(&hash_bytes));
-//     }
-//     pieces.join("").to_uppercase()
-// }
+fn get_effective_partition_key_for_multi_hash_partitioning_v2(
+    pk_value: &[PartitionKeyValue],
+) -> String {
+    let mut pieces: Vec<String> = Vec::new();
+    for comp in pk_value {
+        let mut ms: Vec<u8> = Vec::new();
+        comp.write_for_hashing_v2(&mut ms);
+        let hash_128 = murmurhash3_128(&ms, 0);
+        let mut hash_bytes = hash_128.to_le_bytes();
+        hash_bytes.reverse();
+        hash_bytes[0] &= 0x3F;
+        pieces.push(bytes_to_hex_upper(&hash_bytes));
+    }
+    pieces.join("")
+}
 
 /// V1: compute 32-bit murmur hash over concatenated component encodings (suffix 0x00 for strings),
 /// convert hash (u32) to f64 (possible precision loss is intentional to mirror other sdks), then binary-encode
@@ -316,7 +327,7 @@ mod tests {
 
     #[test]
     fn test_empty_pk() {
-        let result = get_hashed_partition_key_string(&[], PartitionKeyKind::Hash, 0);
+        let result = get_hashed_partition_key_string(&[], PartitionKeyKind::Hash, 0).unwrap();
         assert_eq!(result, MIN_INCLUSIVE_EFFECTIVE_PARTITION_KEY);
     }
 
@@ -326,14 +337,15 @@ mod tests {
             &[PartitionKeyValue::Infinity],
             PartitionKeyKind::Hash,
             0,
-        );
+        )
+        .unwrap();
         assert_eq!(result, MAX_EXCLUSIVE_EFFECTIVE_PARTITION_KEY);
     }
 
     #[test]
     fn test_single_string_hash_v2() {
         let comp = PartitionKeyValue::String("customer42".to_string());
-        let result = get_hashed_partition_key_string(&[comp], PartitionKeyKind::Hash, 2);
+        let result = get_hashed_partition_key_string(&[comp], PartitionKeyKind::Hash, 2).unwrap();
         // result should be a hex string of length 32 (16 bytes * 2 chars)
         assert_eq!(result.len(), 32);
         assert_eq!(
@@ -422,53 +434,50 @@ mod tests {
         ];
 
         for (component, expected) in cases {
-            let actual = get_hashed_partition_key_string(&[component], PartitionKeyKind::Hash, 2);
+            let actual =
+                get_hashed_partition_key_string(&[component], PartitionKeyKind::Hash, 2).unwrap();
             assert_eq!(actual, expected, "Mismatch for component hash");
         }
     }
 
-    // #[test]
-    // fn test_effective_partition_key_hpk() {
-    //     // expected results come from python sdk
-    //     let cases = vec![
-    //         (
-    //             vec![
-    //                 PartitionKeyValue::String(String::from(
-    //                     "title_player_account!9E711EFBD3BBB492",
-    //                 )),
-    //                 PartitionKeyValue::String(String::from("Title-B60C1")),
-    //             ],
-    //             "2306FDF78C35ED4FD1C5835B075FC0B0248E1F58635558D12708326234F93A21",
-    //         ),
-    //         (
-    //             vec![PartitionKeyValue::String(String::from(
-    //                 "title_player_account!9E711EFBD3BBB499",
-    //             ))],
-    //             "378CCD42FC556DDDE688B05DC178BB92",
-    //         ),
-    //         (
-    //             vec![PartitionKeyValue::Bool(false), PartitionKeyValue::Null],
-    //             "2FE1BE91E90A3439635E0E9E37361EF2378867E4430E67857ACE5C908374FE16",
-    //         ),
-    //         // debugging currently
-    //         // (
-    //         //     vec![
-    //         //         PartitionKeyValue::Number(1234 as f64),
-    //         //         PartitionKeyValue::Undefined,
-    //         //     ],
-    //         //     "266B73B33A7065810B7D2A2938F85E80378867E4430E67857ACE5C908374FE16",
-    //         // ),
-    //     ];
-
-    //     for (components, expected) in cases {
-    //         let actual = get_hashed_partition_key_string(
-    //             &components,
-    //             Some(PartitionKeyKind::MultiHash),
-    //             Some(2),
-    //         );
-    //         assert_eq!(actual, expected, "Mismatch for multi-hash composite key");
-    //     }
-    // }
+    #[test]
+    fn test_effective_partition_key_hpk() {
+        // expected results come from python sdk
+        let cases = vec![
+            (
+                vec![
+                    PartitionKeyValue::String(String::from(
+                        "title_player_account!9E711EFBD3BBB492",
+                    )),
+                    PartitionKeyValue::String(String::from("Title-B60C1")),
+                ],
+                "2306FDF78C35ED4FD1C5835B075FC0B0248E1F58635558D12708326234F93A21",
+            ),
+            (
+                vec![PartitionKeyValue::String(String::from(
+                    "title_player_account!9E711EFBD3BBB499",
+                ))],
+                "378CCD42FC556DDDE688B05DC178BB92",
+            ),
+            (
+                vec![PartitionKeyValue::Bool(false), PartitionKeyValue::Null],
+                "2FE1BE91E90A3439635E0E9E37361EF2378867E4430E67857ACE5C908374FE16",
+            ),
+            (
+                vec![
+                    PartitionKeyValue::Number(1234 as f64),
+                    PartitionKeyValue::Undefined,
+                ],
+                "266B73B33A7065810B7D2A2938F85E8011622DAA78F835834610ABE56EFF5CB5",
+            ),
+        ];
+        for (components, expected) in cases {
+            let actual =
+                get_hashed_partition_key_string(&components, PartitionKeyKind::MultiHash, 2)
+                    .unwrap();
+            assert_eq!(actual, expected, "Mismatch for multi-hash composite key");
+        }
+    }
 
     #[test]
     fn test_effective_partition_key_hash_v2_multiple_keys() {
@@ -480,7 +489,8 @@ mod tests {
         ];
         let expected = "3032DECBE2AB1768D8E0AEDEA35881DF";
 
-        let actual = get_hashed_partition_key_string(&component, PartitionKeyKind::Hash, 2);
+        let actual =
+            get_hashed_partition_key_string(&component, PartitionKeyKind::Hash, 2).unwrap();
         assert_eq!(actual, expected, "Mismatch for component hash");
     }
 
@@ -510,13 +520,15 @@ mod tests {
 
         for (component, expected) in cases {
             let actual =
-                get_hashed_partition_key_string(&[component.clone()], PartitionKeyKind::Hash, 1);
+                get_hashed_partition_key_string(&[component.clone()], PartitionKeyKind::Hash, 1)
+                    .unwrap();
             assert_eq!(
                 actual, expected,
                 "Mismatch for V1 component hash (enable test after implementation)"
             );
             // unspecified version defaults to V1
-            let actual = get_hashed_partition_key_string(&[component], PartitionKeyKind::Hash, 1);
+            let actual =
+                get_hashed_partition_key_string(&[component], PartitionKeyKind::Hash, 1).unwrap();
             assert_eq!(
                 actual, expected,
                 "Mismatch for V1 component hash (enable test after implementation)"
