@@ -70,8 +70,7 @@ impl ReadManyStrategy {
 
     pub fn produce_item(&mut self) -> crate::Result<PipelineNodeResult> {
         let value = self.items.pop_front();
-        let terminated =
-            self.items.is_empty() && self.remaining_chunks == 0;
+        let terminated = self.items.is_empty() && self.remaining_chunks == 0;
         Ok(PipelineNodeResult { value, terminated })
     }
 }

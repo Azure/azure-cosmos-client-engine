@@ -21,7 +21,7 @@ pub use engine::*;
 
 use crate::hash::{get_hashed_partition_key_string, PartitionKeyKind, PartitionKeyValue};
 pub use pipeline::{
-    QueryPipeline, SupportedFeatures, SUPPORTED_FEATURES, get_overlapping_pk_ranges
+    get_overlapping_pk_ranges, QueryPipeline, SupportedFeatures, SUPPORTED_FEATURES,
 };
 pub use plan::{DistinctType, QueryInfo, QueryPlan, QueryRange, SortOrder};
 pub use query_result::{QueryClauseItem, QueryResult, QueryResultShape};
@@ -183,7 +183,6 @@ fn partition_items_by_range(
         // For ReadMany we need to keep the full list intact for the next set of items, since a range may be used more than once.
         let mut pkranges_clone = pkranges.clone();
         get_overlapping_pk_ranges(&mut pkranges_clone, &[epk_range]);
-        tracing::debug!(?pk_value, ?pkranges_clone, "found overlapping pk ranges for pk value");
         if !pkranges.is_empty() {
             let range_id = pkranges_clone[0].id.clone();
             items_by_partition
@@ -216,7 +215,8 @@ fn create_query_chunks_from_partitioned_items(
                         id,
                         partition_key_value: inner_pk_value,
                     }
-                }).collect();
+                })
+                .collect();
             query_chunks.push(QueryChunk {
                 pk_range_id: partition_id.clone(),
                 items: chunk_items,

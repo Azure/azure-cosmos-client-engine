@@ -11,7 +11,7 @@
 use std::{collections::BTreeMap, fmt::Debug, str::FromStr};
 
 use azure_data_cosmos_engine::query::{
-    DataRequest, ItemIdentity, PartitionKeyRange, QueryPipeline, QueryPlan, QueryResult
+    DataRequest, ItemIdentity, PartitionKeyRange, QueryPipeline, QueryPlan, QueryResult,
 };
 use azure_data_cosmos_engine::PartitionKeyKind;
 use serde::Serialize;
@@ -132,7 +132,7 @@ impl Engine {
             partitions,
             PartitionKeyKind::from_str("Hash").unwrap(),
             2,
-            vec!["/pk".to_string()]
+            vec!["/pk".to_string()],
         )?;
         Ok(Engine {
             container,

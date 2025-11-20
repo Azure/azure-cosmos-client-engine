@@ -377,8 +377,9 @@ impl QueryPipeline {
     ) -> crate::Result<Self> {
         // We don't currently support HPK for read many.
         if pk_kind == PartitionKeyKind::MultiHash {
-            return Err(ErrorKind::UnsupportedFeature
-                .with_message("read many does not currently support MultiHash (hierarchical) partition keys"));
+            return Err(ErrorKind::UnsupportedFeature.with_message(
+                "read many does not currently support MultiHash (hierarchical) partition keys",
+            ));
         }
         let mut pkranges: Vec<PartitionKeyRange> = pkranges.into_iter().collect();
         // Grab item identities and start grouping them by partition key range.

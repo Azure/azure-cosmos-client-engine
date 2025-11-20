@@ -63,11 +63,17 @@ pub fn read_many() -> Result<(), Box<dyn std::error::Error>> {
 
     container.insert(
         "even",
-        partition_0_items.into_iter().map(|item| item.into()).collect::<Vec<_>>(),
+        partition_0_items
+            .into_iter()
+            .map(|item| item.into())
+            .collect::<Vec<_>>(),
     );
     container.insert(
         "odd",
-        partition_1_items.into_iter().map(|item| item.into()).collect::<Vec<_>>(),
+        partition_1_items
+            .into_iter()
+            .map(|item| item.into())
+            .collect::<Vec<_>>(),
     );
     let item_identities = vec![
         ItemIdentity::new("item0", "even"),
@@ -87,11 +93,7 @@ pub fn read_many() -> Result<(), Box<dyn std::error::Error>> {
     let expected_even_query = "SELECT * FROM c WHERE ( (c.id='item0' AND c.pk='even') OR (c.id='item2' AND c.pk='even') OR (c.id='item4' AND c.pk='even') OR (c.id='item6' AND c.pk='even') OR (c.id='item8' AND c.pk='even') OR (c.id='item10' AND c.pk='even') )";
     let expected_odd_query = "SELECT * FROM c WHERE ( (c.id='item1' AND c.pk='odd') OR (c.id='item3' AND c.pk='odd') OR (c.id='item5' AND c.pk='odd') OR (c.id='item7' AND c.pk='odd') OR (c.id='item9' AND c.pk='odd') OR (c.id='item11' AND c.pk='odd') )";
 
-    let engine = Engine::for_read_many(
-        container,
-        item_identities,
-        10,
-    )?;
+    let engine = Engine::for_read_many(container, item_identities, 10)?;
 
     // We should see the first call return all of the relevant query requests
     // We should see the second call return all of the relevant items across partitions
@@ -101,8 +103,10 @@ pub fn read_many() -> Result<(), Box<dyn std::error::Error>> {
             EngineResult {
                 items: vec![],
                 // Note: The order of requests depends on hash distribution - "odd" comes first based on partition ranges
-                requests: vec![DataRequest::with_query(0, "even", None, expected_even_query.to_string(), true),
-                               DataRequest::with_query(1, "odd", None, expected_odd_query.to_string(), true),],
+                requests: vec![
+                    DataRequest::with_query(0, "even", None, expected_even_query.to_string(), true),
+                    DataRequest::with_query(1, "odd", None, expected_odd_query.to_string(), true),
+                ],
                 terminated: false,
             },
             EngineResult {
