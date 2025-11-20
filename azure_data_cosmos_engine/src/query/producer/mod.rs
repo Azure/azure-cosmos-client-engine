@@ -667,8 +667,7 @@ mod tests {
             ],
         ));
 
-        // Create query chunks representing items in their original order
-        // The chunks will be distributed across partitions but should be returned in original order
+        // The chunks will be distributed across partitions
         let query_chunks = vec![
             QueryChunk {
                 pk_range_id: "partition0".to_string(),
@@ -722,15 +721,14 @@ mod tests {
             ]),
         )?;
 
-        // Items should be returned in their original index order (0, 1, 2, 3, 4, 5)
-        // even though they came from different partitions in arbitrary order
+        // partition0 items first, then partition1 items
         assert_eq!(
             vec![
-                Item::new("item0", "partition0", "partition0 / item0"),
-                Item::new("item1", "partition1", "partition1 / item1"),
                 Item::new("item2", "partition0", "partition0 / item2"),
-                Item::new("item3", "partition1", "partition1 / item3"),
+                Item::new("item0", "partition0", "partition0 / item0"),
                 Item::new("item4", "partition0", "partition0 / item4"),
+                Item::new("item1", "partition1", "partition1 / item1"),
+                Item::new("item3", "partition1", "partition1 / item3"),
                 Item::new("item5", "partition1", "partition1 / item5"),
             ],
             items

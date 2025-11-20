@@ -8,7 +8,6 @@ use azure_data_cosmos_engine::query::{DataRequest, ItemIdentity, QueryResult};
 use pretty_assertions::assert_eq;
 
 use mock_engine::{Container, Engine};
-use serde_json::json;
 
 use crate::mock_engine::EngineResult;
 
@@ -95,29 +94,32 @@ pub fn read_many() -> Result<(), Box<dyn std::error::Error>> {
     )?;
 
     // We should see the first call return all of the relevant query requests
+    // We should see the second call return all of the relevant items across partitions
     let results = engine.execute()?;
     assert_eq!(
         vec![
             EngineResult {
                 items: vec![],
                 // Note: The order of requests depends on hash distribution - "odd" comes first based on partition ranges
-                requests: vec![DataRequest::with_query(0, "odd", None, expected_odd_query.to_string(), true),
-                               DataRequest::with_query(1, "even", None, expected_even_query.to_string(), true),],
+                requests: vec![DataRequest::with_query(0, "even", None, expected_odd_query.to_string(), true),
+                               DataRequest::with_query(1, "odd", None, expected_even_query.to_string(), true),],
                 terminated: false,
             },
             EngineResult {
                 items: vec![
+                    // All even partition items
                     serde_json::json!({"id": "item0", "partition_key": "even", "title": "even/item0"}),
-                    serde_json::json!({"id": "item1", "partition_key": "odd", "title": "odd/item1"}),
                     serde_json::json!({"id": "item2", "partition_key": "even", "title": "even/item2"}),
-                    serde_json::json!({"id": "item3", "partition_key": "odd", "title": "odd/item3"}),
                     serde_json::json!({"id": "item4", "partition_key": "even", "title": "even/item4"}),
-                    serde_json::json!({"id": "item5", "partition_key": "odd", "title": "odd/item5"}),
                     serde_json::json!({"id": "item6", "partition_key": "even", "title": "even/item6"}),
-                    serde_json::json!({"id": "item7", "partition_key": "odd", "title": "odd/item7"}),
                     serde_json::json!({"id": "item8", "partition_key": "even", "title": "even/item8"}),
-                    serde_json::json!({"id": "item9", "partition_key": "odd", "title": "odd/item9"}),
                     serde_json::json!({"id": "item10", "partition_key": "even", "title": "even/item10"}),
+                    // All odd partition items
+                    serde_json::json!({"id": "item1", "partition_key": "odd", "title": "odd/item1"}),
+                    serde_json::json!({"id": "item3", "partition_key": "odd", "title": "odd/item3"}),
+                    serde_json::json!({"id": "item5", "partition_key": "odd", "title": "odd/item5"}),
+                    serde_json::json!({"id": "item7", "partition_key": "odd", "title": "odd/item7"}),
+                    serde_json::json!({"id": "item9", "partition_key": "odd", "title": "odd/item9"}),
                     serde_json::json!({"id": "item11", "partition_key": "odd", "title": "odd/item11"}),
                 ],
                 requests: vec![],
