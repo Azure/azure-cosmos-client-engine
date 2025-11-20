@@ -48,6 +48,9 @@ pub enum ErrorKind {
 
     /// Indicates that a Python error occurred. The source of the error will be the original Python error.
     PythonError,
+
+    /// Indicates that an illegal argument was provided.
+    IllegalArgumentError,
 }
 
 impl Display for ErrorKind {
@@ -62,6 +65,7 @@ impl Display for ErrorKind {
             ErrorKind::ArgumentNull => write!(f, "provided argument was null"),
             ErrorKind::ArithmeticOverflow => write!(f, "arithmetic overflow occurred"),
             ErrorKind::PythonError => write!(f, "python error"),
+            ErrorKind::IllegalArgumentError => write!(f, "illegal argument provided"),
         }
     }
 }

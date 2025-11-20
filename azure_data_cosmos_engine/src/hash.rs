@@ -181,30 +181,30 @@ pub fn get_hashed_partition_key_string(
     pk_value: &[PartitionKeyValue],
     kind: PartitionKeyKind,
     version: u8,
-) -> String {
+) -> crate::Result<String> {
     if pk_value.is_empty() {
-        return MIN_INCLUSIVE_EFFECTIVE_PARTITION_KEY.to_string();
+        return Ok(MIN_INCLUSIVE_EFFECTIVE_PARTITION_KEY.to_string());
     }
     if pk_value == [PartitionKeyValue::Infinity] {
-        return MAX_EXCLUSIVE_EFFECTIVE_PARTITION_KEY.to_string();
+        return Ok(MAX_EXCLUSIVE_EFFECTIVE_PARTITION_KEY.to_string());
     }
 
     match kind {
         PartitionKeyKind::Hash => match version {
-            1 => get_effective_partition_key_for_hash_partitioning_v1(pk_value),
-            2 => get_effective_partition_key_for_hash_partitioning_v2(pk_value),
+            1 => Ok(get_effective_partition_key_for_hash_partitioning_v1(pk_value)),
+            2 => Ok(get_effective_partition_key_for_hash_partitioning_v2(pk_value)),
             _ => {
-                panic!("Hash partitioning only supports version 1 or 2");
+                return Err(crate::ErrorKind::IllegalArgumentError.with_message(format!("Hash partitioning only supports version 1 or 2, got version {}", version)))
             }
         },
         // hpk only supports V2
         PartitionKeyKind::MultiHash => {
             if version != 2 {
-                panic!("MultiHash partitioning only supports version 2");
+                return Err(crate::ErrorKind::IllegalArgumentError.with_message(format!("MultiHash partitioning only supports version 2, got version {}", version)));
             }
-            get_effective_partition_key_for_multi_hash_partitioning_v2(pk_value)
+            Ok(get_effective_partition_key_for_multi_hash_partitioning_v2(pk_value))
         }
-        _ => to_hex_encoded_binary_string(pk_value),
+        PartitionKeyKind::Other => Ok(to_hex_encoded_binary_string(pk_value)),
     }
 }
 
@@ -315,7 +315,7 @@ mod tests {
 
     #[test]
     fn test_empty_pk() {
-        let result = get_hashed_partition_key_string(&[], PartitionKeyKind::Hash, 0);
+        let result = get_hashed_partition_key_string(&[], PartitionKeyKind::Hash, 0).unwrap();
         assert_eq!(result, MIN_INCLUSIVE_EFFECTIVE_PARTITION_KEY);
     }
 
@@ -325,14 +325,14 @@ mod tests {
             &[PartitionKeyValue::Infinity],
             PartitionKeyKind::Hash,
             0,
-        );
+        ).unwrap();
         assert_eq!(result, MAX_EXCLUSIVE_EFFECTIVE_PARTITION_KEY);
     }
 
     #[test]
     fn test_single_string_hash_v2() {
         let comp = PartitionKeyValue::String("customer42".to_string());
-        let result = get_hashed_partition_key_string(&[comp], PartitionKeyKind::Hash, 2);
+        let result = get_hashed_partition_key_string(&[comp], PartitionKeyKind::Hash, 2).unwrap();
         // result should be a hex string of length 32 (16 bytes * 2 chars)
         assert_eq!(result.len(), 32);
         assert_eq!(
@@ -421,7 +421,7 @@ mod tests {
         ];
 
         for (component, expected) in cases {
-            let actual = get_hashed_partition_key_string(&[component], PartitionKeyKind::Hash, 2);
+            let actual = get_hashed_partition_key_string(&[component], PartitionKeyKind::Hash, 2).unwrap();
             assert_eq!(actual, expected, "Mismatch for component hash");
         }
     }
@@ -459,7 +459,7 @@ mod tests {
         ];
         for (components, expected) in cases {
             let actual =
-                get_hashed_partition_key_string(&components, PartitionKeyKind::MultiHash, 2);
+                get_hashed_partition_key_string(&components, PartitionKeyKind::MultiHash, 2).unwrap();
             assert_eq!(actual, expected, "Mismatch for multi-hash composite key");
         }
     }
@@ -474,7 +474,7 @@ mod tests {
         ];
         let expected = "3032DECBE2AB1768D8E0AEDEA35881DF";
 
-        let actual = get_hashed_partition_key_string(&component, PartitionKeyKind::Hash, 2);
+        let actual = get_hashed_partition_key_string(&component, PartitionKeyKind::Hash, 2).unwrap();
         assert_eq!(actual, expected, "Mismatch for component hash");
     }
 
@@ -504,13 +504,13 @@ mod tests {
 
         for (component, expected) in cases {
             let actual =
-                get_hashed_partition_key_string(&[component.clone()], PartitionKeyKind::Hash, 1);
+                get_hashed_partition_key_string(&[component.clone()], PartitionKeyKind::Hash, 1).unwrap();
             assert_eq!(
                 actual, expected,
                 "Mismatch for V1 component hash (enable test after implementation)"
             );
             // unspecified version defaults to V1
-            let actual = get_hashed_partition_key_string(&[component], PartitionKeyKind::Hash, 1);
+            let actual = get_hashed_partition_key_string(&[component], PartitionKeyKind::Hash, 1).unwrap();
             assert_eq!(
                 actual, expected,
                 "Mismatch for V1 component hash (enable test after implementation)"
