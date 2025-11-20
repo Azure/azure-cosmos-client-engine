@@ -71,11 +71,13 @@ pub fn create_query_chunk_states(
     for i in 0..query_chunks.len() {
         let query = create_query_chunk_query(&query_chunks[i].items, &pk_paths);
         // For QueryChunkState, we will use the index as the indentifier as opposed to pkrange ID.
-        chunk_states.push(QueryChunkState::new(
+        let chunk = QueryChunkState::new(
             i,
             query_chunks[i].pk_range_id.clone(),
             query,
-        ));
+        );
+        tracing::debug!("created query chunk state: {:?}", chunk);
+        chunk_states.push(chunk);
     }
     chunk_states
 }

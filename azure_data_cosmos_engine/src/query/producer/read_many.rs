@@ -3,6 +3,8 @@
 
 use std::collections::{HashMap, VecDeque};
 
+use serde::Deserialize;
+
 use crate::{
     query::{
         node::PipelineNodeResult, query_result::QueryResultShape, DataRequest, QueryChunk,
@@ -18,21 +20,23 @@ pub struct ReadManyStrategy {
     pub query_chunk_states: Vec<QueryChunkState>,
     pub query_chunk_items: Vec<QueryChunkItem>,
     pub items: VecDeque<QueryResult>,
+    remaining_chunks: usize,
 }
 
 impl ReadManyStrategy {
     pub fn new(query_chunks: Vec<QueryChunk>, pk_paths: Vec<String>) -> Self {
         let query_chunk_states = create_query_chunk_states(&query_chunks, pk_paths);
-        tracing::debug!("initialized query chunk states: {:?}", query_chunk_states);
         // We collect the query chunk items in order to be used for sorting later, since they contain the original item indexes.
         let query_chunk_items = query_chunks
             .into_iter()
             .flat_map(|chunk| chunk.items)
             .collect();
+        let num_chunks = query_chunk_states.len();
         Self {
-            query_chunk_states: query_chunk_states,
-            query_chunk_items: query_chunk_items,
+            query_chunk_states,
+            query_chunk_items,
             items: VecDeque::new(),
+            remaining_chunks: num_chunks,
         }
     }
 
@@ -63,13 +67,16 @@ impl ReadManyStrategy {
                     request_id
                 ))
             })?;
-        // Update the state and capture the done status before dropping the mutable borrow
+        // Update the state and verify the done status before dropping the mutable borrow
         query_chunk_state.update_state(continuation);
+        if query_chunk_state.done() {
+            self.remaining_chunks -= 1;
+        }
         // Drop the mutable borrow here explicitly
         let _ = query_chunk_state;
 
         // if we're all done, we can sort the final list of items
-        if self.query_chunk_states.iter().all(|state| state.done()) {
+        if self.remaining_chunks == 0 {
             // id to index lookup to use for sorting
             let id_to_index: HashMap<String, usize> = self
                 .query_chunk_items
@@ -77,9 +84,9 @@ impl ReadManyStrategy {
                 .map(|item| (item.id.clone(), item.index))
                 .collect();
 
-            let mut items_with_indices: Vec<(usize, QueryResult)> = self
-                .items
-                .drain(..)
+            let items = std::mem::take(&mut self.items);
+            let mut items_with_indices: Vec<(usize, QueryResult)> = items
+                .into_iter()
                 .filter_map(|query_result| {
                     let id = extract_id_from_query_result(&query_result)?;
                     let original_index = id_to_index.get(&id)?;
@@ -109,9 +116,13 @@ impl ReadManyStrategy {
 }
 
 fn extract_id_from_query_result(query_result: &QueryResult) -> Option<String> {
+    #[derive(Deserialize)]
+    struct ItemWithId {
+        pub id: String
+    }
     let QueryResult::RawPayload(payload) = query_result else {
         return None;
     };
-    let json: serde_json::Value = serde_json::from_str(payload.get()).ok()?;
-    json.get("id")?.as_str().map(|s| s.to_string())
+    let item_with_id: ItemWithId = serde_json::from_str(payload.get()).ok()?;
+    Some(item_with_id.id)
 }

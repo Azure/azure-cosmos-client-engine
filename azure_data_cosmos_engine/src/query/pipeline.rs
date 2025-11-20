@@ -385,7 +385,7 @@ impl QueryPipeline {
             QueryChunk::from_identities(item_identities, &mut pkranges, pk_kind, pk_version);
         // Create the item producer for read many.
         let producer = ItemProducer::read_many(query_chunks, pk_paths);
-        let pipeline: Vec<Box<dyn PipelineNode>> = Vec::new();
+        let pipeline = Vec::new();
         Ok(Self {
             query: None,
             pipeline,
