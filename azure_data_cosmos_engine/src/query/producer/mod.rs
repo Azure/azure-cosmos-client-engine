@@ -101,7 +101,9 @@ fn create_query_chunk_query(
             .collect::<Vec<_>>()
             .join(" OR ");
 
-        format!("SELECT * FROM c WHERE ( {conditions} )")
+        let query = format!("SELECT * FROM c WHERE ( {conditions} )");
+        tracing::debug!(query_len = query.len(), "generated query length");
+        query
     } else {
         // here we could have logic for HPK later down the line - for now we just do queries with only ID values
         let conditions = query_chunk_items
@@ -110,7 +112,9 @@ fn create_query_chunk_query(
             .collect::<Vec<_>>()
             .join(" OR ");
 
-        format!("SELECT * FROM c WHERE ( {conditions} )")
+        let query = format!("SELECT * FROM c WHERE ( {conditions} )");
+        tracing::debug!(query_len = query.len(), "generated query");
+        query
     }
 }
 
