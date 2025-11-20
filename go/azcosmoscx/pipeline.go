@@ -8,8 +8,11 @@ package azcosmoscx
 import "C"
 import (
 	"bytes"
+	"runtime"
 	"strings"
 	"unsafe"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos/queryengine"
 )
 
 type Pipeline struct {
@@ -64,11 +67,38 @@ func (p *Pipeline) NextBatch() (*PipelineResult, error) {
 	return &PipelineResult{r.value}, nil
 }
 
-func (p *Pipeline) ProvideData(pkrangeid string, data string, continuation string) error {
-	pkrangeidC := makeStr(pkrangeid)
-	dataC := makeStr(data)
-	continuationC := makeStr(continuation)
-	return mapErr(C.cosmoscx_v0_query_pipeline_provide_data(p.ptr, pkrangeidC, dataC, continuationC))
+func (p *Pipeline) ProvideData(results []queryengine.QueryResult) error {
+	if len(results) == 0 {
+		return nil
+	}
+
+	// We only need to pin values during the call to the C function
+	// The engine guarantees that it will copy any data it needs over to its own memory during the call
+	var pinner runtime.Pinner
+	defer pinner.Unpin()
+
+	resultsC := make([]C.CosmosCxQueryResponse, len(results))
+	for i, result := range results {
+		// We need to pin these strings because they're held within a C struct.
+		// Normally, the values passed DIRECTLY in to cgo functions are pinned automatically,
+		// but here we're building an array of structs to pass in, so we need to pin them ourselves.
+		pkrangeidC := makeStrPinned(result.PartitionKeyRangeID, &pinner)
+		dataC := makeStrPinned(string(result.Data), &pinner)
+		continuationC := makeStrPinned(result.NextContinuation, &pinner)
+		resultsC[i] = C.CosmosCxQueryResponse{
+			request_id:   C.uint64_t(result.RequestId),
+			pkrange_id:   pkrangeidC,
+			data:         dataC,
+			continuation: continuationC,
+		}
+	}
+
+	slice := C.CosmosCxSlice_QueryResponse{
+		data: (*C.CosmosCxQueryResponse)(unsafe.Pointer(&resultsC[0])),
+		len:  C.uintptr_t(len(resultsC)),
+	}
+
+	return mapErr(C.cosmoscx_v0_query_pipeline_provide_data(p.ptr, slice))
 }
 
 type PipelineResult struct {
@@ -145,6 +175,18 @@ func (e EngineString) CloneBytes() []byte {
 }
 
 type DataRequest C.CosmosCxDataRequest
+
+func (r *DataRequest) Id() uint64 {
+	return uint64(r.id)
+}
+
+func (r *DataRequest) Query() EngineString {
+	return EngineString(r.query)
+}
+
+func (r *DataRequest) IncludeParameters() bool {
+	return bool(r.include_parameters)
+}
 
 func (r *DataRequest) PartitionKeyRangeID() EngineString {
 	return EngineString(r.pkrangeid)

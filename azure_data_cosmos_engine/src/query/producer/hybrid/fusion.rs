@@ -3,14 +3,13 @@
 
 use std::collections::{BTreeSet, VecDeque};
 
-use serde::Deserialize;
-
 use crate::{
     query::{
         producer::hybrid::{
             component_state::ComponentQueryState, models::ComponentQueryResult,
             PaginationParameters,
         },
+        query_result::FeedResponse,
         QueryResult, SortOrder,
     },
     ErrorKind,
@@ -43,7 +42,7 @@ impl QueryResultCollector {
     }
 
     pub fn provide_data(&mut self, data: &[u8]) -> crate::Result<()> {
-        let result: DocumentResult<ComponentQueryResult> =
+        let result: FeedResponse<ComponentQueryResult> =
             serde_json::from_slice(data).map_err(|e| {
                 ErrorKind::DeserializationError.with_message(format!(
                     "failed to deserialize component query result: {}",
@@ -58,6 +57,7 @@ impl QueryResultCollector {
                     #[cfg(debug_assertions)]
                     let scores = item.payload.component_scores.clone();
 
+                    #[allow(unused_variables, reason = "used in debug assertions")]
                     if let Some(old) = s.replace(item) {
                         // Check that all the component scores are the same for duplicate items
                         // We do have to include `#[cfg(debug_assertions)]` here, even though `debug_assert_eq!` exists.

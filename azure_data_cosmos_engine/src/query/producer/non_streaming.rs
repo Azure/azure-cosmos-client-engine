@@ -23,6 +23,16 @@ pub struct NonStreamingStrategy {
     pub items: BinaryHeap<SortableResult>,
 }
 
+impl std::fmt::Debug for NonStreamingStrategy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("NonStreamingStrategy")
+            .field("partitions", &self.partitions)
+            .field("sorting", &self.sorting)
+            .field("items_len", &self.items.len())
+            .finish()
+    }
+}
+
 impl NonStreamingStrategy {
     pub fn new(
         pkranges: impl IntoIterator<Item = PartitionKeyRange>,
@@ -36,18 +46,11 @@ impl NonStreamingStrategy {
         }
     }
 
-    pub fn requests(&mut self) -> Option<Vec<DataRequest>> {
-        let requests = self
-            .partitions
+    pub fn requests(&mut self) -> Vec<DataRequest> {
+        self.partitions
             .iter()
             .filter_map(|partition| partition.request())
-            .collect::<Vec<_>>();
-        // If there are no requests, we return None.
-        if requests.is_empty() {
-            None
-        } else {
-            Some(requests)
-        }
+            .collect()
     }
 
     pub fn provide_data(
