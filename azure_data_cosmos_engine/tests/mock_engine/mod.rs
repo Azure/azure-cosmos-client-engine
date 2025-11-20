@@ -8,6 +8,8 @@
 //! * If testing an ORDER BY query, the data in each partition is ALREADY sorted by the ORDER BY field(s).
 //! * Partitions are "ordered" by their ID (in Cosmos DB, physical partitions are ordered by the minimum logical partition key value covered by the physical partition).
 
+#![allow(dead_code)]
+
 use std::{collections::BTreeMap, fmt::Debug, str::FromStr};
 
 use azure_data_cosmos_engine::query::{
