@@ -4,6 +4,8 @@
 
 ### Features Added
 
+* Added support for hierarchical partitition keys to get the effective partition key string. - [PR 54](https://github.com/Azure/azure-cosmos-client-engine/pull/54)
+
 ### Breaking Changes
 
 ### Bugs Fixed

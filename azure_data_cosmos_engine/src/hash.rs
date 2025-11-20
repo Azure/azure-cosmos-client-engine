@@ -458,11 +458,8 @@ mod tests {
             ),
         ];
         for (components, expected) in cases {
-            let actual = get_hashed_partition_key_string(
-                &components,
-                PartitionKeyKind::MultiHash,
-                2,
-            );
+            let actual =
+                get_hashed_partition_key_string(&components, PartitionKeyKind::MultiHash, 2);
             assert_eq!(actual, expected, "Mismatch for multi-hash composite key");
         }
     }
