@@ -5,6 +5,7 @@
 ### Features Added
 
 * Support for Hybrid and Full-Text queries - [PR 51](https://github.com/Azure/azure-cosmos-client-engine/pull/51)
+* Update APIs to support providing multiple results to the pipeline at once - [PR 51](https://github.com/Azure/azure-cosmos-client-engine/pull/51)
 
 ## 0.2.0 (2025-11-04)
 
