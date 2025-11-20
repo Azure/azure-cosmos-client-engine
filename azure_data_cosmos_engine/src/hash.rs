@@ -236,7 +236,7 @@ fn get_effective_partition_key_for_multi_hash_partitioning_v2(
         hash_bytes[0] &= 0x3F;
         pieces.push(bytes_to_hex_upper(&hash_bytes));
     }
-    pieces.join("").to_uppercase()
+    pieces.join("")
 }
 
 /// V1: compute 32-bit murmur hash over concatenated component encodings (suffix 0x00 for strings),
