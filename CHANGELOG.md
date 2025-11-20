@@ -3,7 +3,7 @@
 ## 0.2.0 (Unreleased)
 
 ### Features Added
-* Added ReadMany pipeline for executing `readMany` requests against the client engine. - [PR 53](https://github.com/Azure/azure-cosmos-client-engine/pull/53)
+* Added ability to execute `readMany` requests against the client engine. - [PR 53](https://github.com/Azure/azure-cosmos-client-engine/pull/53)
 
 ### Breaking Changes
 
