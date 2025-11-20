@@ -14,7 +14,7 @@ use crate::mock_engine::EngineResult;
 
 mod mock_engine;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 struct Item {
     id: String,
     partition_key: String,
@@ -36,7 +36,7 @@ impl Item {
 
 impl From<Item> for QueryResult {
     fn from(item: Item) -> Self {
-        let value = serde_json::value::to_raw_value(&item.title).unwrap();
+        let value = serde_json::value::to_raw_value(&item).unwrap();
         QueryResult::RawPayload(value)
     }
 }
@@ -100,12 +100,26 @@ pub fn read_many() -> Result<(), Box<dyn std::error::Error>> {
         vec![
             EngineResult {
                 items: vec![],
-                requests: vec![DataRequest::new(0, "even", None, Some(expected_even_query.to_string())),
-                               DataRequest::new(1, "odd", None, Some(expected_odd_query.to_string())),],
+                // Note: The order of requests depends on hash distribution - "odd" comes first based on partition ranges
+                requests: vec![DataRequest::with_query(0, "odd", None, expected_odd_query.to_string(), true),
+                               DataRequest::with_query(1, "even", None, expected_even_query.to_string(), true),],
                 terminated: false,
             },
             EngineResult {
-                items: vec![],
+                items: vec![
+                    serde_json::json!({"id": "item0", "partition_key": "even", "title": "even/item0"}),
+                    serde_json::json!({"id": "item1", "partition_key": "odd", "title": "odd/item1"}),
+                    serde_json::json!({"id": "item2", "partition_key": "even", "title": "even/item2"}),
+                    serde_json::json!({"id": "item3", "partition_key": "odd", "title": "odd/item3"}),
+                    serde_json::json!({"id": "item4", "partition_key": "even", "title": "even/item4"}),
+                    serde_json::json!({"id": "item5", "partition_key": "odd", "title": "odd/item5"}),
+                    serde_json::json!({"id": "item6", "partition_key": "even", "title": "even/item6"}),
+                    serde_json::json!({"id": "item7", "partition_key": "odd", "title": "odd/item7"}),
+                    serde_json::json!({"id": "item8", "partition_key": "even", "title": "even/item8"}),
+                    serde_json::json!({"id": "item9", "partition_key": "odd", "title": "odd/item9"}),
+                    serde_json::json!({"id": "item10", "partition_key": "even", "title": "even/item10"}),
+                    serde_json::json!({"id": "item11", "partition_key": "odd", "title": "odd/item11"}),
+                ],
                 requests: vec![],
                 terminated: true,
             },
