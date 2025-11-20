@@ -111,13 +111,13 @@ pub extern "C" fn cosmoscx_v0_readmany_pipeline_create<'a>(
         pkranges: Str<'a>,
         pk_kind: Str<'a>,
         pk_version: u8,
-        pk_paths: Str<'a>
+        pk_paths: Str<'a>,
     ) -> Result<Box<QueryPipeline>, azure_data_cosmos_engine::Error> {
         let item_identities_json = unsafe { item_identities.as_str().not_null() }?;
         let pkranges_json = unsafe { pkranges.as_str().not_null() }?;
         let pk_kind_json = unsafe { pk_kind.as_str().not_null() }?;
         let pk_paths_json = unsafe { pk_paths.as_str().not_null() }?;
-        
+
         let pkranges: PartitionKeyRangeResult = serde_json::from_str(pkranges_json)
             .map_err(|e: serde_json::Error| ErrorKind::InvalidGatewayResponse.with_source(e))?;
         let item_identities: Vec<ItemIdentity> = serde_json::from_str(item_identities_json)

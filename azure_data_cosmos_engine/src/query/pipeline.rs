@@ -6,7 +6,7 @@ use std::ffi::CStr;
 use crate::{
     query::{
         node::AggregatePipelineNode, plan::HybridSearchQueryInfo, query_result::QueryResultShape,
-        ItemIdentity, QueryChunk, QueryInfo
+        ItemIdentity, QueryChunk, QueryInfo,
     },
     ErrorKind,
 };
@@ -381,7 +381,7 @@ impl QueryPipeline {
         let item_identities: Vec<ItemIdentity> = item_identities.into_iter().collect();
         // Create query chunks from the partitioned items, splitting total list into 1000 max item queries.
         // Each chunk is represented as vector of mappings of partition key range IDs to lists of tuples containing the original index, item ID, and partition key value.
-        let query_chunks = 
+        let query_chunks =
             QueryChunk::from_identities(item_identities, &mut pkranges, pk_kind, pk_version);
         // Create the item producer for read many.
         let producer = ItemProducer::read_many(query_chunks, pk_paths);
@@ -404,7 +404,7 @@ fn format_query(original: &str) -> String {
 /// If no query ranges are provided, all partition key ranges are retained.
 pub fn get_overlapping_pk_ranges(
     pkranges: &mut Vec<PartitionKeyRange>,
-    query_ranges: &[QueryRange]
+    query_ranges: &[QueryRange],
 ) {
     if query_ranges.is_empty() {
         return;

@@ -124,7 +124,12 @@ pub struct QueryChunkItem {
 }
 
 impl QueryChunk {
-    pub fn from_identities(item_identities: Vec<ItemIdentity>, pkranges: &mut Vec<PartitionKeyRange>, pk_kind: PartitionKeyKind, pk_version: u8) -> Vec<Self> {
+    pub fn from_identities(
+        item_identities: Vec<ItemIdentity>,
+        pkranges: &mut Vec<PartitionKeyRange>,
+        pk_kind: PartitionKeyKind,
+        pk_version: u8,
+    ) -> Vec<Self> {
         // Group items by their partition key range ID.
         let items_by_range =
             partition_items_by_range(item_identities, pkranges, pk_kind, pk_version).unwrap();
@@ -178,6 +183,7 @@ fn partition_items_by_range(
         // For ReadMany we need to keep the full list intact for the next set of items, since a range may be used more than once.
         let mut pkranges_clone = pkranges.clone();
         get_overlapping_pk_ranges(&mut pkranges_clone, &[epk_range]);
+        tracing::debug!(?pk_value, ?pkranges_clone, "found overlapping pk ranges for pk value");
         if !pkranges.is_empty() {
             let range_id = pkranges_clone[0].id.clone();
             items_by_partition
@@ -201,16 +207,16 @@ fn create_query_chunks_from_partitioned_items(
             let chunk_end = (chunk_start + max_items_per_query).min(partition_items.len());
             let chunks = partition_items[chunk_start..chunk_end].to_vec();
             let chunk_items = chunks
-            .into_iter()
-            .map(|(index, id, partition_key_value)| {
-                // Extract the inner partition key value before creating the QueryChunkItem
-                let inner_pk_value = extract_inner_pk_value(&partition_key_value).unwrap();
-                QueryChunkItem {
-                    index,
-                    id,
-                    partition_key_value: inner_pk_value,
-                }
-            }).collect();
+                .into_iter()
+                .map(|(index, id, partition_key_value)| {
+                    // Extract the inner partition key value before creating the QueryChunkItem
+                    let inner_pk_value = extract_inner_pk_value(&partition_key_value).unwrap();
+                    QueryChunkItem {
+                        index,
+                        id,
+                        partition_key_value: inner_pk_value,
+                    }
+                }).collect();
             query_chunks.push(QueryChunk {
                 pk_range_id: partition_id.clone(),
                 items: chunk_items,
@@ -234,8 +240,8 @@ fn extract_inner_pk_value(raw: &str) -> Result<String, String> {
         return Ok(val);
     }
 
-    // If both failed, return an error
-    Err(format!("failed to parse partition key value: {raw}").into())
+    // Third try: input is already a plain string value (not JSON-encoded)
+    Ok(raw.to_string())
 }
 
 /// Describes a request for additional data from the pipeline.

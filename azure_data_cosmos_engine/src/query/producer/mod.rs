@@ -71,29 +71,33 @@ pub fn create_query_chunk_states(
     for i in 0..query_chunks.len() {
         let query = create_query_chunk_query(&query_chunks[i].items, &pk_paths);
         // For QueryChunkState, we will use the index as the indentifier as opposed to pkrange ID.
-        let chunk = QueryChunkState::new(
-            i,
-            query_chunks[i].pk_range_id.clone(),
-            query,
-        );
+        let chunk = QueryChunkState::new(i, query_chunks[i].pk_range_id.clone(), query);
         tracing::debug!("created query chunk state: {:?}", chunk);
         chunk_states.push(chunk);
     }
     chunk_states
 }
 
-fn create_query_chunk_query(query_chunk_items: &Vec<QueryChunkItem>, pk_paths: &Vec<String>) -> String {
+fn create_query_chunk_query(
+    query_chunk_items: &Vec<QueryChunkItem>,
+    pk_paths: &Vec<String>,
+) -> String {
     if query_chunk_items.is_empty() {
         return "SELECT * FROM c WHERE 1 = 0".to_string();
     }
-    
+
     if pk_paths.len() == 1 {
         // strip the leading "/" to get just the partition key property name
         let pk_path = pk_paths[0].trim_start_matches('/');
-        
+
         let conditions = query_chunk_items
             .iter()
-            .map(|item| format!("(c.id = '{}' AND c.{} = '{}')", item.id, pk_path, item.partition_key_value))
+            .map(|item| {
+                format!(
+                    "(c.id='{}' AND c.{}='{}')",
+                    item.id, pk_path, item.partition_key_value
+                )
+            })
             .collect::<Vec<_>>()
             .join(" OR ");
 
@@ -672,17 +676,17 @@ mod tests {
                     QueryChunkItem {
                         index: 0,
                         id: "item0".to_string(),
-                        partition_key_value: "partition0".to_string()
+                        partition_key_value: "partition0".to_string(),
                     },
                     QueryChunkItem {
                         index: 2,
                         id: "item2".to_string(),
-                        partition_key_value: "partition0".to_string()
+                        partition_key_value: "partition0".to_string(),
                     },
                     QueryChunkItem {
                         index: 4,
                         id: "item4".to_string(),
-                        partition_key_value: "partition0".to_string()
+                        partition_key_value: "partition0".to_string(),
                     },
                 ],
             },
@@ -692,23 +696,23 @@ mod tests {
                     QueryChunkItem {
                         index: 1,
                         id: "item1".to_string(),
-                        partition_key_value: "partition1".to_string()
+                        partition_key_value: "partition1".to_string(),
                     },
                     QueryChunkItem {
                         index: 3,
                         id: "item3".to_string(),
-                        partition_key_value: "partition1".to_string()
+                        partition_key_value: "partition1".to_string(),
                     },
                     QueryChunkItem {
                         index: 5,
                         id: "item5".to_string(),
-                        partition_key_value: "partition1".to_string()
+                        partition_key_value: "partition1".to_string(),
                     },
                 ],
             },
         ];
 
-        let mut producer = ItemProducer::read_many(query_chunks);
+        let mut producer = ItemProducer::read_many(query_chunks, vec!["/pk".to_string()]);
 
         let items = run_producer(
             &mut producer,

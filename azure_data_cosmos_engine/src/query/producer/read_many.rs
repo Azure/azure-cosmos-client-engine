@@ -11,7 +11,7 @@ use crate::{
         QueryChunkItem, QueryResult,
     },
     ErrorKind,
- };
+};
 
 use super::{create_query_chunk_states, state::QueryChunkState};
 
@@ -60,7 +60,8 @@ impl ReadManyStrategy {
 
         // Find the query chunk state by request_id (which matches the chunk's index)
         let query_chunk_state = self
-            .query_chunk_states.get_mut(request_id as usize)
+            .query_chunk_states
+            .get_mut(request_id as usize)
             .ok_or_else(|| {
                 ErrorKind::InternalError.with_message(format!(
                     "no query chunk state found for request_id/index {}",
@@ -110,7 +111,7 @@ impl ReadManyStrategy {
     pub fn produce_item(&mut self) -> crate::Result<PipelineNodeResult> {
         let value = self.items.pop_front();
         let terminated =
-            self.items.is_empty() && self.query_chunk_states.iter().all(|state| state.done());
+            self.items.is_empty() && self.remaining_chunks == 0;
         Ok(PipelineNodeResult { value, terminated })
     }
 }
@@ -118,7 +119,7 @@ impl ReadManyStrategy {
 fn extract_id_from_query_result(query_result: &QueryResult) -> Option<String> {
     #[derive(Deserialize)]
     struct ItemWithId {
-        pub id: String
+        pub id: String,
     }
     let QueryResult::RawPayload(payload) = query_result else {
         return None;
