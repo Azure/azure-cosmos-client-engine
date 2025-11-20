@@ -3,6 +3,7 @@
 ## 0.3.0 (2025-11-20)
 
 ### Features Added
+* Added ability to execute `readMany` requests against the client engine. - [PR 53](https://github.com/Azure/azure-cosmos-client-engine/pull/53)
 
 * Support for Hybrid and Full-Text queries - [PR 51](https://github.com/Azure/azure-cosmos-client-engine/pull/51)
 * Update APIs to support providing multiple results to the pipeline at once - [PR 51](https://github.com/Azure/azure-cosmos-client-engine/pull/51)

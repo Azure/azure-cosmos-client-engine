@@ -8,6 +8,7 @@ package azcosmoscx
 import "C"
 import (
 	"bytes"
+	"encoding/json"
 	"runtime"
 	"strings"
 	"unsafe"
@@ -25,6 +26,29 @@ func newPipeline(query string, queryPlan string, partitionKeyRanges string) (*Pi
 	pkRangesC := makeStr(partitionKeyRanges)
 
 	r := C.cosmoscx_v0_query_pipeline_create(queryC, queryPlanC, pkRangesC)
+	if err := mapErr(r.code); err != nil {
+		return nil, err
+	}
+
+	return &Pipeline{r.value}, nil
+}
+
+func newReadManyPipeline(itemIdentities []queryengine.ItemIdentity, pkranges string, pkKind string, pkVersion int8, pkPaths []string) (*Pipeline, error) {
+	newItemIdentitiesJSON, err := json.Marshal(itemIdentities)
+	if err != nil {
+		return nil, err
+	}
+	pkPathsJSON, err := json.Marshal(pkPaths)
+	if err != nil {
+		return nil, err
+	}
+	identitiesC := makeStr(string(newItemIdentitiesJSON))
+	pkRangesC := makeStr(pkranges)
+	pkKindC := makeStr(pkKind)
+	pkVersionC := C.uint8_t(pkVersion)
+	pkPathsC := makeStr(string(pkPathsJSON))
+
+	r := C.cosmoscx_v0_readmany_pipeline_create(identitiesC, pkRangesC, pkKindC, pkVersionC, pkPathsC)
 	if err := mapErr(r.code); err != nil {
 		return nil, err
 	}

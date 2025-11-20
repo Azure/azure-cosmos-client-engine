@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-use std::fmt::Write;
+use std::{fmt::Write, str::FromStr};
 
 use crate::murmur_hash::{murmurhash3_128, murmurhash3_32};
 
@@ -30,11 +30,23 @@ pub enum PartitionKeyValue {
     Undefined,
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone, Copy)]
 pub enum PartitionKeyKind {
     Hash,
     MultiHash,
     Other,
+}
+
+impl FromStr for PartitionKeyKind {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "hash" => Ok(PartitionKeyKind::Hash),
+            "multihash" => Ok(PartitionKeyKind::MultiHash),
+            _ => Ok(PartitionKeyKind::Other),
+        }
+    }
 }
 
 impl PartitionKeyValue {
