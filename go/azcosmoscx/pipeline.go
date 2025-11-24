@@ -33,7 +33,7 @@ func newPipeline(query string, queryPlan string, partitionKeyRanges string) (*Pi
 	return &Pipeline{r.value}, nil
 }
 
-func newReadManyPipeline(itemIdentities []queryengine.ItemIdentity, pkranges string, pkKind string, pkVersion int8, pkPaths []string) (*Pipeline, error) {
+func newReadManyPipeline(itemIdentities []queryengine.ItemIdentity, pkranges string, pkKind string, pkVersion uint8, pkPaths []string) (*Pipeline, error) {
 	newItemIdentitiesJSON, err := json.Marshal(itemIdentities)
 	if err != nil {
 		return nil, err
