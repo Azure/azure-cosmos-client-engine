@@ -5,8 +5,6 @@ use std::vec;
 
 use azure_data_cosmos_engine::query::{DataRequest, ItemIdentity, QueryResult};
 
-use pretty_assertions::assert_eq;
-
 use mock_engine::{Container, Engine};
 
 use crate::mock_engine::EngineResult;
@@ -98,7 +96,7 @@ pub fn read_many() -> Result<(), Box<dyn std::error::Error>> {
     // We should see the first call return all of the relevant query requests
     // We should see the second call return all of the relevant items across partitions
     let results = engine.execute()?;
-    
+
     // Note: The order of partition results is non-deterministic and depends on which partition responds first
     // We need to check for either ordering: even-first or odd-first
     let expected_even_first = vec![
