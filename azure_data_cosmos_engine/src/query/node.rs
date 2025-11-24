@@ -65,7 +65,6 @@ impl<'a> PipelineSlice<'a> {
                 result
             }
             None => {
-                tracing::debug!("retrieving item from producer");
                 let result = self.producer.produce_item()?;
                 Ok(result)
             }

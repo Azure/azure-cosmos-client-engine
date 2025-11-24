@@ -3,11 +3,12 @@
 
 use crate::query::{
     node::PipelineNodeResult, plan::HybridSearchQueryInfo, query_result::QueryResultShape,
-    DataRequest, PartitionKeyRange, SortOrder,
+    DataRequest, PartitionKeyRange, QueryChunk, QueryChunkItem, SortOrder,
 };
 
 mod hybrid;
 mod non_streaming;
+mod read_many;
 mod sorting;
 mod state;
 mod streaming;
@@ -15,7 +16,9 @@ mod unordered;
 
 use hybrid::HybridSearchStrategy;
 use non_streaming::NonStreamingStrategy;
+use read_many::ReadManyStrategy;
 use state::PartitionState;
+use state::QueryChunkState;
 use streaming::StreamingStrategy;
 use unordered::UnorderedStrategy;
 
@@ -40,6 +43,9 @@ pub enum ItemProducer {
     Streaming(StreamingStrategy),
     /// Results should be merged by comparing the sort order of the `ORDER BY` items. Results cannot be streamed, because each partition will provide data in a local order.
     NonStreaming(NonStreamingStrategy),
+    /// Results should be merged by reading each partition individually, exhausting one partition before moving to the next.
+    /// Final ordering should happen once all results are available.
+    ReadMany(ReadManyStrategy),
     /// The query is a hybrid search query.
     Hybrid(HybridSearchStrategy),
 }
@@ -54,6 +60,62 @@ pub fn create_partition_state(
         .collect::<Vec<_>>();
     partitions.sort();
     partitions
+}
+
+pub fn create_query_chunk_states(
+    query_chunks: &Vec<QueryChunk>,
+    pk_paths: Vec<String>,
+) -> Vec<QueryChunkState> {
+    let mut chunk_states = Vec::with_capacity(query_chunks.len());
+
+    for i in 0..query_chunks.len() {
+        let query = create_query_chunk_query(&query_chunks[i].items, &pk_paths);
+        // For QueryChunkState, we will use the index as the indentifier as opposed to pkrange ID.
+        let chunk = QueryChunkState::new(i, query_chunks[i].pk_range_id.clone(), query);
+        tracing::debug!("created query chunk state: {:?}", chunk);
+        chunk_states.push(chunk);
+    }
+    chunk_states
+}
+
+fn create_query_chunk_query(
+    query_chunk_items: &Vec<QueryChunkItem>,
+    pk_paths: &Vec<String>,
+) -> String {
+    if query_chunk_items.is_empty() {
+        return "SELECT * FROM c WHERE 1 = 0".to_string();
+    }
+
+    if pk_paths.len() == 1 {
+        // strip the leading "/" to get just the partition key property name
+        let pk_path = pk_paths[0].trim_start_matches('/');
+
+        let conditions = query_chunk_items
+            .iter()
+            .map(|item| {
+                format!(
+                    "(c.id='{}' AND c.{}='{}')",
+                    item.id, pk_path, item.partition_key_value
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(" OR ");
+
+        let query = format!("SELECT * FROM c WHERE ( {conditions} )");
+        tracing::debug!(query_len = query.len(), "generated query length");
+        query
+    } else {
+        // here we could have logic for HPK later down the line - for now we just do queries with only ID values
+        let conditions = query_chunk_items
+            .iter()
+            .map(|item| format!("(c.id = '{}')", item.id))
+            .collect::<Vec<_>>()
+            .join(" OR ");
+
+        let query = format!("SELECT * FROM c WHERE ( {conditions} )");
+        tracing::debug!(query_len = query.len(), "generated query");
+        query
+    }
 }
 
 impl ItemProducer {
@@ -105,6 +167,13 @@ impl ItemProducer {
         Self::NonStreaming(NonStreamingStrategy::new(pkranges, sorting))
     }
 
+    /// Creates a producer for read many operations.
+    ///
+    /// This strategy processes query chunks sequentially, where each chunk will map to its own query and partition key range.
+    pub fn read_many(query_chunks: Vec<QueryChunk>, pk_paths: Vec<String>) -> Self {
+        Self::ReadMany(ReadManyStrategy::new(query_chunks, pk_paths))
+    }
+
     /// Creates a producer for Hybrid search queries (which include Full-Text searches, and Rank Fusion operations)
     pub fn hybrid(
         pkranges: impl IntoIterator<Item = PartitionKeyRange>,
@@ -123,6 +192,7 @@ impl ItemProducer {
             ItemProducer::Unordered(s) => Ok(s.requests()),
             ItemProducer::Streaming(s) => Ok(s.requests()),
             ItemProducer::NonStreaming(s) => Ok(s.requests()),
+            ItemProducer::ReadMany(s) => Ok(s.requests()),
             ItemProducer::Hybrid(s) => s.requests(),
         }
     }
@@ -139,6 +209,7 @@ impl ItemProducer {
             ItemProducer::Unordered(s) => s.provide_data(pkrange_id, data, continuation),
             ItemProducer::Streaming(s) => s.provide_data(pkrange_id, data, continuation),
             ItemProducer::NonStreaming(s) => s.provide_data(pkrange_id, data, continuation),
+            ItemProducer::ReadMany(s) => s.provide_data(request_id, data, continuation),
             ItemProducer::Hybrid(s) => s.provide_data(pkrange_id, request_id, data, continuation),
         }
     }
@@ -150,6 +221,7 @@ impl ItemProducer {
             ItemProducer::Unordered(s) => s.produce_item(),
             ItemProducer::Streaming(s) => s.produce_item(),
             ItemProducer::NonStreaming(s) => s.produce_item(),
+            ItemProducer::ReadMany(s) => s.produce_item(),
             ItemProducer::Hybrid(s) => s.produce_item(),
         }
     }
@@ -565,6 +637,102 @@ mod tests {
                 Item::new("item2", "partition0", "partition0 / item2"),
                 Item::new("item3", "partition1", "partition1 / item3"),
                 Item::new("item4", "partition1", "partition1 / item4"),
+                Item::new("item5", "partition1", "partition1 / item5"),
+            ],
+            items
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    pub fn readmany_strategy_returns_items_in_original_order(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let mut partition0: VecDeque<TestPage> = VecDeque::new();
+        let mut partition1: VecDeque<TestPage> = VecDeque::new();
+        // partition0 will return: item2, item0, item4
+        // partition1 will return: item1, item3, item5
+
+        partition0.push_back((
+            None,
+            vec![
+                create_item("partition0", "item2", vec![]),
+                create_item("partition0", "item0", vec![]),
+                create_item("partition0", "item4", vec![]),
+            ],
+        ));
+
+        partition1.push_back((
+            None,
+            vec![
+                create_item("partition1", "item1", vec![]),
+                create_item("partition1", "item3", vec![]),
+                create_item("partition1", "item5", vec![]),
+            ],
+        ));
+
+        // The chunks will be distributed across partitions
+        let query_chunks = vec![
+            QueryChunk {
+                pk_range_id: "partition0".to_string(),
+                items: vec![
+                    QueryChunkItem {
+                        index: 0,
+                        id: "item0".to_string(),
+                        partition_key_value: "partition0".to_string(),
+                    },
+                    QueryChunkItem {
+                        index: 2,
+                        id: "item2".to_string(),
+                        partition_key_value: "partition0".to_string(),
+                    },
+                    QueryChunkItem {
+                        index: 4,
+                        id: "item4".to_string(),
+                        partition_key_value: "partition0".to_string(),
+                    },
+                ],
+            },
+            QueryChunk {
+                pk_range_id: "partition1".to_string(),
+                items: vec![
+                    QueryChunkItem {
+                        index: 1,
+                        id: "item1".to_string(),
+                        partition_key_value: "partition1".to_string(),
+                    },
+                    QueryChunkItem {
+                        index: 3,
+                        id: "item3".to_string(),
+                        partition_key_value: "partition1".to_string(),
+                    },
+                    QueryChunkItem {
+                        index: 5,
+                        id: "item5".to_string(),
+                        partition_key_value: "partition1".to_string(),
+                    },
+                ],
+            },
+        ];
+
+        let mut producer = ItemProducer::read_many(query_chunks, vec!["/pk".to_string()]);
+
+        let items = run_producer(
+            &mut producer,
+            HashMap::from([
+                ("partition0".to_string(), partition0),
+                ("partition1".to_string(), partition1),
+            ]),
+        )?;
+
+        // partition0 items first, then partition1 items
+        assert_eq!(
+            vec![
+                Item::new("item2", "partition0", "partition0 / item2"),
+                Item::new("item0", "partition0", "partition0 / item0"),
+                Item::new("item4", "partition0", "partition0 / item4"),
+                Item::new("item1", "partition1", "partition1 / item1"),
+                Item::new("item3", "partition1", "partition1 / item3"),
                 Item::new("item5", "partition1", "partition1 / item5"),
             ],
             items

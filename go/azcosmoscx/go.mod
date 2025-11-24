@@ -5,7 +5,7 @@ go 1.23.3
 replace github.com/Azure/azure-cosmos-client-engine/go/azcosmoscx => ../azcosmoscx
 
 require (
-	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.5.0-beta.3
+	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v1.5.0-beta.4
 	github.com/stretchr/testify v1.10.0
 )
 
