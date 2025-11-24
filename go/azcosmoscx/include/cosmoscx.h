@@ -62,6 +62,10 @@ enum CosmosCxResultCode {
    * See [`ErrorKind::InvalidQuery`].
    */
   COSMOS_CX_RESULT_CODE_INVALID_QUERY = -11,
+  /**
+   * See [`ErrorKind::IllegalArgumentError`].
+   */
+  COSMOS_CX_RESULT_CODE_ILLEGAL_ARGUMENT_ERROR = -12,
 };
 typedef intptr_t CosmosCxResultCode;
 
