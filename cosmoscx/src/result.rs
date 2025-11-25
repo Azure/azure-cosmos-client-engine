@@ -48,7 +48,6 @@ pub enum ResultCode {
     /// See [`ErrorKind::UnsupportedFeature`].
     UnsupportedFeature = -12,
 
-    
     /// See [`ErrorKind::IllegalArgumentError`].
     IllegalArgumentError = -13,
 }
