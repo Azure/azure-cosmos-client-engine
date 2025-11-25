@@ -104,8 +104,8 @@ pub fn top() -> Result<(), Box<dyn std::error::Error>> {
             EngineResult {
                 items: vec![],
                 requests: vec![
-                    DataRequest::new(0, "partition0", None),
-                    DataRequest::new(0, "partition1", None),
+                    DataRequest::new(0, "partition0", None, None),
+                    DataRequest::new(0, "partition1", None, None),
                 ],
                 terminated: false,
             },
@@ -117,7 +117,7 @@ pub fn top() -> Result<(), Box<dyn std::error::Error>> {
                     json!("partition1/item1"),
                     json!("partition1/item2"),
                 ],
-                requests: vec![DataRequest::new(1, "partition1", Some("3".into())),],
+                requests: vec![DataRequest::new(1, "partition1", Some("3".into()), None),],
                 terminated: false,
             },
             EngineResult {
@@ -179,16 +179,16 @@ pub fn offset_limit() -> Result<(), Box<dyn std::error::Error>> {
             EngineResult {
                 items: vec![],
                 requests: vec![
-                    DataRequest::new(0, "partition0", None),
-                    DataRequest::new(0, "partition1", None),
+                    DataRequest::new(0, "partition0", None, None),
+                    DataRequest::new(0, "partition1", None, None),
                 ],
                 terminated: false
             },
             EngineResult {
                 items: vec![],
                 requests: vec![
-                    DataRequest::new(1, "partition0", Some("2".into())),
-                    DataRequest::new(1, "partition1", Some("2".into()))
+                    DataRequest::new(1, "partition0", Some("2".into()), None),
+                    DataRequest::new(1, "partition1", Some("2".into()), None),
                 ],
                 terminated: false
             },
@@ -198,7 +198,7 @@ pub fn offset_limit() -> Result<(), Box<dyn std::error::Error>> {
                     json!("partition1/item2"),
                     json!("partition0/item2"),
                 ],
-                requests: vec![DataRequest::new(2, "partition1", Some("4".into())),],
+                requests: vec![DataRequest::new(2, "partition1", Some("4".into()), None),],
                 terminated: true
             },
         ],

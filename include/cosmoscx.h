@@ -63,9 +63,13 @@ enum CosmosCxResultCode {
    */
   COSMOS_CX_RESULT_CODE_INVALID_QUERY = -11,
   /**
+   * See [`ErrorKind::UnsupportedFeature`].
+   */
+  COSMOS_CX_RESULT_CODE_UNSUPPORTED_FEATURE = -12,
+  /**
    * See [`ErrorKind::IllegalArgumentError`].
    */
-  COSMOS_CX_RESULT_CODE_ILLEGAL_ARGUMENT_ERROR = -12,
+  COSMOS_CX_RESULT_CODE_ILLEGAL_ARGUMENT_ERROR = -13,
 };
 typedef intptr_t CosmosCxResultCode;
 
@@ -358,12 +362,28 @@ void cosmoscx_v0_tracing_enable(void);
  * Creates a new query pipeline from a JSON query plan and list of partitions.
  *
  * # Parameters
+ * - `query`: A [`Str`] containing the query to be executed.
  * - `query_plan_json`: A [`Str`] containing the serialized query plan, as recieved from the gateway, in JSON.
  * - `pkranges`: A [`Str`] containing the serialized partition key ranges list, as recieved from the gateway, in JSON.
  */
 struct CosmosCxFfiResult_Pipeline cosmoscx_v0_query_pipeline_create(CosmosCxStr query,
                                                                     CosmosCxStr query_plan_json,
                                                                     CosmosCxStr pkranges);
+
+/**
+ * Creates the relevant partition-scoped queries for executing the read many operation along with the pipeline to run them.
+ *
+ * # Parameters
+ * - `item_identities`: A [`Str`] containing the serialized item identities in JSON.
+ * - `pkranges`: A [`Str`] containing the serialized partition key ranges list, as received from the gateway, in JSON.
+ * - `pk_kind`: A [`Str`] containing the partition key kind.
+ * - `pk_version`: The partition key version.
+ */
+struct CosmosCxFfiResult_Pipeline cosmoscx_v0_readmany_pipeline_create(CosmosCxStr item_identities,
+                                                                       CosmosCxStr pkranges,
+                                                                       CosmosCxStr pk_kind,
+                                                                       uint8_t pk_version,
+                                                                       CosmosCxStr pk_paths);
 
 /**
  * Frees the memory associated with a pipeline.

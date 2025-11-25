@@ -1,6 +1,6 @@
 # Release History
 
-## 0.4.0 (Unreleased)
+## 0.5.0 (Unreleased)
 
 ### Features Added
 
@@ -11,6 +11,11 @@
 ### Bugs Fixed
 
 ### Other Change
+
+## 0.4.0 (2025-11-24)
+
+### Features Added
+* Added ability to execute `readMany` requests against the client engine to read multiple items. Results are not guaranteed to be ordered. - [PR 53](https://github.com/Azure/azure-cosmos-client-engine/pull/53)
 
 ## 0.3.0 (2025-11-20)
 
