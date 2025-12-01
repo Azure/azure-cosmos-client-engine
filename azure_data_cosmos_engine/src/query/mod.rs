@@ -172,7 +172,8 @@ fn partition_items_by_range(
         // TODO: Also needs PK to be updated here
 
         let epk_range_string =
-            get_hashed_partition_key_string(&[pk_value_val], pk_kind, pk_version);
+            get_hashed_partition_key_string(&[pk_value_val], pk_kind, pk_version)
+                .map_err(|e| format!("Failed to compute effective partition key: {}", e))?;
         let epk_range = QueryRange {
             min: epk_range_string.clone(),
             max: epk_range_string,

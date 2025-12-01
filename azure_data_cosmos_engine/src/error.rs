@@ -59,6 +59,9 @@ pub enum ErrorKind {
 
     /// Indicates that a Python error occurred. The source of the error will be the original Python error.
     PythonError,
+
+    /// Indicates that an illegal argument was provided.
+    IllegalArgumentError,
 }
 
 impl Display for ErrorKind {
@@ -75,6 +78,7 @@ impl Display for ErrorKind {
             ErrorKind::InvalidRequestId => write!(f, "invalid request ID provided"),
             ErrorKind::InvalidQuery => write!(f, "invalid query"),
             ErrorKind::PythonError => write!(f, "python error"),
+            ErrorKind::IllegalArgumentError => write!(f, "illegal argument provided"),
             ErrorKind::UnsupportedFeature => write!(f, "unsupported feature"),
         }
     }

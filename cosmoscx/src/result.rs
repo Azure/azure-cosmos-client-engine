@@ -47,6 +47,9 @@ pub enum ResultCode {
 
     /// See [`ErrorKind::UnsupportedFeature`].
     UnsupportedFeature = -12,
+
+    /// See [`ErrorKind::IllegalArgumentError`].
+    IllegalArgumentError = -13,
 }
 
 impl From<azure_data_cosmos_engine::Error> for ResultCode {
@@ -72,6 +75,7 @@ impl From<ErrorKind> for ResultCode {
             ErrorKind::InvalidQuery => ResultCode::InvalidQuery,
             ErrorKind::PythonError => ResultCode::InternalError,
             ErrorKind::UnsupportedFeature => ResultCode::UnsupportedFeature,
+            ErrorKind::IllegalArgumentError => ResultCode::IllegalArgumentError,
         }
     }
 }

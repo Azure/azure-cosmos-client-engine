@@ -66,6 +66,10 @@ enum CosmosCxResultCode {
    * See [`ErrorKind::UnsupportedFeature`].
    */
   COSMOS_CX_RESULT_CODE_UNSUPPORTED_FEATURE = -12,
+  /**
+   * See [`ErrorKind::IllegalArgumentError`].
+   */
+  COSMOS_CX_RESULT_CODE_ILLEGAL_ARGUMENT_ERROR = -13,
 };
 typedef intptr_t CosmosCxResultCode;
 
