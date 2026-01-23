@@ -12,7 +12,7 @@
 
 ### Other Changes
 
-* Removed `ring` cryptographic library dependency by upgrading `reqwest` to 0.13.1. - [PR 56](https://github.com/Azure/azure-cosmos-client-engine/pull/56)
+* Removed `ring` cryptographic library dependency. - [PR 56](https://github.com/Azure/azure-cosmos-client-engine/pull/56)
 
 ## 0.4.0 (2025-11-24)
 
