@@ -132,7 +132,10 @@ CosmosClient client;
 if (string.IsNullOrEmpty(key) || forceAad)
 {
     Console.WriteLine("Using AAD authentication.");
+    
+    // CodeQL [SM05137] While this repo IS a production repo producing a library, this tool is a development-time tool and using development-time credentials is by design.
     var cred = new Azure.Identity.DefaultAzureCredential();
+
     client = new CosmosClient(endpoint, cred, options);
 }
 else
