@@ -1,6 +1,6 @@
 module github.com/Azure/azure-cosmos-client-engine/go/integration-tests
 
-go 1.23.6
+go 1.25.0
 
 replace github.com/Azure/azure-cosmos-client-engine/go/azcosmoscx => ../azcosmoscx
 
@@ -15,8 +15,8 @@ require (
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
-	golang.org/x/net v0.42.0 // indirect
-	golang.org/x/text v0.27.0 // indirect
+	golang.org/x/net v0.55.0 // indirect
+	golang.org/x/text v0.37.0 // indirect
 )
 
 require (
