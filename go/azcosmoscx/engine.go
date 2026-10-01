@@ -10,6 +10,8 @@ package azcosmoscx
 import "C"
 
 import (
+	"errors"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos/queryengine"
 )
 
@@ -114,12 +116,8 @@ func (p *clientEngineQueryPipeline) ProvideData(results []queryengine.QueryResul
 	return p.pipeline.ProvideData(results)
 }
 
-// CreateReadManyPipeline creates the relevant partition-scoped queries for executing the read many operation along with the pipeline to run them.
+// CreateReadManyPipeline is not supported. ReadMany support has been removed from the client engine.
+// The method remains only to satisfy the [queryengine.QueryEngine] interface.
 func (e *nativeQueryEngine) CreateReadManyPipeline(items []queryengine.ItemIdentity, pkranges string, pkKind string, pkVersion uint8, pkPaths []string) (queryengine.QueryPipeline, error) {
-	pipeline, err := newReadManyPipeline(items, pkranges, pkKind, pkVersion, pkPaths)
-	if err != nil {
-		return nil, err
-	}
-
-	return &clientEngineQueryPipeline{pipeline, "", false}, nil
+	return nil, errors.New("azcosmoscx: ReadMany is not supported by the client engine")
 }

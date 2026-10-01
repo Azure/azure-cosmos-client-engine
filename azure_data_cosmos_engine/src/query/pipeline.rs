@@ -6,12 +6,10 @@ use std::ffi::CStr;
 use crate::{
     query::{
         node::AggregatePipelineNode, plan::HybridSearchQueryInfo, query_result::QueryResultShape,
-        ItemIdentity, QueryChunk, QueryInfo,
+        QueryInfo,
     },
     ErrorKind,
 };
-
-use crate::hash::PartitionKeyKind;
 
 use super::{
     node::{LimitPipelineNode, OffsetPipelineNode, PipelineNode, PipelineSlice},
@@ -350,47 +348,12 @@ impl QueryPipeline {
             }
         }
 
-        // For ReadMany, we aggregate all the requests from the available producers in order to parallelize them.
         let requests = self.producer.data_requests()?;
 
         Ok(PipelineResponse {
             items,
             requests,
             terminated: self.terminated,
-        })
-    }
-
-    /// Creates a new read many pipeline.
-    ///
-    /// # Parameters
-    /// * `item_identities` - An iterator that produces the [`ItemIdentity`]s to be read.
-    /// * `pkranges` - An iterator that produces the [`PartitionKeyRange`]s for the container to use for query generation.
-    /// * `pk_kind` - The partition key kind.
-    /// * `pk_version` - The partition key version.
-    #[tracing::instrument(level = "debug", skip_all, err)]
-    pub fn for_read_many(
-        item_identities: impl IntoIterator<Item = ItemIdentity>,
-        pkranges: impl IntoIterator<Item = PartitionKeyRange>,
-        pk_kind: PartitionKeyKind,
-        pk_version: u8,
-        pk_paths: Vec<String>,
-    ) -> crate::Result<Self> {
-        let mut pkranges: Vec<PartitionKeyRange> = pkranges.into_iter().collect();
-        // Grab item identities and start grouping them by partition key range.
-        // Output should be a list of tuples of (pkrangeid, query_string) to go over and generate item producers for.
-        let item_identities: Vec<ItemIdentity> = item_identities.into_iter().collect();
-        // Create query chunks from the partitioned items, splitting total list into 1000 max item queries.
-        // Each chunk is represented as vector of mappings of partition key range IDs to lists of tuples containing the original index, item ID, and partition key value.
-        let query_chunks =
-            QueryChunk::from_identities(item_identities, &mut pkranges, pk_kind, pk_version);
-        // Create the item producer for read many.
-        let producer = ItemProducer::read_many(query_chunks, pk_paths);
-        let pipeline = Vec::new();
-        Ok(Self {
-            query: None,
-            pipeline,
-            producer,
-            terminated: false,
         })
     }
 }

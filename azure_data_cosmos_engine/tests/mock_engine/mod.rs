@@ -10,12 +10,11 @@
 
 #![allow(dead_code)]
 
-use std::{collections::BTreeMap, fmt::Debug, str::FromStr};
+use std::{collections::BTreeMap, fmt::Debug};
 
 use azure_data_cosmos_engine::query::{
-    DataRequest, ItemIdentity, PartitionKeyRange, QueryPipeline, QueryPlan, QueryResult,
+    DataRequest, PartitionKeyRange, QueryPipeline, QueryPlan, QueryResult,
 };
-use azure_data_cosmos_engine::PartitionKeyKind;
 use serde::Serialize;
 use tracing_subscriber::EnvFilter;
 
@@ -75,67 +74,6 @@ impl Engine {
             });
         let partitions = partitions.collect::<Vec<_>>();
         let pipeline = QueryPipeline::new(query, plan, partitions)?;
-        Ok(Engine {
-            container,
-            pipeline,
-            request_page_size,
-        })
-    }
-
-    /// Creates a new engine with the given container and query plan to run a ReadMany operation.
-    ///
-    /// # Parameters
-    ///
-    /// * `container` - The container to query.
-    /// * `item_identities` - The item identities to read.
-    /// * `request_page_size` - Limits the number of items returned in each page of results when querying a partition, see pagination below.
-    ///
-    /// # Pagination
-    ///
-    /// NOTE: For now we are just matching the page size to the expected return size per partition.
-    pub fn for_read_many(
-        container: Container,
-        item_identities: Vec<ItemIdentity>,
-        request_page_size: usize,
-    ) -> Result<Self, azure_data_cosmos_engine::Error> {
-        // Use the actual Cosmos DB V2 partition ranges format
-        // These match the feed ranges returned by the gateway for a 2-partition container
-        let partitions = container
-            .partitions
-            .keys()
-            .enumerate()
-            .map(|(index, pkrange_id)| {
-                match index {
-                    0 => {
-                        // First partition: empty to 1FFF...
-                        PartitionKeyRange::new(
-                            pkrange_id.clone(),
-                            "",
-                            "1FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
-                        )
-                    }
-                    1 => {
-                        // Second partition: 1FFF... to FF (which represents max)
-                        PartitionKeyRange::new(
-                            pkrange_id.clone(),
-                            "1FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
-                            "FF",
-                        )
-                    }
-                    _ => {
-                        panic!("ReadMany test currently only supports 2 partitions")
-                    }
-                }
-            });
-
-        let partitions = partitions.collect::<Vec<_>>();
-        let pipeline = QueryPipeline::for_read_many(
-            item_identities,
-            partitions,
-            PartitionKeyKind::from_str("Hash").unwrap(),
-            2,
-            vec!["/pk".to_string()],
-        )?;
         Ok(Engine {
             container,
             pipeline,
