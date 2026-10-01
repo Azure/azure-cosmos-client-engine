@@ -8,6 +8,8 @@
 
 ### Breaking Changes
 
+* Removed `readMany` support (`cosmoscx_v0_readmany_pipeline_create`, `QueryPipeline::for_read_many`). The Go `CreateReadManyPipeline` method remains only to satisfy the `queryengine.QueryEngine` interface and now returns an error. This also removes query construction from unescaped item IDs and partition key values.
+
 ### Bugs Fixed
 
 ### Other Changes
