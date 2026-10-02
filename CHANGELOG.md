@@ -1,6 +1,18 @@
 # Release History
 
-## 0.5.0 (Unreleased)
+## 0.6.0 (Unreleased)
+
+### Breaking Changes
+
+* Removed the `readMany` feature and related pipeline support from the client engine. - [PR 77](https://github.com/Azure/azure-cosmos-client-engine/pull/77)
+
+### Bugs Fixed
+
+### Other Changes
+
+* Removed `ring` cryptographic library dependency. - [PR 56](https://github.com/Azure/azure-cosmos-client-engine/pull/56)
+
+## 0.5.0 (2026-01-26)
 
 ### Features Added
 
@@ -9,12 +21,6 @@
 ### Breaking Changes
 
 * Removed `readMany` support (`cosmoscx_v0_readmany_pipeline_create`, `QueryPipeline::for_read_many`). The Go `CreateReadManyPipeline` method remains only to satisfy the `queryengine.QueryEngine` interface and now returns an error. This also removes query construction from unescaped item IDs and partition key values.
-
-### Bugs Fixed
-
-### Other Changes
-
-* Removed `ring` cryptographic library dependency. - [PR 56](https://github.com/Azure/azure-cosmos-client-engine/pull/56)
 
 ## 0.4.0 (2025-11-24)
 
